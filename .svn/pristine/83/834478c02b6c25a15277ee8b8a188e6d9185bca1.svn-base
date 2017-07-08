@@ -1,0 +1,139 @@
+package controllers
+
+import javax.inject.Inject
+
+import helpers.AuthenticatedAction
+import models._
+import models.integration.BSEJsonFormats._
+import models.integration._
+import models.integration.enumerations.{FirstOrderEnum, _}
+import org.slf4j.LoggerFactory
+import play.api.libs.json.Json
+import play.api.mvc.{Action, Controller}
+import repository.module.UserRepository
+import service.UserService
+import service.integration.{BSEClientService, BSEStarOrderEntryServiceImpl, BSEStarUploadServiceImpl}
+import utils.RequestUtils
+
+import scala.concurrent.{ExecutionContext, Future}
+
+/**
+  *
+  */
+class BSEStarController @Inject()(implicit ec: ExecutionContext, bseStarOrderEntryService: BSEStarOrderEntryServiceImpl,
+                                  bseUploadService: BSEStarUploadServiceImpl, userService: UserService, userRepository: UserRepository,
+                                  bSEClientService: BSEClientService, auth: AuthenticatedAction) extends Controller {
+
+  val logger, log = LoggerFactory.getLogger(classOf[BSEStarController])
+
+  def BSERegistration = auth.Action.async { request => {
+    userService.getUsernameFromRequest(request).flatMap { username => {
+      logger.debug("Username " + username)
+      /*val username = "naga@naga.com"
+      val userid = 16*/
+      val ipAddress = RequestUtils.getIpAddress(request)
+      userRepository.getUserIdByUsername(username.get).flatMap { userid => {
+        bSEClientService.bseRegistration(userid, ipAddress, username).map(obj => {
+          Ok(obj)
+        })
+      }
+      }
+    }
+    }
+  }
+  }
+
+  def BSERegisterFatca = auth.Action.async { request => {
+    val ipAddress = RequestUtils.getIpAddress(request)
+    //    val isUpdate = false; //bSEClientService.getBSERegistrationStatus(userid)// Call from FCEUBD
+    userService.getUsernameFromRequest(request).flatMap(username => {
+      userRepository.getUserIdByUsername(username.get).flatMap(userid => {
+        bSEClientService.getBSERegistrationStatus(userid).flatMap(isUpdate => {
+          userRepository.getUserFatca(userid).flatMap(userFatca => {
+            userRepository.getUserAddress(userid).flatMap(userAddress => {
+              userRepository.getUserBasic(userid).flatMap(userBasic => {
+                bSEClientService.uploadFatca(ipAddress, isUpdate, userid, username.get, userBasic, userAddress, userFatca).map(response => {
+                  Ok(Json.obj("success" -> response))
+                })
+              })
+            })
+          })
+        })
+      })
+    })
+  }
+  }
+
+  def checkBseAndFatcaStatus = auth.Action.async { request => {
+    val ipAddress = RequestUtils.getIpAddress(request)
+    var bseAndFatcaRegistered = false
+    userService.getUsernameFromRequest(request).flatMap(username => {
+      userRepository.getUserIdByUsername(username.get).flatMap(userid => {
+        bSEClientService.getBSERegistrationStatus(userid).flatMap(isBseDone => {
+          if (isBseDone) {
+            bSEClientService.getBSEFatcaStatus(userid).flatMap(isBseFatcaDone => {
+              if (isBseFatcaDone) {
+                Future.apply(Ok(Json.obj("bseclient" -> true, "bsefatca" -> true, "msg" -> "all is well")))
+              }
+              else {
+                userRepository.getUserFatca(userid).flatMap(userFatca => {
+                  userRepository.getUserAddress(userid).flatMap(userAddress => {
+                    userRepository.getUserBasic(userid).flatMap(userBasic => {
+                      bSEClientService.uploadFatca(ipAddress, isBseDone, userid, username.get, userBasic, userAddress, userFatca).map(response => {
+                        Ok(Json.obj("bseclient" -> true, "bsefatca" -> response, "msg" -> "hope all is well"))
+                      })
+                    })
+                  })
+                })
+              }
+            })
+          }
+          else {
+            userRepository.getUserBasic(userid).flatMap(userBasic => {
+              userRepository.getUserAddress(userid).flatMap(userAddress => {
+                userRepository.getUserFatca(userid).flatMap(userFatca => {
+                  userRepository.getUserBank(userid).flatMap(userBank => {
+                    bSEClientService.registerClient(userid, username.get, userBasic, userAddress, userBank, userFatca).flatMap(response => {
+                      if (response) {
+                        val ipAddress = RequestUtils.getIpAddress(request)
+                        bSEClientService.getBSERegistrationStatus(userid).flatMap(isUpdate => {
+                          bSEClientService.uploadFatca(ipAddress, isUpdate, userid, username.get, userBasic, userAddress, userFatca).map(resFatca => {
+                            Ok(Json.obj("bseclient" -> true, "bsefatca" -> resFatca, "msg" -> "hope all is well"))
+                          })
+                        })
+                      }
+                      else {
+                        Future.apply(Ok(Json.obj("bseclient" -> false, "bsefatca" -> false, "msg" -> "this sucks")))
+                      }
+                    })
+                    /* bSEClientService.uploadFatca(ipAddress,false,userid, username, userBasic, userAddress, userBank, userFatca).map(response=>{
+                       Ok(Json.obj("success" -> response))
+                     })*/
+                  })
+                })
+              })
+            })
+          }
+        })
+      })
+    })
+  }
+  }
+
+  def checkBseStatus = auth.Action.async { request => {
+    userService.getUseridFromRequest(request).flatMap(userid => {
+      if (userid.isEmpty) {
+        Future {
+          Ok(Json.obj("success" -> false, "message" -> "Invalid User in request"))
+        }
+      } else {
+        bSEClientService.getBSERegistrationStatus(userid.get).flatMap(isBseDone => {
+          bSEClientService.getBSEFatcaStatus(userid.get).map(isFatcaDone =>{
+            Ok(Json.obj("success" -> true, "bseclient" -> isBseDone, "bsefatca" -> isFatcaDone))
+          })
+        })
+      }
+    })
+  }
+  }
+}

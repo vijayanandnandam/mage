@@ -1,0 +1,18 @@
+bse.getPassword.response.errorMessage="Invalid Details"
+bse.orderEntry.response.errorMessage="Order Error Occured"
+bse.sipOrderEntry.response.errorMessage="Sip Order Error Occured"
+bse.xsipOrderEntry.response.errorMessage="XSip Order Error Occured"
+bse.spreadOrderEntry.response.errorMessage="Spread Order Error Occured"
+bse.switchOrderEntry.response.errorMessage="Switch Order Error Occured"
+
+bse.ws.qName="http://www.w3.org/2005/08/addressing"
+
+bse.mfOrderEntry.getPassword.action="http://bsestarmf.in/MFOrderEntry/getPassword"
+bse.mfOrderEntry.orderEntryParam.action="http://bsestarmf.in/MFOrderEntry/orderEntryParam"
+bse.mfOrderEntry.spreadOrderEntryParam.action="http://bsestarmf.in/MFOrderEntry/spreadOrderEntryParam"
+bse.mfOrderEntry.switchOrderEntryParam.action="http://bsestarmf.in/MFOrderEntry/switchOrderEntryParam"
+bse.mfOrderEntry.sipOrderEntryParam.action="http://bsestarmf.in/MFOrderEntry/sipOrderEntryParam"
+bse.mfOrderEntry.xsipOrderEntryParam.action="http://bsestarmf.in/MFOrderEntry/xsipOrderEntryParam"
+
+bse.mfUpload.getPassword.action="http://bsestarmfdemo.bseindia.com/2016/01/IMFUploadService/getPassword"
+bse.mfUpload.mFAPI.action="http://bsestarmfdemo.bseindia.com/2016/01/IMFUploadService/MFAPI"

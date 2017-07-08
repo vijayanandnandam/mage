@@ -1,0 +1,2 @@
+url.resetPasswordRelPath = "/auth/password-assistance/reset/"
+url.userActivationPath = "/api/user/verification?userid="

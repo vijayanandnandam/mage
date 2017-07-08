@@ -1,0 +1,81 @@
+package service
+
+import javax.inject.Inject
+
+import org.slf4j.LoggerFactory
+import play.modules.reactivemongo.ReactiveMongoApi
+import reactivemongo.api.collections.bson.BSONCollection
+import reactivemongo.api.commands.{UpdateWriteResult, WriteResult}
+import reactivemongo.bson.BSONDocument
+import reactivemongo.core.errors.DatabaseException
+
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.{ExecutionContext, Future}
+import scala.util.{Failure, Success}
+
+class MongoDbService @Inject()(implicit val ec: ExecutionContext, reactiveMongoApi: ReactiveMongoApi) {
+  val logger , log = LoggerFactory.getLogger(classOf[MongoDbService])
+
+  private def mongoDatabase = reactiveMongoApi.database
+
+  def collection(name: String) =  {
+    // on completion callback
+    mongoDatabase.onComplete{
+      case Failure(e) => {
+        logger.error("onComplete >> Failure >> " + e.getMessage)
+      }
+      case Success(s) =>{
+        // commenting as connection is already closed by ReactiveMongoApi.
+        //s.connection.close
+        logger.debug("onComplete >> Success >> "+s.connection.name)
+      }
+    }
+    // in case of any unhandled error on the connection returned below
+    mongoDatabase.recover{
+      case dex: DatabaseException => {
+        //dex.printStackTrace
+        logger.error(dex.getMessage)
+      }
+      case e: Exception => {
+        //e.printStackTrace
+        logger.error(e.getMessage)
+      }
+    }
+    // returning connection to execute query etc.
+    mongoDatabase.map(_.collection[BSONCollection](name))
+  }
+
+  /**
+    * @param coll
+    * @param doc
+    * @return
+    */
+  def findDoc(coll: BSONCollection, query: BSONDocument): Future[BSONDocument] = {
+    coll.find(query).one[BSONDocument].map(doc => doc.get)
+  }
+
+  def insertDoc(coll: BSONCollection, doc: BSONDocument): Future[WriteResult] = {
+    coll.insert(doc).recover {
+      case ex: Exception => {
+        ex.printStackTrace()
+        throw ex
+      };
+    }
+  }
+
+  /**
+    * @param coll
+    * @param selectorDoc
+    * @param modifierDoc
+    */
+
+  def updateDoc(coll: BSONCollection, selectorDoc: BSONDocument, modifierDoc: BSONDocument): Future[UpdateWriteResult] = {
+    val selector = selectorDoc
+    val modifier = BSONDocument("$set" -> modifierDoc)
+    // get a future update
+    coll.update(selector, modifier).recover {
+      case dex: DatabaseException => throw dex;
+    }
+  }
+
+}

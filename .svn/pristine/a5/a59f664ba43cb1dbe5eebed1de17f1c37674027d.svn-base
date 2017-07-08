@@ -1,0 +1,30 @@
+@import _root_.data.model.Tables._
+
+@(user: FcubdRow, link: String)
+
+Dear @if(user.ubdfirstname){ @user.ubdfirstname} else{Investor},
+    Please click on the following link to reset your password
+    @link
+
+    If you did not initiate this request, kindly ignore this email.
+
+    For any queries, you can contact us at:
+    Phone: 022-813456543
+    Email: support@@fincash.com
+
+
+    Please visit our RESOURCE CENTRE (https://www.fincash.com/b/) to know about Mutual Fund Investments and other investment products.
+
+    Disclaimer:
+        The information provided herein is intended only as an indicative guide and a generic description of the
+        products/schemes/services and no representation is given as to the accuracy or completeness of the whole or
+        any part of this information. The details provided herein are tentative and subject to change by the service
+        provider/product manufacturer without any prior information. Potential investors/buyers are advised to make their
+        own enquiries, do their own due diligence and satisfy themselves on all aspects of the products/schemes/services and
+        other term including but not limited to pricing, features, benefits both financial and otherwise before making an
+        investment/buying decision. Since the product and related services are owned and operated by third party,
+        Shepard Technologies Pvt. Ltd. make no warranties or representations express or implied
+        on such product and related services.
+
+    With Warm Regards,
+    Team Fincash

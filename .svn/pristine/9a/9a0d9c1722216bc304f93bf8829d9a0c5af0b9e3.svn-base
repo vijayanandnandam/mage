@@ -1,0 +1,19 @@
+# Routes
+# This file defines all secure routes
+# ~~~~
+
+->         /fund                                           fund.Routes
+->         /sip                                            sip.Routes
+->         /checkout                                       checkout.Routes
+->         /report                                         report.Routes
+->         /user                                           user.Routes
+->         /lookup                                         lookup.Routes
+->          /bse                                           order.Routes
+->          /sendMail                                      mail.Routes
+->          /                                              otp.Routes
+
+# other secured routes
+
+GET       /jwt/getDetails                                 controllers.JWTController.getUserDataFromToken
+
+

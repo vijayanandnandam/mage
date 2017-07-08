@@ -1,0 +1,54 @@
+package service.integration
+
+import java.sql.Time
+import java.util.Date
+import javax.inject.Inject
+
+import constants.{DBConstants, OrderConstants}
+import data.model.Tables.FcbsufRow
+import models.SubOrder
+import repository.module.OrderRepository
+
+import scala.concurrent.{ExecutionContext, Future}
+
+/**
+  * Created by fincash on 05-05-2017.
+  */
+class BSEHelper @Inject()(implicit ec: ExecutionContext,
+                          orderRepository: OrderRepository) extends DBConstants with OrderConstants{
+
+  def getSchemeSuffix(subOrder: SubOrder, orderType:String):Future[String] = {
+
+    orderRepository.getBSESchemeSuffix(subOrder.buySchemeOptionRfnum).map(bsufRow =>{
+      if(bsufRow.isEmpty || !isSuffixValid(subOrder,bsufRow.get, orderType)){
+        ""
+      } else{
+        bsufRow.get.bsufsuffixcode
+      }
+    })
+  }
+
+  def isSuffixValid(subOrder: SubOrder, bsufRow: FcbsufRow, orderType:String):Boolean = {
+
+    if(orderType != BUYSELL_BUY){
+      false
+    } else{
+      if(bsufRow.bsufisamountbased == Y_FLAG && bsufRow.bsufistimebased == Y_FLAG){
+        isThresholdAmountReached(subOrder.amount.get, bsufRow.bsufthresoldamount.get) &&
+          isCutOffTimeReached(bsufRow.bsufbsecutofftime.get)
+      } else if(bsufRow.bsufisamountbased == Y_FLAG ){
+        isThresholdAmountReached(subOrder.amount.get, bsufRow.bsufthresoldamount.get)
+      } else{
+        isCutOffTimeReached(bsufRow.bsufbsecutofftime.get)
+      }
+    }
+  }
+
+  def isThresholdAmountReached(orderAmt:Double, thresholdAmt:Double):Boolean = {
+    orderAmt > thresholdAmt
+  }
+
+  def isCutOffTimeReached(cutOffTime:Time):Boolean = {
+    cutOffTime.before(new Date())
+  }
+}

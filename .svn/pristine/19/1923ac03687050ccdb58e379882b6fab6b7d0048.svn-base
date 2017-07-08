@@ -1,0 +1,158 @@
+package service;
+
+import nu.validator.htmlparser.io.Encoding;
+import org.apache.commons.codec.binary.Base64;
+
+import javax.crypto.Cipher;
+import javax.crypto.NoSuchPaddingException;
+import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.PBEKeySpec;
+import javax.crypto.spec.SecretKeySpec;
+import javax.xml.crypto.dsig.spec.HMACParameterSpec;
+import java.security.NoSuchAlgorithmException;
+import java.security.spec.AlgorithmParameterSpec;
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Created by Fincash on 03-06-2017.
+ */
+public class Checksum {
+
+    private static int pswdIterations = 1000;
+    private static int keySize = 128;
+    String IV_VALUE = PropertiesLoaderService.getConfig().getString("birla.account.ivValue");
+
+    /*public Checksum(String inputString, String saltValue, String timeStamp) { }*/
+    /*String timeStamp = "010217015959";
+    String inputString = "FD|12365h";
+    String saltValue = "123456";
+    //    saltValue = GenerateSaltValue(inputString, saltValue, timeStamp);
+    String encrypt = Encrypt(inputString, GenerateSaltValue(inputString, saltValue, timeStamp), "encrypt");
+    String decrypt = Decrypt(encrypt, GenerateSaltValue(inputString, saltValue, timeStamp), "encrypt");*/
+
+
+    public String Encrypt(String strToEncrypt, String saltValue, String password) {
+
+        byte[] inputString = strToEncrypt.getBytes();      //  Base64.decodeBase64(strToEncrypt);
+        byte[] iv = IV_VALUE.getBytes();
+        byte[] salt = saltValue.getBytes();
+        byte[] pwd = password.getBytes();//.decode(encryptionKey);
+        String returnval = "";
+
+        try {
+            SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1");
+            PBEKeySpec spec = new PBEKeySpec( password.toCharArray(), saltValue.getBytes(), pswdIterations, keySize);
+            SecretKey secretKey = factory.generateSecret(spec);
+            SecretKeySpec skeySpec = new SecretKeySpec(secretKey.getEncoded(), "AES");
+           /* byte[] key = new byte[32];
+            byte[] iv = new byte[16];
+            System.arraycopy(secretKey.getEncoded(), 0, key, 0, 32);
+            System.arraycopy(secretKey.getEncoded(), 32, iv, 0, 16);
+            SecretKeySpec secret = new SecretKeySpec(key, "AES");
+            AlgorithmParameterSpec ivSpec = new IvParameterSpec(iv);
+            Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+            cipher.init(Cipher.ENCRYPT_MODE, secret, ivSpec);
+            byte[] result = cipher.doFinal(strToEncrypt.getBytes("UTF-8"));
+            returnval = new String(result);*/
+            AlgorithmParameterSpec ivSpec = new IvParameterSpec(iv);
+            Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+            cipher.init(Cipher.ENCRYPT_MODE, skeySpec, ivSpec);
+            byte[] enctyptedIVSting = cipher.doFinal(inputString);
+            returnval = new Base64().encodeAsString(enctyptedIVSting);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return returnval;
+    }
+
+
+    public String Decrypt(String strToDecrypt, String saltValue, String password) {
+        byte[] ivstring = strToDecrypt.getBytes();      //  Base64.decodeBase64(strToEncrypt);
+        byte[] salt = saltValue.getBytes();
+        byte[] pwd = password.getBytes();//.decode(encryptionKey);
+        String returnval = "";
+
+        try {
+            SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1");
+            PBEKeySpec spec = new PBEKeySpec( password.toCharArray(), salt, pswdIterations, keySize);
+            SecretKey secretKey = factory.generateSecret(spec);
+            SecretKeySpec skeySpec = new SecretKeySpec(secretKey.getEncoded(), "AES");
+
+            Cipher cipher = Cipher.getInstance("AES/CBC/NoPadding");
+//            HMACParameterSpec hspec = new HMACParameterSpec(16)
+            cipher.init(Cipher.DECRYPT_MODE, skeySpec);
+            byte[] enctyptedIVSting = cipher.doFinal(ivstring);
+            returnval = new Base64().encodeAsString(enctyptedIVSting);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return returnval;
+    }
+
+
+    /*private static ICryptoTransform GetCryptoTransform(AesCryptoServiceProvider csp, bool encrypting, String saltValue, String password) {
+
+        csp.Mode = CipherMode.CBC;
+        csp.Padding = PaddingMode.PKCS7;
+        var passWord = password;
+
+        var salt = saltValue;
+
+        //a random Init. Vector. just for testing
+        String iv = "e675f725e675f725";
+
+        var spec = new Rfc2898DeriveBytes(Encoding.UTF8.GetBytes(passWord), Encoding.UTF8.GetBytes(salt), 1000);
+        byte[] key = spec.GetBytes(16);
+
+
+        csp.IV = Encoding.UTF8.GetBytes(iv);
+        csp.Key = key;
+
+
+        if (encrypting) {
+            return csp.CreateEncryptor();
+        }
+        return csp.CreateDecryptor();
+    }*/
+
+
+    public String GenerateSaltValue(String inputString, String SaltValue, String timestamp) {
+        List<Integer> newTimeStamp = SplitByLength(timestamp, 2);
+        StringBuilder key = new StringBuilder();
+        int len = inputString.length();
+        for (int x : newTimeStamp) {
+            if (len > x) {
+                if (x % 2 == 0) {
+                    key.append(Character.toString(inputString.charAt(x)));
+                } else {
+                    key.append(Character.toString(inputString.charAt(len - 1 - x)));
+                }
+
+            } else {
+                int newLen = inputString.length();
+                String newStr = inputString;
+                while (newLen - 1 < x) {
+                    newStr = newStr + newStr;
+                    newLen = newStr.length();
+                }
+                key.append(Character.toString(newStr.charAt(x)));
+            }
+        }
+        return key.toString().substring(0, (newTimeStamp.size() / 2)) + SaltValue + key.toString().substring(newTimeStamp.size() / 2);
+    }
+
+
+    public static List<Integer> SplitByLength(String x, int maxLength) {
+        List<Integer> a = new ArrayList<>();
+        for (int i = 0; i < x.length(); i += maxLength) {
+            if ((i + maxLength) < x.length())
+                a.add(Integer.parseInt(x.substring(i, i + maxLength)) % 10);
+            else
+                a.add(Integer.parseInt(x.substring(i)) % 10);
+        }
+        return a;
+    }
+}

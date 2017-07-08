@@ -1,0 +1,6 @@
+
+
+POST    /getRedeemSuggestion                            controllers.OrderController.getRedeemSuggestion
+
+POST    /getFundObjOfHoldingFund                        controllers.OrderController.getFundObjOfHoldingFund
+GET     /getInstaFunds                                  controllers.OrderController.getInstaFunds

@@ -1,0 +1,107 @@
+package service
+
+import javax.inject.Inject
+
+import models.FundDoc
+import models.FundsJsonFormats._
+import org.slf4j.LoggerFactory
+import play.api.libs.json.{JsObject, Json}
+//import play.modules.reactivemongo.json.ImplicitBSONHandlers._
+import reactivemongo.api.collections.bson.BSONCollection
+import reactivemongo.bson.DefaultBSONHandlers._
+import reactivemongo.bson.{BSONDocument, BSONObjectID}
+import reactivemongo.play.json.BSONFormats
+import reactivemongo.play.json.BSONFormats._
+
+import scala.concurrent.{ExecutionContext, Future}
+
+/**
+  * Created by Fincash on 04-02-2017.
+  */
+class CartService @Inject()(implicit val ec: ExecutionContext, mongoDbService: MongoDbService, schemeService: SchemeService) {
+
+  val logger, log = LoggerFactory.getLogger(classOf[CartService])
+
+
+  def mergeCart(coll: BSONCollection, username: String, cartId: Option[String]): Future[(String, List[JsObject])] = {
+    var newCartId = "";
+    val loginCartSelector = BSONDocument("username" -> username)
+    if (cartId.isDefined && cartId.get.length > 0) {
+      var nonLoginCartSelector = BSONDocument("_id" -> BSONObjectID.parse(cartId.get).get)
+      var newCartId = cartId.get
+
+      coll.find(loginCartSelector).one[BSONDocument].flatMap(loginFunds => {
+        if (loginFunds.isEmpty) {
+          coll.find(nonLoginCartSelector).one[BSONDocument].flatMap(nonLoginFunds => {
+
+            val cartModifier = BSONDocument("_id" -> BSONObjectID.parse(cartId.get).get, "username" -> username);
+            val nonLoginfJsList = (BSONFormats.BSONDocumentFormat.writes(nonLoginFunds.get).as[JsObject] \ "funds").as[List[JsObject]];
+            mongoDbService.updateDoc(coll, nonLoginCartSelector, cartModifier).map(_ => (newCartId, nonLoginfJsList));
+          })
+
+        } else {
+          coll.find(nonLoginCartSelector).one[BSONDocument].flatMap(nonLoginFunds => {
+            var loginFundsJsList = (BSONFormats.BSONDocumentFormat.writes(loginFunds.get).as[JsObject] \ "funds").as[List[JsObject]];
+            var nonLoginfJsList = (BSONFormats.BSONDocumentFormat.writes(nonLoginFunds.get).as[JsObject] \ "funds").as[List[JsObject]];
+
+            //remove funds same funds with new funds
+            nonLoginfJsList.foreach(nonLoginFund => {
+              loginFundsJsList = loginFundsJsList.filter(loginFund => {
+                if (loginFund \ "id" != nonLoginFund \ "id" && loginFund \ "investmentMode" != nonLoginFund \ "investmentMode") {
+                  true
+                } else {
+                  false
+                }
+              })
+            })
+
+            var newFundsList: List[JsObject] = (loginFundsJsList).++(nonLoginfJsList)
+            //newCartId = BSONObjectID.generate().stringify
+            newCartId = (BSONFormats.BSONDocumentFormat.writes(loginFunds.get).as[JsObject] \ "_id").as[BSONObjectID].stringify
+            logger.debug("cart id >>>> " + newCartId);
+            var cartModifier = BSONDocument(
+              "username" -> username,
+              "funds" -> newFundsList
+            );
+            mongoDbService.updateDoc(coll, loginCartSelector, cartModifier).map(_ => (newCartId, newFundsList));
+          })
+        }
+      })
+    } else {
+      coll.find(loginCartSelector).one[BSONDocument].map(loginFunds => {
+        if (loginFunds.isEmpty) {
+          logger.debug("cart id >>>> " + newCartId);
+          (newCartId, List[JsObject]());
+        } else {
+          newCartId = (BSONFormats.BSONDocumentFormat.writes(loginFunds.get).as[JsObject] \ "_id").as[BSONObjectID].stringify
+          val loginFundsJsList = (BSONFormats.BSONDocumentFormat.writes(loginFunds.get).as[JsObject] \ "funds").as[List[JsObject]]
+          (newCartId, loginFundsJsList);
+        }
+      })
+    }
+  }
+
+  def removeFund(coll: BSONCollection, username: String, soptRfnum: String): Future[Long] = {
+    var loginCartSelector = BSONDocument("username" -> username);
+
+    coll.find(loginCartSelector).one[BSONDocument].flatMap(funds => {
+      if (funds.isEmpty) {
+        Future.apply(0)
+      } else {
+
+        var fundsList = (BSONFormats.BSONDocumentFormat.writes(funds.get).as[JsObject] \ "funds").as[List[FundDoc]];
+        schemeService.getSchemeIdByOptionId(soptRfnum).flatMap(smtRfnum => {
+
+          fundsList = fundsList.filter(fundDoc => {
+            if (fundDoc.id == smtRfnum)
+              false
+            else true
+          });
+
+          val cartModifier = BSONDocument("username" -> username, "funds" -> Json.toJson(fundsList));
+          mongoDbService.updateDoc(coll, loginCartSelector, cartModifier).map(_ => smtRfnum);
+        })
+      }
+    })
+  }
+}

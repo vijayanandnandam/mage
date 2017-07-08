@@ -1,0 +1,17 @@
+# ~~~~~ Play-Mailer ~~~~~
+# 
+play.mailer {
+  host = email-smtp.eu-west-1.amazonaws.com
+  port = 465
+  ssl = yes
+  tls = no
+  user = "AKIAJPNDRCBHKQ5HS73Q"
+  password = Amk1LULRnaNMLzuAA4LWetYcGRKuTHF6gYjmnwaiXldy
+  debug = yes
+  mock = no
+}
+
+#Mailgun configuration for sumit-fincash account
+//url = "https://api.mailgun.net/v3/sandboxc2aa67114641458583cf5e6862af5a13.mailgun.org/messages"
+//user = "api"
+//apikey = "key-c57859edb8c1fdd682291789b5628919"

@@ -1,0 +1,40 @@
+# This is the main configuration file for the application.
+# ~~~~~
+
+# Secret key
+# ~~~~~
+# The secret key is used to secure cryptographics functions.
+#
+# This must be changed for production, but we recommend not changing it in this file.
+#
+# See http://www.playframework.com/documentation/latest/ApplicationSecret for more details.
+play.crypto.secret = "GeUgf^x:/nP0:tnlq;TQkjqfp9pNE]GNabKm:Xnl@AqkYWUkEJSE=]bhO5e=dRqG"
+
+# The application languages
+# ~~~~~
+play.i18n.langs = ["en"]
+
+# Filters
+# ~~~~~
+play.http.filters = "helpers.BasicFilter"
+
+# Error Handler
+# ~~~~~
+#play.http.errorHandler = "helpers.ErrorHandler"
+
+
+# JVM Memory Allowed
+jvm.memory = -Xmx1024M -Xms128M
+
+
+#Solr Configuration
+solr.url="http://10.1.0.2:8983/solr/"
+solr.core.funds = "funds"
+solr.core.banks = "banks"
+solr.core.cnd = "cnd"
+
+include "play-mailer.conf"
+include "constants.conf"
+include "slick.conf"
+
+play.modules.enabled += "modules.ApplicationContextBinderModule"

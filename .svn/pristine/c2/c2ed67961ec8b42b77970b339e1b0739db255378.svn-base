@@ -1,0 +1,6 @@
+@(heading:String = "Welcome", utils: MailTemplateHelper)
+<a  href="@utils.getBaseUrl()" style="text-decoration:none;">
+    <div style="text-align:right;max-width:100%;border:solid 1px #c1bdbd; padding:2.5%; background: white url(@utils.getImagePath()/assets/img/logo.png) no-repeat 2%; background-size: auto 30px;" >
+        <div style="color: #6e6e6e; font-size:1.3em; font-weight:600">@heading </div>
+    </div>
+</a>

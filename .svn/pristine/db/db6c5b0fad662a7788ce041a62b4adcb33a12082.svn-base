@@ -1,0 +1,34 @@
+@import _root_.data.model.Tables._
+
+@(user: FcubdRow, link: String)
+
+<div style="padding:4% 5%;background-color:white; position:relative; background-color:white; border-left:solid 1px #c1bdbd;border-right:solid 1px #c1bdbd;">
+    Dear <span style="text-transform: capitalize;">
+    @if(user.ubdfirstname){
+      @user.ubdfirstname
+    } else{
+      Investor
+    }
+</span>,<br>
+
+    <p>Please click on the following link to reset your password</p>
+
+    <div style="text-align:center">
+        <a href="@link" style="text-decoration:none">
+            <div  style="padding:0.5% 0.5%; color:white; background-color:#53ADD0; min-width:25%; margin:auto;text-align:center; color:white; font-size:1.1em; font-weight:bold; display:inline-block">
+                Reset Password
+            </div>
+        </a>
+    </div>
+    <p>If you did not initiate this request, kindly ignore this email.</p>
+
+    @contact()
+
+    <p>Please visit our <a href="https://www.fincash.com/b/" style="color:#53ADD0">RESOURCE CENTRE</a> to know about Mutual Fund Investments and other investment products.</p>
+
+    <p style="position:absolute; bottom:2%;">
+        With Warm Regards,<br>
+        Team Fincash</p>
+</div>
+
+@products()

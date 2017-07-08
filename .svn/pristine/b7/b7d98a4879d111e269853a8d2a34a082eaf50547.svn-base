@@ -1,0 +1,34 @@
+# Routes
+# This file defines all application routes (Higher priority routes first)
+# ~~~~
+
+
+#All the secure routes are configured from here
+->          /secure                         secure.Routes
+->          /server                         server.Routes
+
+
+GET         /dash                           controllers.LoginController.Dash
+
+#IFSC
+POST        /getbanks                       controllers.BankController.searchBanks
+GET         /indexBanks                     controllers.BankController.addBanks
+
+#KYC
+#POST    /getKycData                             controllers.KYCController.getKycData
+POST        /messageStatus                  controllers.MessageSenderController.messageStatus
+GET         /getOTPStatus/:messageId        controllers.MessageSenderController.getMessageStatus(messageId)
+
+
+# Map static resources from the /public folder to the /assets URL path
+GET         /assets/*file                   controllers.Assets.at(path="/public", file)
+
+#ForgotPassword
+POST        /forgotPasswordMail             controllers.PasswordController.sendPassResetMail
+#POST        /forgotPasswordMail             controllers.PasswordController.sendPassResetMail
+POST       /getMailKeyValidity              controllers.PasswordController.getMailKeyValidity
+
+POST       /resetPassword                   controllers.PasswordController.resetPassword
+
+POST        /solr/upload                    controllers.SolrController.uploadFile()
+GET         /solr                           controllers.SolrController.loadFileUploadView()

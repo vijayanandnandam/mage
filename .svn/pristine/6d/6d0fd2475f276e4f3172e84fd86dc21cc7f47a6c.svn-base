@@ -1,0 +1,10 @@
+->         /lookup                                         lookup.Routes
+->         /fund                                           fund.Routes
+->         /sip                                            sip.Routes
+
+
+# other unsecure routes
+POST       /checkout/getCartData                          controllers.CartController.getCartData
+POST       /checkout/saveCart                             controllers.CartController.saveCart
+GET        /getSavingsPlusFunds                           controllers.CashController.getSavingsPlusFunds
+POST       /checkmail                                     controllers.MailGunController.checkmail

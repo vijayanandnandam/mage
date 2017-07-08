@@ -1,0 +1,100 @@
+@import data.model.Tables.FcbmtRow
+@(username: String, paymentLink: String, linkValidDateTime: String, amount: Double,bankRow: FcbmtRow, showNeftRtgsDetails: Boolean, bankDetails: List[NeftRtgsBankDetails], cutoffTime: Option[String] = None, utils: MailTemplateHelper)
+
+
+<div style="padding:4% 5%;background-color:white; position:relative; background-color:white; border-left:solid 1px #c1bdbd;border-right:solid 1px #c1bdbd;">
+    Dear <span style="text-transform: capitalize;">
+    @if(username){@username} else{Investor}</span>,<br>
+        @if(showNeftRtgsDetails){
+            <p>This is a payment instructions mail for your orders that are due for payment.</p>
+            <p><b>We recommend you pay via NEFT/RTGS for faster realization of funds.</b> Follow the steps below to make the payment before the cut-off time.</p>
+            <table style="text-align: left; background-color: #f2f2f2; border:solid 1px #c1bdbd;">
+            <tr>
+                <td>Steps to complete via NEFT/RTGS</td>
+                @if(cutoffTime.isDefined){<td>Cut-off Time: @cutoffTime.get</td>}
+            </tr>
+            <tr>
+                <ol>
+                    <li>
+                        Login to net-banking
+                    </li>
+                    <li>
+                        Add any one payee/beneficiary as mentioned in above table(HDFC or ICICI)
+                    </li>
+                    <li>
+                        Transfer order amount(INR (@amount)) to the beneficiary
+                    </li>
+                    <li>
+                        Please note the NEFT/RTGS transaction reference number
+                    </li>
+                    <li>
+                        Click <a href="@paymentLink" target="_blank">Here</a> (valid till @linkValidDateTime) and enter the reference number by selecting NEFT/RTGS mode
+                    </li>
+                </ol>
+            </tr>
+        </table>
+        <table>
+            <thead>
+                <th  style="border: 1px solid black;">Bank Name</th>
+                <th style="border: 1px solid black;">@bankDetails(0).heading</th>
+                <th></th>
+                <th style="border: 1px solid black;">@bankDetails(1).heading</th>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Beneficiary Name</td>
+                    <td style="border: 1px solid black;">@bankDetails(0).beneficiaryName</td>
+                    <td></td>
+                    <td style="border: 1px solid black;">@bankDetails(1).beneficiaryName</td>
+                </tr>
+                <tr>
+                    <td>Account No.</td>
+                    <td style="border: 1px solid black;">
+                        @bankDetails(1).accountNo @if(bankRow.id == bankDetails(0).bankId){(Transfer via eCMS)}
+                    </td>
+                    <td>OR</td>
+                    <td style="border: 1px solid black;">
+                    @if(bankRow.id  == bankDetails(1).bankId) {
+                        @bankDetails(1).fullAccountNo
+                    } else {
+                        @bankDetails(1).accountNo
+                    }
+                    </td>
+                </tr>
+                <tr>
+                    <td>IFSC Code</td>
+                    <td>Account No.</td>
+                    <td style="border: 1px solid black;">@bankDetails(0).ifsc</td>
+                    <td></td>
+                    <td style="border: 1px solid black;">@bankDetails(1).ifsc</td>
+                </tr>
+            </tbody>
+        </table>
+
+        @if(bankRow.bmtbanktype.isDefined) {
+            <p>However, if you decide to pay via <b>NETBANKING</b>, please be informed that realisation of funds may take an extra working day.</p>
+        }
+
+        <form action="@paymentLink" method="GET" target="_blank">
+            <input type="submit" value="PAY NOW" />
+        </form>
+
+        } else {
+            @if(bankRow.bmtbanktype.isDefined) {
+                <p>Please find the payment link for your order/s that are due for payment. This link is valid till @linkValidDateTime</p>
+                <form action="@paymentLink" method="GET" target="_blank">
+                    <input type="submit" value="PAY NOW" />
+                </form>
+            }
+        }
+
+    @contact()
+
+    <p>Please visit our <a href="@utils.getBaseUrl()/b/" style="color:#53ADD0">RESOURCE CENTRE</a> to know about Mutual Fund Investments and other investment products.</p>
+
+    <p style="position:absolute; bottom:2%;">
+        With Warm Regards,<br>
+        Team Fincash</p>
+</div>
+
+@products(utils.getBaseUrl(), utils.getImagePath())

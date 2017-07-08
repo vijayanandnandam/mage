@@ -1,0 +1,59 @@
+package service
+
+import javax.inject.Inject
+
+import constants.FolioConstants
+import helpers.DecimalFormat
+import models.{FundDetails, Holding}
+import repository.module.FolioRepository
+
+import scala.collection.mutable.ListBuffer
+import scala.concurrent.{ExecutionContext, Future}
+
+class HoldingsReportService @Inject()(implicit ec: ExecutionContext, reportRepository: FolioRepository) extends FolioConstants{
+
+  def getHoldings(capitalGainsFunds: ListBuffer[FundDetails], totalCurrentValue: BigDecimal,
+                  totalCostValue: BigDecimal): Future[ListBuffer[Holding]] = {
+
+    Future.sequence(for (fund <- capitalGainsFunds) yield{
+      reportRepository.getFolioSchemePayoutTxns(fund.folioId.get,fund.fundId).map(payoutList =>{
+
+        var unrealizedGain: BigDecimal = fund.currentValue.getOrElse(0.0)
+        unrealizedGain -= fund.costValue.getOrElse(0.0)
+
+        var realizedGain: BigDecimal = fund.totalLongTermGain.getOrElse(0.0)
+        realizedGain += fund.totalShortTermGain.getOrElse(0.0)
+
+        val costValue:BigDecimal = fund.costValue.getOrElse(1.0)
+        val absoluteReturn = if(costValue == BigDecimal(0.0)) Some(costValue) else Some(( unrealizedGain * 100) / costValue)
+        val fundDetails = fund.fundBasicDetails
+        for(payoutRow <- payoutList){
+          if(payoutRow.fpttype == CREDIT){
+            realizedGain -= payoutRow.fptamount
+          } else{
+            realizedGain += payoutRow.fptamount
+          }
+        }
+        val holdingModel = Holding(fund.fundId, fund.fundBasicDetails.fundName,Some(fundDetails.modeOfHolding), Some(fundDetails.plan), Some(fundDetails.divFreq),
+          Some(fundDetails.divOption), Some(fund.fundBasicDetails.folioNo), fund.costValue, fund.totalUnitsLeft,
+          Some(fund.currNav), fund.navDate, fund.currentValue, Some(realizedGain), Some(unrealizedGain), absoluteReturn)
+        holdingModel
+      })
+
+    }).map(holdingList =>{
+      var totalRealizedGain = BigDecimal(0.0)
+
+      for(holding <- holdingList){
+        totalRealizedGain += holding.realizedGain.getOrElse(0.0)
+      }
+
+      totalRealizedGain = DecimalFormat.formatDecimalPlace(totalRealizedGain)
+
+      holdingList.+=(Holding(0, "Grand Total", None,None, None, None, None, Some(totalCostValue), None, None, None,
+        Some(totalCurrentValue), Some(totalRealizedGain), Some(totalCurrentValue - totalCostValue), None))
+
+      holdingList
+    })
+
+  }
+}

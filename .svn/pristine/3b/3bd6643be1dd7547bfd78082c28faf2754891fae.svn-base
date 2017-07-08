@@ -1,0 +1,20 @@
+
+->          /zendesk                       zendesk.Routes
+
+POST        /postUserEkycData              controllers.UserController.postUserEkycData
+POST        /socialLogin                   controllers.LoginController.socialLogin
+POST        /activateUser                  controllers.UserController.activateUser
+POST        /bseRegistration               controllers.UserController.registerInBSE
+
+GET         /getJVMUsage                   controllers.Application.getJVMUsage
+GET         /startGC                       controllers.Application.startGC
+
+POST        /bsePaymentStatus              controllers.BatchController.getBSEPaymentStatus
+POST        /sendISIPMandateMail           controllers.BatchController.sendSIPMail
+POST        /sendOrderTicket               controllers.BatchController.sendZendeskOrderUpdateTicket
+GET         /placeQueuedOrders             controllers.BatchController.placeQueuedOrders
+
+#POST        /getRedInvbankDetails_V1            controllers.SavingsPlusController.getRedInvbankDetails_V1
+POST        /getRelianceInstaStatus        controllers.RedemptionController.getRelianceInstaStatus
+
+POST        /getIRDetails                  service.integration.BirlaIntegrationServiceImpl.getIRDetails

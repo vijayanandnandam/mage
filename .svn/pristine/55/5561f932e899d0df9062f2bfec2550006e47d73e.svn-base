@@ -1,0 +1,76 @@
+@import _root_.data.model.Tables._
+
+@(user: FcubdRow, address:UserAddress, userBank:UserBank, userFatca:UserFatca, utils: MailTemplateHelper)
+
+UserId/BSE-Client-Code: @user.id
+------------------------------------------------------------
+
+** User Details:
+    Email : @user.ubdemailid
+    Mobile :  @user.ubdmobileno
+    PAN : @user.ubdpan
+    First Name : @user.ubdfirstname
+    Middle Name : @user.ubdmiddlename
+    Last Name : @user.ubdlastname
+    Gender : @user.ubdgender
+
+
+** Permanent Address
+------------------------------------------------------------
+
+@address.permanentAddress.get.address1, @address.permanentAddress.get.address2
+
+Landmark : @address.permanentAddress.get.landmark Pin : @address.permanentAddress.get.pin City : @address.permanentAddress.get.city District :@address.permanentAddress.get.district
+
+State:@utils.getcndVal(address.permanentAddress.get.state.get) Country:@utils.getcndVal(address.permanentAddress.get.country.get)
+
+
+** Current Address
+------------------------------------------------------------
+
+@address.currentAddress.get.address1, @address.currentAddress.get.address2
+
+Landmark : @address.currentAddress.get.landmark Pin : @address.currentAddress.get.pin City : @address.currentAddress.get.city District : @address.currentAddress.get.district
+
+State : :@utils.getcndVal(address.currentAddress.get.state.get) Country : @utils.getcndVal(address.currentAddress.get.country.get)
+
+
+** Bank Details
+------------------------------------------------------------
+
+Holder Name : @userBank.holderName
+
+Account Number : @userBank.accountNumber Account Type : @utils.getcndVal(userBank.accountType.get)
+
+Bank Name : @userBank.bank.get.bankName IFSC : @userBank.bank.get.IFSC
+
+Branch : @userBank.bank.get.branch
+
+District : @userBank.bank.get.district
+
+State : @userBank.bank.get.state
+
+
+** FATCA Details
+------------------------------------------------------------
+
+Income : @utils.getcndVal(userFatca.income.get)
+
+Occupation : @utils.getcndVal(userFatca.occupation.get) Source Of Wealth : @utils.getcndVal(userFatca.sourceOfWealth.get)
+
+Nationality : @utils.getcndVal(userFatca.nationality.get) Birth Country : @utils.getcndVal(userFatca.birthCountry.get) Birth City : @userFatca.birthCity
+
+Politically Exposed : @userFatca.politicallyExposed Politically Related : @userFatca.politicallyRelated
+
+Please find the screen shot of user's uploaded details attached along with this email.
+Note:
+
+To activate the user post verification, please click on the following link.
+
+Register In BSE & FATCA (@utils.userBSERegisterLink(user.id))
+Activate User (@utils.userActivationLink(user.id))
+
+@contactTxt()
+
+With Warm Regards,
+Team Fincash

@@ -1,0 +1,340 @@
+/**
+  * Created by Fincash on 24-01-2017.
+  */
+
+package controllers
+
+import javax.inject.Inject
+
+import constants.{CNDConstants, DBConstants, KycConstants}
+import helpers.{AuthenticatedAction, UserHelper}
+import models.UserJsonFormats._
+import models._
+import org.slf4j.LoggerFactory
+import play.api.libs.json.Json
+import play.api.mvc.{Action, Controller}
+import repository.module.UserRepository
+import service.{SolrCNDSearchService, UserService}
+
+import scala.concurrent.{ExecutionContext, Future}
+
+
+class UserController @Inject()(implicit val ec: ExecutionContext, auth: AuthenticatedAction, userService: UserService,
+                               application: Application, userRepository: UserRepository, userHelper: UserHelper,
+                               solrCNDSearchService: SolrCNDSearchService) extends Controller with CNDConstants with KycConstants with DBConstants {
+
+  val logger , log = LoggerFactory.getLogger(classOf[UserController])
+
+  def getUserData = auth.Action { request =>
+    val requestData = request.body
+    var token = request.token;
+
+    //    var user = userService.getUserDataFromDb(request);
+    Ok;
+  }
+
+  def getFirstName = auth.Action.async {request => {
+    userService.getUsernameFromRequest(request).flatMap(username => {
+      userRepository.getFirstNameByUsername(username.get).map(firstName => {
+        Ok(Json.obj("firstname" -> firstName))
+      })
+    })
+  }}
+
+  def getUserDetails = auth.Action.async { request =>
+    val requestData = request.body
+    var token = request.token
+
+    userService.getUsernameFromRequest(request).flatMap { username => {
+      logger.debug("Username " + username)
+      userRepository.getUserIdByUsername(username.get).flatMap { userid => {
+        userRepository.getUserByPk(userid).map { user => {
+          Ok(Json.obj("mob" -> user.get.ubdmobileno, "email" -> user.get.ubdemailid, "mobRegDate" -> user.get.modifydate, "pan" -> user.get.ubdpan))
+        }}
+      }}
+    }}
+  }
+
+  def panUpdate = auth.Action.async(parse.json) { request => {
+    var requestData = request.body
+
+    var pan = (requestData \ "pan").as[String].toUpperCase
+
+    userService.getUsernameFromRequest(request).flatMap { username => {
+      logger.debug("Username " + username)
+      userRepository.getUserIdByUsername(username.get).flatMap { userid => {
+        userRepository.checkPanExists(userid, pan).flatMap(panExists => {
+          if (!panExists){
+            userRepository.savePanNumber(userid, pan).map(data => {
+              if (data){
+                Ok(Json.obj("success" -> true, "message" -> "PAN Updated successfully"))
+              }
+              else {
+                Ok(Json.obj("success" -> false, "message" -> "Pan not saved"))
+              }
+            })
+          }
+          else {
+            Future.apply(Ok(Json.obj("success" -> false, "message" -> "PAN already exists")))
+          }
+        })
+      }}
+    }}
+  }}
+
+  def mobUpdate = auth.Action.async(parse.json) { request => {
+    var requestData = request.body
+
+    var mob = (requestData \ "mob").as[String]
+
+    userService.getUsernameFromRequest(request).flatMap { username => {
+      logger.debug("Username " + username)
+      userRepository.getUserIdByUsername(username.get).map { userid => {
+        userRepository.saveMobNumber(userid, mob)
+        Ok(Json.obj("success" -> true, "message" -> "Mobile number saved successfully"))
+      }
+      }
+    }
+    }
+  }
+  }
+
+  def postUserData = auth.Action.async(parse.json) { request =>
+    var requestData = request.body
+    logger.debug(request.body.toString)
+
+    var userBasic = (requestData \ "userBasic").as[UserBasic]
+    //    var userBank = (requestData \ "userBank").as[UserBank]
+    var userAddress = (requestData \ "userAddress").as[UserAddress]
+    /*var userFatca = (requestData \ "userFatca").as[UserFatca]*/
+
+    userService.getUsernameFromRequest(request).flatMap { username => {
+      logger.debug("Username " + username)
+      userRepository.getUserIdByUsername(username.get).map { userid => {
+        var ubdrfnum = userRepository.saveUserBasic(userid, username.get, userBasic)
+        var buarfnum = userRepository.saveUserAddresses(userid, username.get, userAddress, userBasic)
+        Ok
+      }
+      }
+    }
+    }
+  }
+
+  /******************GET DATA***************************/
+
+  def getUserBasicData = auth.Action.async { request => {
+    userService.getUsernameFromRequest(request).flatMap(username => {
+      userRepository.getUserIdByUsername(username.get).flatMap(userid => {
+        userRepository.getUserBasic(userid).map(userBasic => {
+          Ok(userHelper.getUserBasicObject(userBasic))
+        })
+      })
+    })
+  }}
+
+  def getUserFatcaData = auth.Action.async { request => {
+    userService.getUsernameFromRequest(request).flatMap(username => {
+      userRepository.getUserIdByUsername(username.get).flatMap(userid => {
+        userRepository.getUserFatca(userid).map(userFatca => {
+          Ok(userHelper.getUserFactaObject(userFatca))
+        })
+      })
+    })
+  }}
+
+  def getUserBankData = auth.Action.async { request => {
+    userService.getUsernameFromRequest(request).flatMap(username => {
+      userRepository.getUserIdByUsername(username.get).flatMap(userid => {
+        userRepository.getUserBank(userid).map(userBank => {
+          Ok(userHelper.getUserBankObject(userBank))
+        })
+      })
+    })
+  }}
+
+  def getUserNomineeData = auth.Action.async( request => {
+    userService.getUsernameFromRequest(request).flatMap(username => {
+      userRepository.getUserIdByUsername(username.get).flatMap(userid => {
+        userRepository.getUserNominee(userid).map(userNominee => {
+          Ok(userHelper.getUserNomineeObject(userNominee))
+        })
+      })
+    })
+  })
+
+  def getUserAddressData = auth.Action.async(request => {
+    userService.getUsernameFromRequest(request).flatMap(username => {
+      userRepository.getUserIdByUsername(username.get).flatMap(userid => {
+        userRepository.getUserAddress(userid).map(userAddress => {
+          Ok(userHelper.getUserAddressObject(userAddress))
+        })
+      })
+    })
+  })
+
+  /******************POST DATA**************************/
+
+  def postUserBasicData = auth.Action.async(parse.json) { request => {
+    var requestData = request.body
+    logger.debug(request.body.toString)
+    var pan = ""
+    var userBasic = requestData.as[UserBasic]
+   if (userBasic.pan.nonEmpty){
+     pan = userBasic.pan.get.toUpperCase
+   }
+    userService.getUsernameFromRequest(request).flatMap { username => {
+      logger.debug("Username " + username)
+      userRepository.getUserIdByUsername(username.get).flatMap { userid => {
+        userRepository.checkPanExists(userid, pan).flatMap{panExists => {
+          if (!panExists){
+            userRepository.saveUserBasic(userid, username.get, userBasic).map(data => {
+              if (data){
+                Ok(Json.obj("success" -> true, "message" -> "Basic details Saved successfully"))
+              }
+              else {
+                Ok(Json.obj("success" -> false, "message" -> "Basic details not saved"))
+              }
+            })
+          }
+          else {
+            Future.apply(Ok(Json.obj("success" -> false, "message" -> "Pan already exists")))
+          }
+        }}
+
+      }}
+    }}
+  }}
+
+  def postUserAddressData = auth.Action.async(parse.json) { request => {
+    var requestData = request.body
+
+    var userBasic = (requestData \ "userBasic").as[UserBasic]
+    var userAddress = (requestData \ "userAddress").as[UserAddress]
+
+    userService.getUsernameFromRequest(request).flatMap { username => {
+      logger.debug("Username " + username)
+      userRepository.getUserIdByUsername(username.get).map { userid => {
+        var res = userRepository.saveUserAddresses(userid, username.get, userAddress, userBasic)
+          Ok(Json.obj("amtP" -> res._1, "amtC" -> res._2))
+      }}
+    }}
+  }}
+
+  def postUserFatcaData = auth.Action.async(parse.json) { request => {
+    var requestData = request.body
+    var userFatca = requestData.as[UserFatca]
+    userService.getUsernameFromRequest(request).flatMap { username => {
+      logger.debug("Username " + username)
+      userRepository.getUserIdByUsername(username.get).flatMap { userid => {
+        userRepository.saveUserFatca(userid, username.get, userFatca).map(futid => {
+          Ok(Json.obj("futid" -> futid))
+        }).recover({
+          case ex: Exception =>
+            logger.error(ex.getMessage + " Can't Update User Fatca")
+            throw ex
+        })
+      }}
+    }}
+  }}
+
+  def postUserBankData = auth.Action.async(parse.json) { request => {
+    var requestData = request.body
+    var userBank = requestData.as[UserBank]
+    userService.getUsernameFromRequest(request).flatMap { username => {
+      logger.debug("Username " + username)
+      userRepository.getUserIdByUsername(username.get).flatMap { userid => {
+        userRepository.saveUserBanks(userid, username.get, userBank).map(buaid => {
+          Ok(Json.obj("buaid" -> buaid))
+        })
+      }}
+    }}
+  }}
+
+  def postUserNomineeData = auth.Action.async(parse.json) { request => {
+    var requestData = request.body
+    var userNominee = requestData.as[Nominee]
+    userService.getUsernameFromRequest(request).flatMap { username => {
+      logger.debug("Username " + username)
+      userRepository.getUserIdByUsername(username.get).flatMap { userid => {
+        userRepository.saveUserNominee(userid, username.get, userNominee).map(ndtid => {
+          Ok(Json.obj("ndtid" -> ndtid))
+        })
+      }}
+    }}
+  }}
+
+  /** ****************POST EKYC data **********************/
+  def postUserEkycData = Action.async(parse.json) { request => {
+    val requestData = request.body
+    var userBasic = (requestData \ "userBasic").as[UserBasic]
+    var userAddress = (requestData \ "userAddress").as[UserAddress]
+    var eKycApiData = (requestData \ "eKycApiData").as[EKycApiData]
+    var userid = eKycApiData.userid.get.toLong
+
+    /****************SET STATE & ADDRESS TYPE****************************************/
+    var aadharState = eKycApiData.aadharState.getOrElse("")
+    var aadharAddressType = eKycApiData.aadharAddressType.getOrElse("")
+    var staterfnum, addresstyperfnum: Option[String] = None
+    if (aadharState.length > 0) {
+      val results : Option[CNDDoc] = solrCNDSearchService.cndSearch(STATE, aadharState).headOption
+      if(!results.isEmpty)
+        staterfnum = Some(results.get.cndRfnum.toString)
+    }
+    if (aadharAddressType.length > 0){
+      val results : Option[CNDDoc] = solrCNDSearchService.cndSearch(ADDRESS_TYPE, aadharAddressType).headOption
+      if(!results.isEmpty)
+        addresstyperfnum = Some(results.get.cndRfnum.toString)
+    }
+
+    val address = userAddress.permanentAddress.get.copy(state = staterfnum, addressType = addresstyperfnum)
+    val newAddress = UserAddress(Option(address), Option(address), true)
+
+    /*************************SET OCCUPATION & NATIONALITY***************************/
+    var aadharOccupation = eKycApiData.aadharOccupation.getOrElse("")
+    var occupationrfnum: Option[String] = None
+    if (aadharOccupation.length > 0) {
+      val results : Option[CNDDoc] = solrCNDSearchService.cndSearch(OCCUPATION, aadharOccupation).headOption
+      if(!results.isEmpty)
+        occupationrfnum = Some(results.get.cndRfnum.toString)
+    }
+
+    var aadharNationality = eKycApiData.aadharNationality.getOrElse("India")
+    var nationalityrfnum: Option[String] = None
+    if (aadharNationality.length > 0) {
+      val results : Option[CNDDoc] = solrCNDSearchService.cndSearch(COUNTRY, aadharNationality).headOption
+      if(!results.isEmpty)
+        nationalityrfnum = Some(results.get.cndRfnum.toString)
+    }
+
+    val userFatca = new UserFatca(None, None, occupationrfnum, None, nationalityrfnum, None, None, None, None, None, None, None)
+
+    /*****************************SET GENDER & MARITAL STATUS**************************/
+    var aadharMarital = userBasic.maritalStatus.getOrElse("")
+    var maritalrfnum: Option[String] = None
+    if (aadharMarital.length > 0) {
+      val results : Option[CNDDoc] = solrCNDSearchService.cndSearch(MARITAL_STATUS, aadharMarital).headOption
+      if(!results.isEmpty)
+      maritalrfnum = Some(results.get.cndRfnum.toString)
+    }
+
+    if (userBasic.gender.getOrElse("").equalsIgnoreCase("male")){
+      userBasic = userBasic.copy(gender = Some(MALE), maritalStatus = maritalrfnum)
+    }
+    else if (userBasic.gender.getOrElse("").equalsIgnoreCase("female")){
+      userBasic = userBasic.copy(gender = Some(FEMALE), maritalStatus = maritalrfnum)
+    } else {
+      userBasic = userBasic.copy(gender = Some(OTHER), maritalStatus = maritalrfnum)
+    }
+
+
+    userRepository.getUsernameByUserid(userid).map(username => {
+      userRepository.saveUserAddresses(userid, username, newAddress, userBasic)
+      userRepository.saveUserBasic(userid, username, userBasic)
+      userRepository.saveUserFatca(userid, username, userFatca)
+      userRepository.saveUserAadhar(userid, username, eKycApiData)
+      Ok(Json.obj("success" -> true))
+    })
+  }
+  }
+}
+

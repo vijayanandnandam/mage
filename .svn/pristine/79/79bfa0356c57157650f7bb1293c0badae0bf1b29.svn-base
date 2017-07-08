@@ -1,0 +1,202 @@
+package helpers
+
+import javax.inject.Inject
+
+import models._
+import play.api.libs.json.{JsObject, Json}
+import repository.module.UserRepository
+
+import scala.concurrent.ExecutionContext
+
+/**
+  * Created by fincash on 13-02-2017.
+  */
+class UserHelper @Inject() (implicit val ec: ExecutionContext, userRepository: UserRepository) {
+
+  def getNomineeLabel(nomineeName:String,relationship:String): String ={
+
+    nomineeName + " - " + relationship
+  }
+
+  def getUserBankObject(userBank: UserBank): JsObject = {
+    Json.obj(
+      "buaid" -> userBank.buaid.get,
+      "holderName" -> userBank.holderName.get,
+      "accountType" -> userBank.accountType.get,
+      "bank" -> Json.obj(
+        "bankName" -> userBank.bank.get.bankName.get,
+        "IFSC" -> userBank.bank.get.IFSC.get,
+        "city" -> userBank.bank.get.city.get,
+        "state" -> userBank.bank.get.state.get,
+        "branch" -> userBank.bank.get.branch.get,
+        "district" -> userBank.bank.get.district.get,
+        "MICR" -> userBank.bank.get.MICR.get,
+        "address" -> userBank.bank.get.address.get
+      ),
+      "accountNumber" -> userBank.accountNumber.get
+    )
+  }
+
+  def getUserNomineeObject(userNominee: Nominee): JsObject = {
+    var ndtid, nomineeName, nomineeRelation, nomineeDob, amtid, addressType, address1, address2, pin, city, district, state, country, landmark = ""
+    ndtid = userNominee.ndtid.getOrElse("")
+    nomineeName = userNominee.nomineeName.getOrElse("")
+    nomineeRelation = userNominee.nomineeRelation.getOrElse("")
+    nomineeDob = userNominee.nomineeDob.getOrElse("")
+    if (userNominee.nomineeAddress.isDefined){
+      amtid = userNominee.nomineeAddress.get.amtid.getOrElse("")
+      addressType = userNominee.nomineeAddress.get.addressType.getOrElse("")
+      address1 = userNominee.nomineeAddress.get.address1.getOrElse("")
+      address2 = userNominee.nomineeAddress.get.address2.getOrElse("")
+      pin = userNominee.nomineeAddress.get.pin.getOrElse("")
+      city = userNominee.nomineeAddress.get.city.getOrElse("")
+      district = userNominee.nomineeAddress.get.district.getOrElse("")
+      state = userNominee.nomineeAddress.get.state.getOrElse("")
+      country = userNominee.nomineeAddress.get.country.getOrElse("")
+      landmark = userNominee.nomineeAddress.get.landmark.getOrElse("")
+    }
+    Json.obj(
+      "ndtid" -> ndtid,
+      "nomineeName" -> nomineeName,
+      "nomineeRelation" -> nomineeRelation,
+      "nomineeDob" -> nomineeDob,
+      "nomineeAddress" -> Json.obj(
+        "amtid" -> amtid,
+        "addressType" -> addressType,
+        "address1" -> address1,
+        "address2" -> address2,
+        "pin" -> pin,
+        "city" -> city,
+        "district" -> district,
+        "state" -> state,
+        "country" -> country,
+        "landmark" -> landmark
+      )
+    )
+  }
+
+  def getUserFactaObject(userFatca: UserFatca): JsObject = {
+    var futid, income, occupation, sourceOfWealth, nationality, birthCountry, birthCity, taxCountry, politicallyExposed, politicallyRelated, tin, isIndianTaxPayer: String = ""
+    futid = userFatca.futid.getOrElse("")
+    income = userFatca.income.getOrElse("")
+    occupation = userFatca.occupation.getOrElse("")
+    sourceOfWealth = userFatca.sourceOfWealth.getOrElse("")
+    nationality = userFatca.nationality.getOrElse("")
+    birthCountry = userFatca.birthCountry.getOrElse("")
+    taxCountry = userFatca.taxCountry.getOrElse("")
+    birthCity = userFatca.birthCity.getOrElse("")
+    politicallyExposed = userFatca.politicallyExposed.getOrElse("")
+    politicallyRelated = userFatca.politicallyRelated.getOrElse("")
+    tin = userFatca.tin.getOrElse("")
+    isIndianTaxPayer = userFatca.isIndianTaxPayer.getOrElse("")
+    Json.obj(
+      "futid" -> futid,
+      "income" -> income,
+      "occupation" -> occupation,
+      "sourceOfWealth" -> sourceOfWealth,
+      "nationality" -> nationality,
+      "birthCountry" -> birthCountry,
+      "birthCity" -> birthCity,
+      "taxCountry" -> taxCountry,
+      "politicallyExposed" -> politicallyExposed,
+      "politicallyRelated" -> politicallyRelated,
+      "tin" -> tin,
+      "isIndianTaxPayer" -> isIndianTaxPayer
+    )
+  }
+
+  def getUserAddressObject(userAddress: UserAddress): JsObject = {
+    var amtidP, addressTypeP, address1P, address2P, pinP, cityP, districtP, stateP, countryP, landmarkP = ""
+    var amtidC, addressTypeC, address1C, address2C, pinC, cityC, districtC, stateC, countryC, landmarkC = ""
+    if (userAddress.permanentAddress.isDefined){
+      amtidP = userAddress.permanentAddress.get.amtid.getOrElse("")
+      addressTypeP = userAddress.permanentAddress.get.addressType.getOrElse("")
+      address1P = userAddress.permanentAddress.get.address1.getOrElse("")
+      address2P = userAddress.permanentAddress.get.address2.getOrElse("")
+      pinP = userAddress.permanentAddress.get.pin.getOrElse("")
+      cityP = userAddress.permanentAddress.get.city.getOrElse("")
+      districtP = userAddress.permanentAddress.get.district.getOrElse("")
+      stateP = userAddress.permanentAddress.get.state.getOrElse("")
+      countryP = userAddress.permanentAddress.get.country.getOrElse("")
+      landmarkP = userAddress.permanentAddress.get.landmark.getOrElse("")
+    }
+    if (userAddress.currentAddress.isDefined){
+      amtidC = userAddress.currentAddress.get.amtid.getOrElse("")
+      addressTypeC = userAddress.currentAddress.get.addressType.getOrElse("")
+      address1C = userAddress.currentAddress.get.address1.getOrElse("")
+      address2C = userAddress.currentAddress.get.address2.getOrElse("")
+      pinC = userAddress.currentAddress.get.pin.getOrElse("")
+      cityC = userAddress.currentAddress.get.city.getOrElse("")
+      districtC = userAddress.currentAddress.get.district.getOrElse("")
+      stateC = userAddress.currentAddress.get.state.getOrElse("")
+      countryC = userAddress.currentAddress.get.country.getOrElse("")
+      landmarkC = userAddress.currentAddress.get.landmark.getOrElse("")
+    }
+    Json.obj(
+      "permanentAddress" -> Json.obj(
+        "amtid" -> amtidP,
+        "addressType" -> addressTypeP,
+        "address1" -> address1P,
+        "address2" -> address2P,
+        "pin" -> pinP,
+        "city" -> cityP,
+        "district" -> districtP,
+        "state" -> stateP,
+        "country" -> countryP,
+        "landmark" -> landmarkP
+      ),
+      "currentAddress" -> Json.obj(
+        "amtid" -> amtidC,
+        "addressType" -> addressTypeC,
+        "address1" -> address1C,
+        "address2" -> address2C,
+        "pin" -> pinC,
+        "city" -> cityC,
+        "district" -> districtC,
+        "state" -> stateC,
+        "country" -> countryC,
+        "landmark" -> landmarkC
+      )
+    )
+  }
+
+  def getUserBasicObject(userBasic: UserBasic): JsObject = {
+    var marital, gender, dob, email, fax, tel, mob, motherName, fatherName, panName,pan,lastName,middleName,firstName : String = ""
+    if(userBasic.contact.isDefined){
+      val contact = userBasic.contact.get
+      email = contact.email.getOrElse("")
+      mob = contact.mob.getOrElse("")
+      tel = contact.tel.getOrElse("")
+      fax = contact.fax.getOrElse("")
+    }
+    firstName = userBasic.fatherName.getOrElse("")
+    lastName = userBasic.lastName.getOrElse("")
+    middleName = userBasic.middleName.getOrElse("")
+    pan = userBasic.pan.getOrElse("")
+    panName = userBasic.panName.getOrElse("")
+    fatherName = userBasic.fatherName.getOrElse("")
+    motherName = userBasic.motherName.getOrElse("")
+    dob = userBasic.dob.getOrElse("")
+    gender = userBasic.gender.getOrElse("")
+    marital = userBasic.maritalStatus.getOrElse("")
+    Json.obj(
+      "firstName" -> firstName,
+      "middleName" -> middleName,
+      "lastName" -> lastName,
+      "pan" -> pan,
+      "panName" -> panName,
+      "fatherName" -> fatherName,
+      "motherName" -> motherName,
+      "contact" -> Json.obj(
+        "email" -> email,
+        "mob" -> mob,
+        "tel" -> tel,
+        "fax" -> fax
+      ),
+      "dob" -> dob,
+      "gender" -> gender,
+      "maritalStatus" -> marital
+    )
+  }
+
+}

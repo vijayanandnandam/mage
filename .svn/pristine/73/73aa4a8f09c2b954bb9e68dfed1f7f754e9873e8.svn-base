@@ -1,0 +1,7 @@
+cams.account.id = "EKYC_SHEP"
+cams.account.password = "HGde$56"
+cams.ekyc.url = "https://eiscweb.camsonline.com/ekyc3/eKYCVal_Aadhar.aspx"
+cams.account.appid = "fincash"
+cams.intermediateryId = ["B"]
+cams.returnDataStr = "MFKYC2"
+cams.returnUrl = "http://localhost/"

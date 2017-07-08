@@ -1,0 +1,21 @@
+birla {
+  url {
+    host = "mfsecuat.birlasunlife.com"
+    folioPath = "/LiquidApp/LCommonService.svc/Foliodetails"
+    irPath = "/LRedeemService.svc/GetIRDetailsForFolio"
+    redemptionPath = "/LRedeemService.svc/IRWithdrawalAmount"
+  }
+  account {
+    password = "MTEyMzU4"
+    apikey = "bdbde98a-77af-3822-a70f-290b29faf327"
+    salt = "FB1DF878-0B4B-481B-A90A-B575FC1AC358"
+    encrytPwd = "Pass@w0rd58"
+    ivValue = "e675f725e675f358"
+    userid = "ARN-112358"
+    ip = "122.169.113.199"
+  }
+  product {
+    schemecode = "153G"
+    IsInstantRedemption = "Y"
+  }
+}

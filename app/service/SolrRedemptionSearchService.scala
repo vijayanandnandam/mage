@@ -1,0 +1,245 @@
+package service
+
+import javax.inject.Singleton
+
+import com.google.inject.Inject
+import constants.SolrConstants
+import helpers.{SchemeHelper, SolrSearchHelper}
+import models.{BankSuggestion, FundOption, RedemptionFund}
+import org.apache.solr.client.solrj.SolrQuery
+import org.apache.solr.client.solrj.response.QueryResponse
+import org.apache.solr.common.{SolrDocument, SolrDocumentList}
+import repository.module.FolioRepository
+
+import scala.collection.mutable.ListBuffer
+import scala.concurrent.{Await, ExecutionContext}
+import scala.concurrent.duration.Duration
+
+/**
+  * Created by Fincash on 26-06-2017.
+  */
+@Singleton
+class SolrRedemptionSearchService @Inject() (implicit ec: ExecutionContext, solrSearchHelper: SolrSearchHelper, schemeHelper: SchemeHelper, folioRepository: FolioRepository) extends SolrConstants{
+
+  def autoComplete(userid: Long, queryTerm: String): ListBuffer[RedemptionFund] = {
+
+    val inputQuery = queryTerm.trim
+
+    val query = new SolrQuery()
+    query.set("defType", "edismax")
+    query.add("pf", "textShingle")
+    query.add("pf", "text")
+    query.add("ps", "10")
+    query.add("qf", "text")
+    query.add("qf", "textShingle")
+    query.add("fq", FOLIO_USERID + ":" + userid)
+    query.add("qf", FOLIO_D_FUNDNAME + "^2")
+    query.add("qf", FOLIO_AMC + "^1.5")
+    query.add("qf", FOLIO_SUBCATEGORY + "^1")
+    query.add("qf", FOLIO_CATEGORY + "^0.5")
+    query.add("qf", FOLIO_D_FOLIONO + "^0.1")
+    query.setRows(10)
+    query.setQuery(inputQuery)
+
+    var qr: QueryResponse = new QueryResponse()
+    var totalResults: Long = 0
+
+    val splits: Array[String] = solrSearchHelper.splitQuery(inputQuery)
+
+    if (totalResults == 0) {
+      query.setQuery(inputQuery)
+      qr = solrSearchHelper.execute(query, FOLIO_CORE)
+      totalResults = qr.getResults().getNumFound()
+
+    }
+
+    if (totalResults == 0) {
+      query.setQuery(inputQuery)
+      qr = solrSearchHelper.spellCheckSearch(query, FOLIO_CORE)
+      totalResults = qr.getResults.getNumFound
+    }
+
+    if (totalResults ==0 && splits != null && splits.length > 0 && splits(0) != "*") {
+      if (splits(0).length > 3){
+        splits(0) = splits(0).substring(0,splits(0).length-1) + "*"
+      }
+      val keyword = solrSearchHelper.makeQueryFromArray(splits)
+      // try adding star at the end to check misspelling etc.
+      query.setQuery(keyword)
+      qr = solrSearchHelper.spellCheckSearch(query, FOLIO_CORE)
+      totalResults = qr.getResults.getNumFound
+    }
+
+    if (totalResults > 0) {
+      getResultAsRedemptionFundList(qr.getResults)
+    } else {
+      return ListBuffer.empty[RedemptionFund]
+    }
+  }
+
+  def getAllFunds(userid: Long): ListBuffer[RedemptionFund] = {
+    val inputQuery = "*" //query: q=*
+
+    val query = new SolrQuery()
+    query.set("defType", "edismax")
+    query.add("pf", "textShingle")
+    query.add("pf", "text")
+    query.add("ps", "10")
+    query.add("qf", "text")
+    query.add("qf", "textShingle")
+    query.add("fq", FOLIO_USERID + ":" + userid)
+    query.add("qf", FOLIO_D_FUNDNAME + "^2")
+    query.add("qf", FOLIO_AMC + "^1.5")
+    query.add("qf", FOLIO_SUBCATEGORY + "^1")
+    query.add("qf", FOLIO_CATEGORY + "^0.5")
+    query.add("qf", FOLIO_D_FOLIONO + "^0.1")
+    query.setRows(100)
+    query.setQuery(inputQuery)
+
+    var qr: QueryResponse = new QueryResponse()
+    var totalResults: Long = 0
+
+    val splits: Array[String] = solrSearchHelper.splitQuery(inputQuery)
+
+    if (totalResults == 0) {
+      query.setQuery(inputQuery)
+      qr = solrSearchHelper.execute(query, FOLIO_CORE)
+      totalResults = qr.getResults().getNumFound()
+
+    }
+
+    if (totalResults == 0) {
+      query.setQuery(inputQuery)
+      qr = solrSearchHelper.spellCheckSearch(query, FOLIO_CORE)
+      totalResults = qr.getResults.getNumFound
+    }
+
+    if (totalResults ==0 && splits != null && splits.length > 0 && splits(0) != "*") {
+      if (splits(0).length > 3){
+        splits(0) = splits(0).substring(0,splits(0).length-1) + "*"
+      }
+      val keyword = solrSearchHelper.makeQueryFromArray(splits)
+      // try adding star at the end to check misspelling etc.
+      query.setQuery(keyword)
+      qr = solrSearchHelper.spellCheckSearch(query, FOLIO_CORE)
+      totalResults = qr.getResults.getNumFound
+    }
+
+    if (totalResults > 0) {
+      getResultAsRedemptionFundList(qr.getResults)
+    } else {
+      return ListBuffer.empty[RedemptionFund]
+    }
+  }
+
+  def getResultAsRedemptionFundList(searchResults: SolrDocumentList): ListBuffer[RedemptionFund] = {
+    val iterator = searchResults.iterator()
+    val folioList = ListBuffer.empty[RedemptionFund]
+
+    while (iterator.hasNext()) {
+      val solrDoc = iterator.next()
+      folioList += getRedemptionFundsFromBanksSolrDoc(solrDoc)
+    }
+    return folioList
+  }
+
+  def getRedemptionFundsFromBanksSolrDoc(doc: SolrDocument): RedemptionFund = {
+    var fundOption = new FundOption(0, "", "", "", "", true, 0.0, true, None, 0.0,0.0)
+    var folioDoc: RedemptionFund = new RedemptionFund(0, "", "", fundOption, "", "", None, 0.0, true, false, None, None, None, None, None, None, None, None, None, None)
+
+    val fundName = doc.getFieldValue(FOLIO_D_FUNDNAME)
+    if (fundName != null) {
+      folioDoc = folioDoc.copy(fundName = fundName.asInstanceOf[String])
+      fundOption = fundOption.copy(legalName = fundName.asInstanceOf[String])
+    }
+
+    val folioNo = doc.getFieldValue(FOLIO_D_FOLIONO)
+    if (folioNo != null) {
+      folioDoc = folioDoc.copy(folioNo = folioNo.asInstanceOf[String])
+    }
+
+    val schemePlanCode = doc.getFieldValue(FOLIO_D_SCHEMEPLAN).asInstanceOf[String]
+    val dividendFrqnCode = doc.getFieldValue(FOLIO_D_DIV_FREQ).asInstanceOf[String]
+    if (schemePlanCode != null && dividendFrqnCode != null) {
+      val plan = schemeHelper.getSchemeOption(schemePlanCode, dividendFrqnCode)
+      folioDoc = folioDoc.copy(plan = plan.asInstanceOf[String])
+      fundOption = fundOption.copy(schemePlan = plan.asInstanceOf[String])
+      fundOption = fundOption.copy(dividendFrequency = dividendFrqnCode)
+    }
+
+    val optionTypeCode = doc.getFieldValue(FOLIO_D_DIV_OPTION_TYPE).asInstanceOf[String]
+    if (optionTypeCode != null) {
+      val dividendOption = schemeHelper.getDivOption(optionTypeCode)
+      fundOption = fundOption.copy(dividendOption = dividendOption)
+    }
+
+    val holdingModeCode = doc.getFieldValue(FOLIO_D_HOLDINGMODE).asInstanceOf[String]
+    if (holdingModeCode != null) {
+      val holdingMode = schemeHelper.getHoldingMode(holdingModeCode)
+      folioDoc = folioDoc.copy(holdingMode = holdingMode.asInstanceOf[String])
+    }
+
+    val tUnits = doc.getFieldValue(FOLIO_D_TOTAL_UNITS)
+    if (tUnits != null) {
+      val totalUnits = tUnits.asInstanceOf[Double]
+      folioDoc = folioDoc.copy(totalUnits = Some(BigDecimal.apply(totalUnits)))
+    }
+
+    val rUnits = doc.getFieldValue(FOLIO_D_REDEEMABLE_UNITS)
+    if (rUnits != null) {
+      val redeemableUnits = rUnits.asInstanceOf[Double]
+      folioDoc = folioDoc.copy(redeemableUnits = Some(BigDecimal.apply(redeemableUnits)))
+    }
+
+    val minAmount = doc.getFieldValue(FOLIO_D_MIN_AMT)
+    if (minAmount != null) {
+      folioDoc = folioDoc.copy(minAmount = Some(minAmount.asInstanceOf[Double]))
+    }
+
+    val minQuantity = doc.getFieldValue(FOLIO_D_MIN_UNIT)
+    if (minQuantity != null) {
+      folioDoc = folioDoc.copy(minQuantity = Some(minQuantity.asInstanceOf[Double]))
+    }
+
+    val quantityMultiple = doc.getFieldValue(FOLIO_D_UNIT_MULTIPLIER)
+    if (quantityMultiple != null) {
+      folioDoc = folioDoc.copy(quantityMultiple = Some(quantityMultiple.asInstanceOf[Double]))
+    }
+
+    val amountMultiple = doc.getFieldValue(FOLIO_D_AMT_MULTIPLIER)
+    if (amountMultiple != null) {
+      folioDoc = folioDoc.copy(amountMultiple = Some(amountMultiple.asInstanceOf[Double]))
+    }
+
+    val rAllowed = doc.getFieldValue(FOLIO_D_REDEMPTION_ALLOWED)
+    if (rAllowed != null) {
+      val rAllowedInt = rAllowed.asInstanceOf[Int]
+      var redemptionAllowed = Y_FLAG
+      if (rAllowedInt == 0){
+        redemptionAllowed = N_FLAG
+      }
+      folioDoc = folioDoc.copy(redemptionAllowed = Some(redemptionAllowed))
+    }
+
+    val fundId = doc.getFieldValue(FOLIO_D_FUNDID)
+    if (fundId != null) {
+      folioDoc = folioDoc.copy(fundId = fundId.asInstanceOf[Long])
+    }
+
+    val soptrfnum = doc.getFieldValue(FOLIO_SOPT)
+    if (soptrfnum != null){
+      fundOption = fundOption.copy(soptRfnum = soptrfnum.asInstanceOf[Long])
+      val navVar = folioRepository.getCurrNavByFundId(soptrfnum.asInstanceOf[Long]).map(navData => {
+        val currNav = navData._1
+        val navDate = navData._2
+        val currValue = BigDecimal.apply(tUnits.asInstanceOf[Double]) * currNav
+        folioDoc = folioDoc.copy(currNav = Some(currNav), navDate = Some(navDate), currValue = Option(currValue.toDouble))
+      })
+      Await.result(navVar, Duration.Inf)
+    }
+    folioDoc = folioDoc.copy(option = fundOption)
+    folioDoc
+  }
+}
+
+

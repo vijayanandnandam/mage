@@ -1,0 +1,160 @@
+@import data.model.Tables.FcbmtRow
+@(username: Option[String], paymentLink: String, linkValidDateTime: Option[String] , amount: Double, bankRow: FcbmtRow, isNetBankingPreferred: Boolean, bankDetails: List[NeftRtgsBankDetails], cutoffTime: Option[String] = None, utils: MailTemplateHelper)
+
+
+<div style="padding: 4% 5%;
+    background-color: white;
+    position: relative;
+    background-color: white;
+    border-left: solid 1px #c1bdbd;
+    border-right: solid 1px #c1bdbd;">
+    Dear <span style="text-transform: capitalize;">
+    @if(username.isDefined) {@username.get} else {Investor}</span>,<br>
+        <p>This is a payment instructions mail for your orders that are due for payment.</p>
+
+        @if(isNetBankingPreferred) {
+            <p>Please find the payment link for your order/s that are due for payment. @if(linkValidDateTime.isDefined){This link is valid till @linkValidDateTime.get}</p>
+            <div style="text-align: center">
+                <a href="@paymentLink" target="_blank" style="padding: 0.5% 0.5%;
+                    color: white;
+                    background-color: #53ADD0;
+                    min-width: 25%;
+                    margin: auto;
+                    text-align: center;
+                    color: white;
+                    font-size: 1.1em;
+                    font-weight: bold;
+                    text-decoration: none;
+                    display: inline-block;">PAY NOW</a>
+            </div>
+
+        }
+
+        @if(isNetBankingPreferred) {
+            <p>To pay via NEFT/RTGS, follow the steps below.</p>
+        } else {
+            <p><b>We recommend you pay via NEFT/RTGS for faster realization of funds.</b></p>
+        }
+        @if(cutoffTime.isDefined){
+            <p>Follow the steps below to make the payment before the cut-off time.</p>
+        }
+        <table>
+            <tr>
+                <td>
+                    <table style="text-align: left;
+                        background-color: #f2f2f2;
+                        border: solid 1px #c1bdbd;
+                        width: 100%;
+                        border-collapse: collapse;">
+                        <thead style="background-color: #D7D7D7;">
+                            <th style="text-align: left;
+                                padding: 10px;">Steps to complete via NEFT/RTGS</th>
+                            <th style="text-align: right; padding:10px;
+                                color: #4E7C98;">@if(cutoffTime.isDefined) {Cut-off Time: @cutoffTime.get}</th>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td colspan="2">
+                                    <ol>
+                                        <li>
+                                            Login to <b>net-banking</b>
+                                        </li>
+                                        <li>
+                                            Add any <b>one payee/beneficiary</b>
+                                            as mentioned in above table(HDFC or ICICI)
+                                        </li>
+                                        <li>
+                                            Transfer order <b>amount (INR @amount)</b> to the beneficiary
+                                        </li>
+                                        <li>
+                                            Please note the NEFT/RTGS transaction <b>reference number</b>
+                                        </li>
+                                        <li>
+                                            Click <b><a href="@paymentLink" target="_blank">Here</a></b>
+                                            @if(linkValidDateTime.isDefined){(valid till @linkValidDateTime.get)} and enter the reference number by selecting NEFT/RTGS mode
+                                        </li>
+                                    </ol>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #c1bdbd;
+                    padding: 15px 10px;">
+                    <table style="border-collapse: collapse;
+                        width: 100%;">
+                        <thead style="text-align: left;">
+                            <th>Bank Name</th>
+                            <th style="background-color: #D7D7D7;">@bankDetails(0).heading</th>
+                            <th></th>
+                            <th style="background-color: #D7D7D7;">@bankDetails(1).heading</th>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Beneficiary Name</td>
+                                <td style="background-color: #f2f2f2; padding-left: 2px;">@bankDetails(0).beneficiaryName</td>
+                                <td></td>
+                                <td style="background-color: #f2f2f2;  padding-left: 2px;">@bankDetails(1).beneficiaryName</td>
+                            </tr>
+                            <tr>
+                                <td>Account No.</td>
+                                <td style="background-color: #f2f2f2;  padding-left: 2px;">
+                                    @bankDetails(0).accountNo @if(bankRow.id == bankDetails(0).bankId) {(Transfer via eCMS)}
+                                </td>
+                                <td style="padding: 15px;">OR</td>
+                                <td style="background-color: #f2f2f2;  padding-left: 2px;">
+                                @if(bankRow.id == bankDetails(1).bankId) {
+                                    @bankDetails(1).fullAccountNo
+                                } else {
+                                    @bankDetails(1).accountNo
+                                }
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>IFSC Code</td>
+                                <td style="background-color: #f2f2f2;  padding-left: 2px;">@bankDetails(0).ifsc</td>
+                                <td></td>
+                                <td style="background-color: #f2f2f2;  padding-left: 2px;">@bankDetails(1).ifsc</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </td>
+            </tr>
+        </table>
+
+
+        @if(!isNetBankingPreferred && bankRow.bmtbanktype.isDefined) {
+            <p>However, if you decide to pay via <b>NETBANKING</b>, please be informed that realisation of funds may take an extra working day.</p>
+        }
+
+        @if(!isNetBankingPreferred) {
+            <div style="text-align: center">
+                <a href="@paymentLink" target="_blank" style="padding: 0.5% 0.5%;
+                    color: white;
+                    background-color: #53ADD0;
+                    min-width: 25%;
+                    margin: auto;
+                    text-align: center;
+                    color: white;
+                    font-size: 1.1em;
+                    font-weight: bold;
+                    text-decoration: none;
+                    display: inline-block;">PAY NOW</a>
+            </div>
+        }
+
+
+    @contact()
+
+    <p>Please visit our <a href="@utils.getBaseUrl()/b/" style="color: #53ADD0">RESOURCE CENTRE</a>
+        to know about Mutual Fund Investments and other investment products.</p>
+
+    <p style="position: absolute;
+        bottom: 2%;">
+        With Warm Regards,<br>
+        Team Fincash</p>
+</div>
+
+@products(utils.getBaseUrl(), utils.getImagePath())

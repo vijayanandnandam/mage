@@ -1,0 +1,29 @@
+package service
+
+import javax.inject.Inject
+
+import constants.IntegrationConstants
+import repository.module.PasswordRepository
+import utils.DateTimeUtils
+
+import scala.concurrent.{ExecutionContext, Future}
+
+/**
+  * Created by fincash on 21-04-2017.
+  */
+class PasswordService @Inject()(implicit ec: ExecutionContext,passwordRepository: PasswordRepository) extends IntegrationConstants{
+
+  def validateBSEPassword(bseApiPassCode:String):Future[Int] = {
+
+    passwordRepository.getBSEPassword(bseApiPassCode).flatMap(passRow => {
+
+      val expiryTime = passRow._2
+      val isValid = DateTimeUtils.checkBsePassTimeValidity(expiryTime)
+      if(!isValid){
+        passwordRepository.updateBSEPassword()
+      } else{
+        Future{0}
+      }
+    })
+  }
+}

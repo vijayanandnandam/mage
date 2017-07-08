@@ -1,0 +1,43 @@
+package service
+
+import scala.collection.mutable.ListBuffer
+import models.Holding
+import java.text.SimpleDateFormat
+import models.FundDetails
+import helpers.DecimalFormat
+import utils.NumberUtils
+
+class HoldingsReportService {
+
+  def getHoldings(capitalGainsFunds: ListBuffer[FundDetails], totalCurrentValue: BigDecimal,
+                  totalCostValue: BigDecimal): ListBuffer[Holding] = {
+
+    val holdingsList = ListBuffer[Holding]()
+    var totalRealizedGain = BigDecimal(0.0)
+    for (fund <- capitalGainsFunds) {
+      var unrealizedGain: BigDecimal = fund.currentValue.getOrElse(0.0)
+      unrealizedGain -= fund.costValue.getOrElse(0.0)
+
+      var realizedGain: BigDecimal = fund.totalLongTermGain.getOrElse(0.0)
+      realizedGain += fund.totalShortTermGain.getOrElse(0.0)
+      totalRealizedGain += realizedGain
+
+      val costValue:BigDecimal = fund.costValue.getOrElse(1.0)
+      val absoluteReturn = if(costValue == BigDecimal(0.0)) Some(costValue) else Some(((realizedGain + unrealizedGain) * 100) / costValue)
+      val fundDetails = fund.fundBasicDetails
+      val holdingModel = Holding(fund.fundId, fund.fundBasicDetails.fundName,Some(fundDetails.modeOfHolding), Some(fundDetails.plan), Some(fundDetails.divFreq),
+        Some(fundDetails.divOption), Some(fund.fundBasicDetails.folioNo), fund.costValue, fund.totalUnitsLeft,
+        Some(fund.currNav), fund.navDate, fund.currentValue, Some(realizedGain), Some(unrealizedGain), absoluteReturn)
+      if(costValue != BigDecimal(0.0)){
+        holdingsList.+=(holdingModel)
+      }
+    }
+
+    totalRealizedGain = DecimalFormat.formatDecimalPlace(totalRealizedGain)
+
+    holdingsList.+=(Holding(0, "Grand Total", None,None, None, None, None, Some(totalCostValue), None, None, None,
+      Some(totalCurrentValue), Some(totalRealizedGain), Some(totalCurrentValue - totalCostValue), None))
+
+    holdingsList
+  }
+}

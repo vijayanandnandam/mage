@@ -1,0 +1,76 @@
+package helpers
+
+import javax.inject.Inject
+
+import constants.HTTPErrorConstants
+import controllers.JWTController
+import org.slf4j.LoggerFactory
+import play.api.libs.json.Json
+import play.api.mvc.Results.InternalServerError
+import play.api.mvc._
+import service.UserService
+
+import scala.concurrent.{ExecutionContext, Future}
+
+class AuthenticatedRequest[A](val token: String, request: Request[A]) extends WrappedRequest[A](request)
+
+class AuthenticatedAction @Inject()(userService: UserService, implicit val ec: ExecutionContext, jwtController: JWTController) extends HTTPErrorConstants {
+
+  val logger, log = LoggerFactory.getLogger(classOf[AuthenticatedAction])
+
+  def Action = new ActionBuilder[AuthenticatedRequest] {
+
+    def invokeBlock[A](request: Request[A], block: (AuthenticatedRequest[A]) => Future[Result]): Future[Result] = {
+
+      request.headers.get("Authorization").map(authHeader => {
+        var token = authHeader.replaceFirst("(Bearer)\\s?", "");
+
+        if (request.path.contains("/secure/login")) {
+          block(new AuthenticatedRequest(token, request)).map(result => setHeader(result, token))
+        } else if (request.path.contains("/secure")) {
+          if (token.isEmpty()) {
+            jwtController.createUserToken("").flatMap(receivedToken => {
+              block(new AuthenticatedRequest(token, request)).map(result => setHeader(result, receivedToken))
+            })
+          } else {
+            jwtController.isTokenValid(token).flatMap(isValid => {
+//              logger.debug(isValid.toString)
+              if (isValid)
+                block(new AuthenticatedRequest(token, request)).map(result => setHeader(result, token));
+              else {
+                jwtController.isTokenExpired(token).flatMap(isExpired => {
+                  if (isExpired){
+                    jwtController.createRefreshToken(token).flatMap(futurereceivedToken => {
+                      futurereceivedToken.flatMap(receivedToken => {
+                        block(new AuthenticatedRequest(token, request)).map(result => setHeader(result, receivedToken))
+                      })
+                    })
+                  }
+                  else
+                    unauthorizedAccess(INVALID_AUTH)
+                })
+              }
+            })
+          }
+        } else {
+          block(new AuthenticatedRequest(token, request)).map(result => setHeader(result, token));
+        }
+      }).getOrElse(unauthorizedAccess(INVALID_AUTH))
+    }
+  }
+
+  def unauthorizedAccess(message: String): Future[Result] = {
+    Future.successful(
+      InternalServerError(Json.obj("success" -> false, "error" -> "Authentication Failed", "message" -> "Authentication Failed"))
+    )
+  }
+
+  def setHeader(res: Result, token: String) = {
+    res.withHeaders(("Access-Control-Allow-Methods", "GET, POST"),
+      ("Access-Control-Allow-Headers", "id_token"),
+      ("Access-Control-Expose-Headers", "id_token"),
+      ("id_token", token));
+  }
+}
+
+

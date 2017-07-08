@@ -1,0 +1,9 @@
+
+
+POST    /getRedeemSuggestion                            controllers.OrderController.getRedeemSuggestion
+
+POST    /getFundObjOfHoldingFund                        controllers.OrderController.getFundObjOfHoldingFund
+GET     /getInstaFunds                                  controllers.OrderController.getInstaFunds
+
+POST    /getRelianceFolioStatus                         controllers.SavingsPlusController.getRelianceFolioStatus
+POST    /getBirlaFolioStatus                            controllers.SavingsPlusController.getBirlaFolioStatus

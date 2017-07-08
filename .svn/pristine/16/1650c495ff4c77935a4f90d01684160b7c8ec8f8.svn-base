@@ -1,0 +1,62 @@
+@import _root_.data.model.Tables._
+
+@(user: FcubdRow, typeISIP:Boolean, orders :List[SubOrderDetails], urnMap:Map[Long, String], utils: MailTemplateHelper)
+
+<div style="padding:4% 5%;background-color:white; position:relative; background-color:white; border-left:solid 1px #c1bdbd;border-right:solid 1px #c1bdbd;">
+    Dear <span style="text-transform: capitalize;">
+    @if(user.ubdfirstname){@user.ubdfirstname} else{Investor}</span>,<br>
+
+    <p>Your first SIP purchase in the following scheme has been reversed.</p>
+
+    <table style="border-collapse: collapse;width:95%; font-size:0.9em; letter-spacing:0; text-align:center;">
+        <thead>
+        @if(typeISIP){
+        <th  style="border: 1px solid black;">Unique <br/> Registration <br/> Number(URN)</th>
+        }
+        <th  style="border: 1px solid black;">Order ID</th>
+        <th  style="border: 1px solid black;">Order <br/>Date</th>
+        <th  style="border: 1px solid black;">Scheme & Plan</th>
+        <th  style="border: 1px solid black;">Amount<br/>(in Rs.)</th>
+        <th  style="border: 1px solid black;">Date & <br/>Frequency</th>
+        <th  style="border: 1px solid black;">No. of Installments</th>
+
+        </thead>
+        <tbody>
+        @for(order <- orders) {
+        <tr>
+            @if(typeISIP){
+            <td  style="border: 1px solid black;">@urnMap(order.subOrderId)</td>
+            }
+            <td  style="border: 1px solid black;">@order.subOrderId</td>
+            <td  style="border: 1px solid black;">@order.createDate</td>
+            <td  style="border: 1px solid black;">@order.schemeName <br/>
+                <i style="font-size:0.9em;">Plan- @order.schemePlan , Option- @order.schemeOption</i>
+            </td>
+            <td  style="border: 1px solid black;">@utils.parse(order.amount.get)</td>
+            <td  style="border: 1px solid black;">@order.sipDayOfMonth <br/>@order.sipFrequency</td>
+            <td  style="border: 1px solid black;">@order.sipNoOfInstallments</td>
+
+        </tr>
+        }
+        </tbody>
+
+    </table>
+
+    @if(!typeISIP){
+    }
+
+    @if(typeISIP){
+    <p>You can still complete the online registration of your SIP for future debits by registering the above URN in your bank’s website. If you have already done that, your future SIPs would be automatically debited from your account. </p>
+    <p>In case you wish to cancel the SIP for any future debits, please reply to this email at least 15 days prior to your SIP deduction date.</p>
+    }
+
+    @contact()
+    <p>Please visit our <a href="@utils.getBaseUrl()/b/" style="color:#53ADD0">RESOURCE CENTRE</a> to know about Mutual Fund Investments and other investment products.</p>
+
+    <p style="position:absolute; bottom:2%;">
+        With Warm Regards,<br>
+        Team Fincash</p>
+
+</div>
+
+@products(utils.getBaseUrl(), utils.getImagePath())

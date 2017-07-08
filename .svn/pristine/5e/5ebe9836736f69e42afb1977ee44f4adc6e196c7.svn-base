@@ -1,0 +1,17 @@
+reliance.redemption.url = "https://online.reliancemf.com/rmf/mowblyserver/wsapi/rmf/prod/wsapi/"
+reliance.redemption.apikey = "2665ae4f-0583-4872-a8d1-07815cb938ce"
+reliance.account.deviceid = "PARTNERAPI"
+reliance.account.appVersion = "1.0.1"
+reliance.account.appName = "FINCASH"
+
+reliance.moneymanager.Userid = ""
+reliance.moneymanager.Fund = "RMF"
+reliance.moneymanager.scheme = "LP"
+reliance.moneymanager.plan = "IG"
+reliance.moneymanager.options = "G"
+reliance.moneymanager.Tpin = "A"
+reliance.moneymanager.Mstatus = "Insta"
+
+reliance.account.ip = "10.1.0.2"
+reliance.account.oldihno = "0"
+reliance.account.branch = "SQ99"

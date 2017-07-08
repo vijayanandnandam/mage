@@ -1,0 +1,4 @@
+url.baseurl = "https://test.fincash.com"
+#url.staticImagePath = "https://d22s1glz9r1myz.cloudfront.net"
+url.staticImagePath = "https://d33bgg9eazah9z.cloudfront.net"
+url.resetPasswordPath = "https://test.fincash.com/auth/password-assistance/reset"

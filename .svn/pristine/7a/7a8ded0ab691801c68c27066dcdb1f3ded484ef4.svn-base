@@ -1,0 +1,45 @@
+@import data.model.Tables.FcbmtRow
+@(username: String, paymentLink: String, linkValidDateTime: String, amount: Double,bankRow: FcbmtRow, showNeftRtgsDetails: Boolean, bankDetails: List[NeftRtgsBankDetails], cutoffTime: Option[String] = None, utils: MailTemplateHelper)
+Dear
+@if(username){@username} else{Investor},
+@if(showNeftRtgsDetails){
+    This is a payment instructions mail for your orders that are due for payment.
+    We recommend you pay via NEFT/RTGS for faster realization of funds. Follow the steps below to make the payment before the cut-off time.
+    Steps to complete via NEFT/RTGS
+    @if(cutoffTime.isDefined){Cut-off Time: @cutoffTime.get}
+    Login to net-banking
+    Add any one payee/beneficiary as mentioned in above table(HDFC or ICICI)
+    Transfer order amount(INR (@amount)) to the beneficiary
+    Please note the NEFT/RTGS transaction reference number
+    Click Here (valid till @linkValidDateTime) and enter the reference number by selecting NEFT/RTGS mode
+    Bank Name
+    @bankDetails(0).heading
+    @bankDetails(1).heading
+    Beneficiary Name
+    @bankDetails(0).beneficiaryName
+    @bankDetails(1).beneficiaryName
+    Account No.
+    @bankDetails(1).accountNo @if(bankRow.id == bankDetails(0).bankId){(Transfer via eCMS)}
+    OR
+    @if(bankRow.id  == bankDetails(1).bankId) {
+        @bankDetails(1).fullAccountNo
+    } else {
+        @bankDetails(1).accountNo
+    }
+    IFSC Code
+    Account No.
+    @bankDetails(0).ifsc
+    @bankDetails(1).ifsc
+    @if(bankRow.bmtbanktype.isDefined) {
+        However, if you decide to pay via NETBANKING, please be informed that realisation of funds may take an extra working day.
+    }
+} else {
+    @if(bankRow.bmtbanktype.isDefined) {
+        Please find the payment link for your order/s that are due for payment. This link is valid till @linkValidDateTime
+    }
+}
+@contact()
+    Please visit our RESOURCE CENTRE to know about Mutual Fund Investments and other investment products.
+    With Warm Regards,
+    Team Fincash
+@products(utils.getBaseUrl(), utils.getImagePath())

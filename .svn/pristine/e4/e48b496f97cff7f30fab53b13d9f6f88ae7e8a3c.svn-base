@@ -1,0 +1,77 @@
+package controllers
+
+import javax.inject.Inject
+
+import helpers.AuthenticatedAction
+import models.OrderJsonFormats._
+import models._
+import play.api.libs.json.Json
+import play.api.mvc.{Action, Controller}
+import service.{OrderCancelService, OrderService, UserService}
+import utils.DateTimeUtils
+import models.HoldingJsonFormats._
+import models.RedeemSuggestion
+
+import scala.collection.mutable.ListBuffer
+import scala.concurrent.ExecutionContext
+
+/**
+  * Created by fincash on 16-02-2017.
+  */
+class OrderController @Inject()(implicit ec: ExecutionContext, orderService: OrderService,
+                                orderCancelService: OrderCancelService,
+                                auth: AuthenticatedAction,
+                                userService: UserService) extends Controller {
+
+  def orderAcknowledgementDetails(orderId: String) = auth.Action.async { request =>
+
+    userService.getUserObjectFromReq(request).flatMap { userLoginObject =>
+
+      orderService.getOrderAcknowledgeDetails(orderId.toLong, userLoginObject.get).map(acknowledgementOrderModel => {
+        Ok(Json.toJson(acknowledgementOrderModel))
+      })
+    }
+  }
+
+  def checkOrderPaymentStatus(subOrderId: String) = auth.Action.async { request =>
+
+    userService.getUserObjectFromReq(request).flatMap { userLoginObject =>
+
+      orderService.checkOrderPaymentStatus(subOrderId.toLong, userLoginObject.get).map(paymentStatus => {
+        Ok(Json.toJson(paymentStatus))
+      })
+    }
+  }
+
+  def getOrderDetails(orderId: String) = auth.Action.async { request =>
+
+    userService.getUserObjectFromReq(request).flatMap { userLoginObject =>
+
+      orderService.populateOrderDetails(orderId.toLong, userLoginObject.get).map(subOrderDetail => {
+        Ok(Json.toJson(subOrderDetail))
+      })
+    }
+  }
+
+  def cancelOrder(subOrderId: String) = auth.Action.async { request =>
+
+    userService.getUserObjectFromReq(request).flatMap { userLoginObject =>
+
+      orderService.cancelOrder(CancelSubOrder(subOrderId.toLong), userLoginObject.get).map(cancelled => {
+        Ok(Json.obj("success" -> cancelled))
+      })
+    }
+  }
+
+
+  def getRedeemSuggestion = auth.Action(parse.json) {request => {
+    var requestData = request.body
+    var redeemList = ListBuffer[RedeemSuggestion]()
+    var term = (requestData \ "term").as[String]
+//    var banks = solrBankSearchService.autoComplete(term)
+    redeemList.+= (new RedeemSuggestion("ICICI Prudential Value Discovery Fund", "Growth", "Growth", "23432423/23", "Single", 23, 25, 2500, DateTimeUtils.getCurrentDate(), 100, "0-365 Days (1%), 365 Days and above (NIL)"))
+    redeemList.+= (new RedeemSuggestion("Kotak Select Focus Fund", "Monthly Dividend", "Payout", "3322322", "Single", 87, 235, 23500, DateTimeUtils.getCurrentDate(), 100, "NIL"))
+    redeemList.+= (new RedeemSuggestion("Birla Sun Life Very Very Special Opportunties Fund", "Weekly Dividend", "Re-investment", "287889", "Single", 98, 124, 3833, DateTimeUtils.getCurrentDate(), 300, "0-12 Month (1%), 12 Month and above (NIL)"))
+    Ok(Json.toJson(redeemList))
+  }}
+}

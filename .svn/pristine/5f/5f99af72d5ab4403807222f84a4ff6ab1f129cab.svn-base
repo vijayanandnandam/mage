@@ -1,0 +1,150 @@
+package repository.module
+
+import javax.inject.Inject
+
+import constants.IntegrationConstants
+import data.model.Tables.{Fcotpt, Fctkt, FctktRow, FctktRowWrapper, Fctkth, FctkthRowWrapper}
+import org.slf4j.LoggerFactory
+import play.api.db.slick.{DatabaseConfigProvider, HasDatabaseConfigProvider}
+import repository.tables.{FctktRepo, FctkthRepo}
+import slick.jdbc.JdbcProfile
+import utils.DateTimeUtils
+
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
+
+/**
+  * Created by fincash on 31-01-2017.
+  */
+class ZendeskRepository @Inject()(protected val dbConfigProvider: DatabaseConfigProvider,
+                                  fctktRepo: FctktRepo, fctkthRepo: FctkthRepo)
+  extends IntegrationConstants with HasDatabaseConfigProvider[JdbcProfile] {
+
+  import profile.api._
+  val logger, log = LoggerFactory.getLogger(classOf[ZendeskRepository])
+
+  def updateTicketInDatabase(tktrfnum : Long, userName :  String): Future[Boolean] = {
+
+    /*val query = for{
+      tktList <- Fctkt.filter(x => (x.id === tktrfnum)).map( x => x).forUpdate.result
+      tktUpdated <- tktList.size match{
+        case 0 => DBIO.successful(1)
+        case n => Fctkt.update(tktList.head.copy(modifydate = DateTimeUtils.getCurrentTimeStamp())).map( x => x)
+      }
+    }yield(tktList)
+    db.run(query.transactionally).map(values => {
+      true
+    })*/
+
+
+    val query = {
+      sql"""SELECT TKTRFNUM FROM FCTKT WHERE TKTRFNUM = ${tktrfnum} FOR UPDATE""".as[Long]
+    } andThen {
+      sqlu"""UPDATE FCTKT SET MODIFYDATE = CURRENT_TIMESTAMP, LASTMODIFIEDBY = ${userName}  WHERE TKTRFNUM = ${tktrfnum}"""
+    }
+    db.run(query.transactionally).map(value => {
+      true
+    })
+  }
+
+  def updateSotPurpose(tktId: Long, purpose: Long, sotrfNum: Long): Future[Boolean] = {
+    fctktRepo.filter(x => x.tktticketid === tktId.toString).flatMap(x => {
+      var fctkt = x.head
+      fctkt = fctkt.copy(tktcndpurpose = Some(purpose) , modifydate = DateTimeUtils.getCurrentTimeStamp, tktsotrfnum = Some(sotrfNum))
+      fctktRepo.updateById(fctkt.id, fctkt).map(_retval => {
+        true
+      })
+    })
+  }
+
+  def updateTktPurpose(tktId: Long, purpose: Long): Future[Boolean] = {
+    fctktRepo.filter(x => x.tktticketid === tktId.toString).flatMap(x => {
+      var fctkt = x.head
+      fctkt = fctkt.copy(tktcndpurpose = Some(purpose), modifydate = DateTimeUtils.getCurrentTimeStamp)
+      fctktRepo.updateById(fctkt.id, fctkt).map(_retval => {
+        true
+      })
+    })
+  }
+
+  def updateTktSOTrfnum(tktId: Long, sotrfNum: Long): Future[Boolean] = {
+    fctktRepo.filter(x => x.tktticketid === tktId.toString).flatMap(x => {
+      if (x.nonEmpty) {
+        var fctkt = x.head
+        fctkt = fctkt.copy(tktsotrfnum = Some(sotrfNum) , modifydate = DateTimeUtils.getCurrentTimeStamp)
+        fctktRepo.updateById(fctkt.id, fctkt).map(_retval => {
+          true
+        })
+      } else {
+        Future.apply(false)
+      }
+    })
+  }
+
+  def getTicketsByUserIdANDpurpose(userId: Long, purpose: Option[Long]): Future[Seq[FctktRow]] = {
+    if (purpose.nonEmpty) {
+      fctktRepo.filter(x => (x.tktubdrfnum === userId && x.tktcndpurpose === purpose.get)).map {
+        x => x
+      }
+    } else {
+      fctktRepo.filter(x => x.tktubdrfnum === userId).map {
+        x => x
+      }
+    }
+  }
+
+  def getTicketByUserIdANDorderId(userId: Long, subOrderId: Long): Future[Seq[FctktRow]] = {
+    fctktRepo.filter(x => (x.tktubdrfnum === userId && x.tktsotrfnum === subOrderId)).map {
+      x => x
+    }
+  }
+
+  def getTicketByOrderId(subOrderId: Long): Future[Seq[FctktRow]] = {
+    val query = for{
+      tktList <- Fctkt.filter(x => (x.tktsotrfnum === subOrderId)).map( x => x).forUpdate.result
+    }yield(tktList)
+    db.run(query.transactionally).map(values => {
+      values
+    })
+  }
+
+  def updateTicketStatus(tktId: Long, fromStatus : String, toStatus : String) : Future[Boolean] = {
+    fctktRepo.filter(x => x.tktticketid === tktId.toString).flatMap(x => {
+      var fctkt = x.head
+      val fromState = fctkt.tktstate.getOrElse(fromStatus)
+      val toState = toStatus
+      fctkt = fctkt.copy(tktstate = Some(toState), modifydate = DateTimeUtils.getCurrentTimeStamp)
+      fctktRepo.updateById(fctkt.id, fctkt).flatMap(_retval => {
+        fctkthRepo.filter(x => x.tkthtktrfnum === fctkt.id).flatMap(y => {
+          var fctkth = y.head
+          fctkth = fctkth.copy(tkthfromstate = Some(fromState), tkthtostate = Some(toState), modifydate = DateTimeUtils.getCurrentTimeStamp)
+          fctkthRepo.updateById(fctkth.id, fctkth).map(res => {
+            true
+          })
+        })
+      })
+    }) recover {
+      case ex => {
+        logger.error(ex.getMessage)
+        false
+      }
+    }
+  }
+
+  def saveTicket(_tktId:String, _tktcndpurpose:Option[Long]=None, _userid:Long, _username:String, tktstate:String, tktsource:String): Future[Long] = {
+    var fctktRow = new FctktRowWrapper(None,_tktId, _tktcndpurpose, Some(_userid), None, None, Some(tktstate), Some(tktsource)).get(_username)
+    val fctkthRow = new FctkthRowWrapper(None, Some(tktstate), Some(tktstate), None, None,1).get(_username)
+    val query = for {
+      fctktnewinstance <- Fctkt returning Fctkt.map(_.id) into ((fctktObj, id) => fctktObj.copy(id = id)) += (fctktRow)
+      fctkthnewinstance <- Fctkth returning Fctkth.map(_.id) into ((fctkthObj, id) => fctkthObj.copy(id = id)) += (fctkthRow.copy(tkthtktrfnum = fctktnewinstance.id))
+    } yield (fctktnewinstance.id)
+    db.run(query.transactionally).map( value => {
+      value
+    }) recover {
+      case ex => {
+        logger.error(ex.getMessage)
+        0L
+      }
+    }
+  }
+}

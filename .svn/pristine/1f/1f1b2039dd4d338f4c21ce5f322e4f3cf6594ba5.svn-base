@@ -1,0 +1,32 @@
+package models
+
+import scala.collection.mutable.ListBuffer
+import java.util.Date
+import scala.collection.mutable.HashMap
+import models.enumerations.AssetClassEnum.AssetClassEnum
+import models.enumerations.AssetClassEnum.AssetClassEnum
+
+case class AssetClassCostValueModel(assetClassCostValueMap: HashMap[AssetClassEnum, BigDecimal], totalCostValue: BigDecimal)
+
+case class AssetClassCurrValueModel(assetClassCurrentValueMap: HashMap[AssetClassEnum, BigDecimal], totalCurrentValue: BigDecimal, asOfDate: Date)
+
+case class PortfolioAssetAllocation(currentValue: BigDecimal, asOfDate: Date, costValue: BigDecimal, unrealizedGain: BigDecimal,
+                                    realizedGain: BigDecimal,
+                                    assetClassDetailsList: ListBuffer[AssetClassDetails])
+
+case class AssetClassDetails(assetClass: AssetClassEnum, investedAmt: BigDecimal, share: BigDecimal, currValue: BigDecimal, currShare: BigDecimal, currentCostRatio: BigDecimal)
+
+case class AssetAllocationModel(assetClass: AssetClassEnum, investedAmt: BigDecimal)
+
+case class TransactionSummary(orderId: Long, subOrderId: Long, fundName: String, schemePlan: String, dividendFreq: String, dividendOption: String, subOrderDate: String, subOrderStatus: String, subOrderAmount: Double, subOrderInvestmentMode: String)
+
+object ReportsJsonFormats {
+
+  import play.api.libs.json.Json
+
+  implicit val assetClassDetailsFormat = Json.format[AssetClassDetails]
+  implicit val portfolioAssetAllocationFormat = Json.format[PortfolioAssetAllocation]
+  implicit val assetAllocationFormat = Json.format[AssetAllocationModel]
+  implicit val transactionSummaryFormat = Json.format[TransactionSummary]
+
+}

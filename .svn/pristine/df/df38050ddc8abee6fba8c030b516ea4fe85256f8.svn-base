@@ -1,0 +1,32 @@
+//********************UAT********************************/
+//birla.foliodetails.url = "https://mfsecuat.birlasunlife.com/LCommonService.svc/Foliodetails"
+//birla.irdetails.url = "https://mfsecuat.birlasunlife.com/LRedeemService.svc/GetIRDetailsForFolio"
+//birla.redemption.url = "https://mfsecuat.birlasunlife.com/LRedeemService.svc/IRWithdrawalAmount"
+
+//birla.account.password = "MTEyMzU4"
+
+//birla.account.apikey = "bdbde98a-77af-3822-a70f-290b29faf327" //365 * 3 days
+//birla.account.encrytPwd = "Pass@w0rd58"
+//birla.account.salt = "FB1DF878-0B4B-481B-A90A-B575FC1AC358"
+//birla.account.ivValue = "e675f725e675f358"
+
+
+//************************LIVE*************************************/
+birla.baseurl.host = "mflive.birlasunlife.com"
+birla.foliodetails.url = "https://mflive.birlasunlife.com/LiquidApp/LCommonService.svc/Foliodetails"
+birla.irdetails.url = "https://mflive.birlasunlife.com/LiquidApp/LRedeemService.svc/GetIRDetailsForFolio"
+birla.redemption.url = "https://mflive.birlasunlife.com/LiquidApp/LRedeemService.svc/IRWithdrawalAmount"
+
+birla.account.password = "QVJOMTEyMzU4"
+
+birla.account.apikey = "e2b4aad5-4057-31ef-a7d9-cd8ff17c3190" //365 * 3 days
+birla.account.salt = "FB1DF878-0B4B-481B-A90A-B575FC1FC358"
+birla.account.encrytPwd = "Pas$@w0rd23"
+birla.account.ivValue = "e675f725e675f112"
+
+//************************COMMON*******************************************/
+birla.client.ip = "122.169.113.199"
+birla.account.userid = "ARN-112358"
+
+birla.cashplus.schemecode = "153GZ"
+birla.cashplus.IsInstantRedemption = "Y"

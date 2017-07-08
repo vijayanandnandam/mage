@@ -1,0 +1,132 @@
+package controllers
+
+import javax.inject.Inject
+
+import helpers.AuthenticatedAction
+import models.FundsJsonFormats._
+import models.RedemptionJsonFormats._
+import models.OrderJsonFormats._
+import models.ReportsJsonFormats._
+import models._
+import play.api.libs.json.Json
+import play.api.mvc.Controller
+import service.{OrderCancelService, OrderService, ReportService, UserService}
+import utils.DateTimeUtils
+
+import scala.collection.mutable.ListBuffer
+import scala.concurrent.ExecutionContext
+
+/**
+  * Created by fincash on 16-02-2017.
+  */
+class OrderController @Inject()(implicit ec: ExecutionContext, orderService: OrderService,
+                                orderCancelService: OrderCancelService, reportService: ReportService,
+                                auth: AuthenticatedAction,
+                                userService: UserService) extends Controller {
+
+  def orderAcknowledgementDetails(orderId: String) = auth.Action.async { request =>
+
+    userService.getUserObjectFromReq(request).flatMap { userLoginObject =>
+
+      orderService.getOrderAcknowledgeDetails(orderId.toLong, userLoginObject.get).map(acknowledgementOrderModel => {
+        Ok(Json.toJson(acknowledgementOrderModel))
+      })
+    }
+  }
+
+  def checkOrderPaymentStatus(subOrderId: String) = auth.Action.async { request =>
+
+    userService.getUserObjectFromReq(request).flatMap { userLoginObject =>
+
+      orderService.checkOrderPaymentStatus(subOrderId.toLong, userLoginObject.get).map(paymentStatus => {
+        Ok(Json.toJson(paymentStatus))
+      })
+    }
+  }
+
+  def getOrderDetails(orderId: String) = auth.Action.async { request =>
+
+    userService.getUserObjectFromReq(request).flatMap { userLoginObject =>
+
+      orderService.populateOrderDetails(orderId.toLong, userLoginObject.get).map(subOrderDetail => {
+        Ok(Json.toJson(subOrderDetail))
+      })
+    }
+  }
+
+  def cancelOrder(subOrderId: String) = auth.Action.async { request =>
+
+    userService.getUserObjectFromReq(request).flatMap { userLoginObject =>
+
+      orderService.cancelOrder(CancelSubOrder(subOrderId.toLong), userLoginObject.get).map(cancelled => {
+        Ok(Json.obj("success" -> cancelled))
+      })
+    }
+  }
+
+  def getDuplicateOrders() = auth.Action.async(parse.json) { request =>
+    userService.getUserObjectFromReq(request).flatMap(userLoginObject => {
+      val duplicateOrderModel = request.body.as[DuplicateOrderModel]
+      val userId = userLoginObject.get.userid.get
+      orderService.isAlreadyWithoutPayment(duplicateOrderModel.smtrfnumList, userId).map(transactionList => {
+        Ok(Json.toJson(transactionList))
+      })
+    })
+  }
+
+  def getRedeemSuggestion = auth.Action.async(parse.json) { request => {
+    var requestData = request.body
+    var redeemList = ListBuffer[RedeemSuggestion]()
+    var term = (requestData \ "term").as[String]
+
+    var fundId: Long = 0
+    var folioNo, holdingMode: String = ""
+    var currNav, currValue: BigDecimal = 0.0
+
+    var navDate: Long = 0
+
+    userService.getUserObjectFromReq(request).flatMap(userObject => {
+      reportService.getRedemptionFundDetails(userObject.get.userid.get).map(fundDetailsList => {
+        Ok(Json.toJson(fundDetailsList))
+      })
+    })
+
+
+    /* reportService.getFundDetails(userObject.get.userid.get).map { fundDetailsList =>
+//        val assetClassCurrentValue = portfolioSummaryService.calculateCurrentValue(fundDetailsList)
+//        val currentValue = assetClassCurrentValue.totalCurrentValue
+//        val assetClassCurrentValueMap = assetClassCurrentValue.assetClassCurrentValueMap
+//        val assetClassCostValue = portfolioSummaryService.calculateCostValue(fundDetailsList)
+//        val assetClassCostValueMap = assetClassCostValue.assetClassCostValueMap
+//        val costValue = assetClassCostValue.totalCostValue
+//        val unrealizedGain = currentValue - costValue
+//        val capitalGainsFunds: ListBuffer[FundDetails] = capitalGainsService.calculateCapitalGains(fundDetailsList)
+
+       val holdingsList: ListBuffer[Holding] = holdingReportService.getHoldings(capitalGainsFunds, currentValue, costValue)
+       Ok(Json.toJson(holdingsList))
+     }
+   }*/
+    //    var banks = solrBankSearchService.autoComplete(term)
+    /*redeemList.+= (new RedeemSuggestion("ICICI Prudential Value Discovery Fund", "Growth", "Growth", "23432423/23", "Single", 23, 25, 2500, DateTimeUtils.getCurrentDate(), 100, "0-365 Days (1%), 365 Days and above (NIL)"))
+    redeemList.+= (new RedeemSuggestion("Kotak Select Focus Fund", "Monthly Dividend", "Payout", "3322322", "Single", 87, 235, 23500, DateTimeUtils.getCurrentDate(), 100, "NIL"))
+    redeemList.+= (new RedeemSuggestion("Birla Sun Life Very Very Special Opportunties Fund", "Weekly Dividend", "Re-investment", "287889", "Single", 98, 124, 3833, DateTimeUtils.getCurrentDate(), 300, "0-12 Month (1%), 12 Month and above (NIL)"))
+    Ok(Json.toJson(redeemList))*/
+  }
+  }
+
+  def getFundObjOfHoldingFund = auth.Action.async(parse.json) { request => {
+    var requestData = request.body
+    var soptrfnum = (requestData \ "soptrfnum").as[Long]
+    var folioNo = (requestData \ "folioNo").as[String]
+    var holdingMode = (requestData \ "holdingMode").as[String]
+    var holdingUnits = (requestData \ "holdingUnits").as[BigDecimal]
+    var holdingFund = new HoldingFund(soptrfnum, folioNo, holdingMode, holdingUnits)
+
+    userService.getUserObjectFromReq(request).flatMap(userObject => {
+      reportService.getRedemptionFundObjectForFund(userObject.get.userid.get, holdingFund).map(fundObj => {
+        Ok(Json.toJson(fundObj))
+      })
+    })
+  }
+  }
+}

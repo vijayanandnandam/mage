@@ -1,0 +1,212 @@
+package service
+
+import java.util
+import javax.inject.Inject
+
+import constants.CNDConstants
+import data.model.Tables.FctktRow
+import helpers.{MailHelper, ZendeskHelper}
+import models.{SubOrderDetails, SubOrderUnitDetails}
+import org.slf4j.LoggerFactory
+import org.zendesk.client.v2.model._
+import repository.module.UserRepository
+import repository.tables.{FctktRepo, FctkthRepo}
+import slick.jdbc.MySQLProfile.api._
+
+import scala.concurrent.{ExecutionContext, Future}
+
+
+/**
+  * Created by Fincash on 22-05-2017.
+  */
+class ZendeskService @Inject()(implicit ec: ExecutionContext, fctktRepo: FctktRepo, fctkthRepo: FctkthRepo, zendeskHelper: ZendeskHelper, ticket: Ticket, user: TicketForm, comment: Comment, customFieldValue: CustomFieldValue, userRepository: UserRepository, configuration: play.api.Configuration, mailHelper: MailHelper) extends CNDConstants {
+
+  val IS_ZENDESK_CLIENT_POSTING_ALLOWED = configuration.underlying.getBoolean("zendesk.tktAllowed")
+  var logger = LoggerFactory.getLogger("ZendeskService")
+  val zd = zendeskHelper.getZendeskObj()
+
+  def createTicket(requester: Ticket.Requester, subject: String, comment: Comment, groupId: Option[Long] = None, recipient: String, username: String, userid: Long): Future[Long] = {
+    ticket.setRequester(requester)
+    ticket.setSubject(subject)
+    ticket.setComment(comment)
+    ticket.setGroupId(groupId.get)
+    ticket.setRecipient(recipient)
+    var tktId: Option[Long] = None
+    if (IS_ZENDESK_CLIENT_POSTING_ALLOWED) {
+      tktId = Some(zd.createTicket(ticket).getId)
+    }
+    val status = Status.NEW.toString.toLowerCase()
+    val tktSource = zendeskHelper.tktSource.API.toLowerCase()
+    userRepository.saveTicket(tktId.getOrElse("0").toString, None, userid, username, status, tktSource).map(tktRow => {
+      tktId.getOrElse(0L)
+    })
+  }
+
+  def updateTktPurpose(tktId: Long, purpose: Long): Future[Boolean] = {
+    fctktRepo.filter(x => x.tktticketid === tktId.toString).flatMap(x => {
+      var fctkt = x.head
+      fctkt = fctkt.copy(tktcndpurpose = Some(purpose))
+      fctktRepo.updateById(fctkt.id, fctkt).map(_retval => {
+        true
+      })
+    })
+  }
+
+  def updateTktSOTrfnum(tktId: Long, sotrfNum: Long): Future[Boolean] = {
+    fctktRepo.filter(x => x.tktticketid === tktId.toString).flatMap(x => {
+      if (x.nonEmpty) {
+        var fctkt = x.head
+        fctkt = fctkt.copy(tktsotrfnum = Some(sotrfNum))
+        fctktRepo.updateById(fctkt.id, fctkt).map(_retval => {
+          true
+        })
+      } else {
+        Future.apply(false)
+      }
+    })
+  }
+
+  def updateStatus(tktId: Long, status: Status): Future[Boolean] = {
+    val zdTicket = zd.getTicket(tktId)
+    zdTicket.setStatus(status)
+    if (IS_ZENDESK_CLIENT_POSTING_ALLOWED) {
+      zd.updateTicket(zdTicket)
+    }
+    fctktRepo.filter(x => x.tktticketid === tktId.toString).flatMap(x => {
+      var fctkt = x.head
+      var fromState = fctkt.tktstate.toString
+      var toState = status.toString
+      fctkt = fctkt.copy(tktstate = Some(status.toString))
+      fctktRepo.updateById(fctkt.id, fctkt).flatMap(_retval => {
+        fctkthRepo.filter(x => x.tkthtktrfnum === fctkt.id).flatMap(y => {
+          var fctkth = y.head
+          fctkth = fctkth.copy(tkthfromstate = Some(fromState), tkthtostate = Some(toState))
+          fctkthRepo.updateById(fctkth.id, fctkth).map(res => {
+            true
+          })
+        })
+      })
+    })
+  }
+
+  def setCustomField(tktId: Long, customFieldList: util.List[CustomFieldValue]): Boolean = {
+    val zdTicket = zd.getTicket(tktId)
+    zdTicket.setCustomFields(customFieldList)
+    if (IS_ZENDESK_CLIENT_POSTING_ALLOWED) {
+      zd.updateTicket(zdTicket)
+    }
+    true
+  }
+
+  def getTicketsByUserIdANDpurpose(userId: Long, purpose: Option[Long]): Future[Seq[FctktRow]] = {
+    if (purpose.nonEmpty) {
+      fctktRepo.filter(x => (x.tktubdrfnum === userId && x.tktcndpurpose === purpose.get)).map {
+        x => x
+      }
+    } else {
+      fctktRepo.filter(x => x.tktubdrfnum === userId).map {
+        x => x
+      }
+    }
+  }
+
+  def getTicketByUserIdANDorderId(userId: Long, subOrderId: Long): Future[Seq[FctktRow]] = {
+    fctktRepo.filter(x => (x.tktubdrfnum === userId && x.tktsotrfnum === subOrderId)).map {
+      x => x
+    }
+  }
+
+  def getTicketByOrderId(subOrderId: Long): Future[Seq[FctktRow]] = {
+    fctktRepo.filter(x => (x.tktsotrfnum === subOrderId)).map {
+      x => x
+    }
+  }
+
+  def updateUserPhone(zdUserId: Long, mob: String): Boolean = {
+    val user = zd.getUser(zdUserId)
+    user.setPhone(mob)
+    if (IS_ZENDESK_CLIENT_POSTING_ALLOWED) {
+      val ticket = zd.updateUser(user)
+      ticket.getPhone.equalsIgnoreCase(mob)
+    } else {
+      false
+    }
+  }
+
+  def setUserField(zdUserId: Long, userField: java.util.Map[String, Object]): Boolean = {
+    val user = zd.getUser(zdUserId)
+    user.setUserFields(userField)
+    if (IS_ZENDESK_CLIENT_POSTING_ALLOWED) {
+      val ticket = zd.updateUser(user)
+      val userFieldsKeys = ticket.getUserFields.keySet
+      userFieldsKeys.size.equals(userField.size())
+    } else {
+      false
+    }
+  }
+
+  def setUserName(zdUserId: Long, name:String):Boolean = {
+    val user = zd.getUser(zdUserId)
+    user.setName(name)
+    zd.updateUser(user).getName.equalsIgnoreCase(name)
+  }
+
+  def setTktComment(tktId: Long, comment: Comment): Boolean = {
+    val zdTicket = zd.getTicket(tktId)
+    zdTicket.setComment(comment)
+    zd.updateTicket(zdTicket)
+    true
+  }
+
+  def postOrderUpdate(subOrder: SubOrderDetails, fromState: String): Future[Boolean] = {
+    if (IS_ZENDESK_CLIENT_POSTING_ALLOWED) {
+      this.getTicketByOrderId(subOrder.subOrderId).map(tktRows => {
+        if (tktRows.nonEmpty) {
+          val tktRow = tktRows.head
+          val zdTicket = zd.getTicket(tktRow.tktticketid.toLong)
+          val customField1 = new CustomFieldValue(zendeskHelper.tktFieldId.ORDER_STATUS, subOrder.stateName.getOrElse("NA"))
+          val customFieldList = new java.util.ArrayList[CustomFieldValue]
+          customFieldList.add(customField1)
+          zdTicket.setCustomFields(customFieldList)
+          zd.updateTicket(zdTicket)
+          true
+        } else {
+          logger.debug("@@user doeesn't exist in database")
+          false
+        }
+      })
+    } else {
+      logger.debug("@@tkt update not allowed for this config")
+      Future.apply(false)
+    }
+  }
+
+  def postOrderUnitUpdate(subOrderUnitDetails: SubOrderUnitDetails): Future[Boolean] = {
+    if (IS_ZENDESK_CLIENT_POSTING_ALLOWED) {
+      val subOrderId = subOrderUnitDetails.subOrderId
+      this.getTicketByOrderId(subOrderId).map(tktRows => {
+        if (tktRows.nonEmpty) {
+          val tktRow = tktRows.head
+          val zdTicket = zd.getTicket(tktRow.tktticketid.toLong)
+          val customField1 = new CustomFieldValue(zendeskHelper.tktFieldId.ORDER_STATUS, subOrderUnitDetails.orderStateName.getOrElse(""))
+          val customFieldList = new java.util.ArrayList[CustomFieldValue]
+          customFieldList.add(customField1)
+          val tktComment = comment
+          val bodyTextZd = views.html.zdOrderUnitDetailsTxt(subOrderUnitDetails , mailHelper.getMth).toString()
+          tktComment.setBody(bodyTextZd)
+
+          zdTicket.setCustomFields(customFieldList)
+          zdTicket.setComment(tktComment)
+          zd.updateTicket(zdTicket)
+          true
+        } else {
+          logger.debug("Unauthorised Request")
+          false
+        }
+      })
+    } else {
+      logger.debug("@@tkt update not allowed for this config")
+      Future.apply(false)
+    }
+  }
+}

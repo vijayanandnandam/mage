@@ -1,0 +1,3 @@
+
+
+POST         /eKYCStatus                                      controllers.KYCController.sendeKYCMail

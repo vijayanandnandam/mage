@@ -1,0 +1,20 @@
+package helpers
+
+import com.ning.http.client.{AsyncHttpClient, AsyncHttpClientConfig}
+import service.PropertiesLoaderService
+
+/**
+  * Created by fincash on 03-06-2017.
+  */
+object CustomAsyncHttpClient {
+
+  private val maxConnections = PropertiesLoaderService.getConfig().getInt("zendesk.http.client.maxConnections")
+  private val maxConnectionsPerHost = PropertiesLoaderService.getConfig().getInt("zendesk.http.client.maxConnectionPerHost")
+  private val connectTimeOut = PropertiesLoaderService.getConfig().getInt("zendesk.http.client.connectTimeout")
+  private val readTimeOut = PropertiesLoaderService.getConfig().getInt("zendesk.http.client.readTimeout")
+
+  private val ASYNC_HTTP_CLIENT_CONFIG = new AsyncHttpClientConfig.Builder().setMaxConnections(maxConnections)
+    .setMaxConnectionsPerHost(maxConnectionsPerHost).setConnectTimeout(connectTimeOut).setReadTimeout(readTimeOut).build()
+
+  val ASYNC_HTTP_CLIENT = new AsyncHttpClient(ASYNC_HTTP_CLIENT_CONFIG)
+}

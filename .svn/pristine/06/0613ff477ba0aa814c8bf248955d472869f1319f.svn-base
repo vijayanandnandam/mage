@@ -1,0 +1,145 @@
+package repository.module
+
+import java.sql.Timestamp
+import java.util.Date
+import javax.inject.Inject
+
+import constants.DBConstants
+import data.model.Tables.{Fcbbt, Fcbmt, FcbmtRow, Fcbua, Fcmmt, FcmmtRow, Fcmmtl, FcmmtlRowWrapper}
+import org.slf4j.LoggerFactory
+import play.api.db.slick.{DatabaseConfigProvider, HasDatabaseConfigProvider}
+import repository.tables.{FcmmtRepo, FcmmtlRepo}
+import slick.jdbc.JdbcProfile
+import utils.DateTimeUtils
+
+import scala.concurrent.{ExecutionContext, Future}
+
+/**
+  * Created by fincash on 18-02-2017.
+  */
+class BankRepository @Inject()(implicit ec: ExecutionContext, protected val dbConfigProvider: DatabaseConfigProvider,
+                               fcmmtRepo: FcmmtRepo, fcmmtlRepo: FcmmtlRepo)
+  extends HasDatabaseConfigProvider[JdbcProfile] with DBConstants {
+
+  val logger, log = LoggerFactory.getLogger(classOf[BankRepository])
+
+
+  import profile.api._
+
+  def getMandateBankDetails(userPk: Long): Future[(Long, String, String)] = {
+
+    val query = for {
+      fcbuaObj <- Fcbua.filter(_.buaubdrfnum === userPk)
+      fcbbtObj <- Fcbbt.filter(_.id === fcbuaObj.buabbtrfnum)
+    } yield (fcbuaObj.id, fcbuaObj.buaacctno, fcbbtObj.bbtifsccode)
+
+    db.run(query.result).map(values => {
+      values.head
+    })
+  }
+
+  def getSipBankDetails(buarfnum: Long): Future[(Long, String, String, String)] = {
+
+    logger.debug("Querying Bank Details")
+    val query = for {
+      fcbuaObj <- Fcbua.filter(_.id === buarfnum)
+      fcbbtObj <- Fcbbt.filter(_.id === fcbuaObj.buabbtrfnum)
+      fcbmtObj <- Fcbmt.filter(_.id === fcbbtObj.bbtbmtrfnum)
+    } yield (fcbuaObj.id, fcbuaObj.buaacctno, fcbbtObj.bbtifsccode, fcbmtObj.bmtisipallowed)
+
+    db.run(query.result).map(values => {
+      values.head
+    })
+  }
+
+  def saveMandate(fcmmtRow: FcmmtRow) = {
+
+    var query = for {
+      fcmmtObj <- Fcmmt returning Fcmmt.map(_.id) into ((fcmmtObj, id) => fcmmtObj.copy(id = id)) += fcmmtRow
+    //fcmmtlObj <- Fcmmtl returning Fcmmtl.map(_.id) into ((fcmmtlObj, id) => fcmmtlObj.copy(id = id)) += (fcmmtlRow.copy(mmtlmmtrfnum = fcmmtObj.id))
+    } yield ()
+
+    db.run(query.transactionally)
+  }
+
+  def getMandateDetails(mmtrfnum: Long): Future[Option[FcmmtRow]] = {
+    fcmmtRepo.getById(mmtrfnum)
+  }
+
+  def getBankNames(): Future[Seq[FcbmtRow]] = {
+    val query = Fcbmt.result
+
+    db.run(query).map(value => {
+      value
+    }).recover {
+      case ex: Exception => throw ex
+    }
+  }
+
+  def getDetailsOfBank(ifsc: String): Future[Seq[(Long, String, Long, Option[String], String)]] = {
+
+    var query = for {
+      bbtrow <- Fcbbt.filter(x => x.bbtifsccode like "%" + ifsc + "%")
+      bmtrow <- Fcbmt.filter(x => x.id === bbtrow.bbtbmtrfnum && x.bmtactive === Y_FLAG)
+    } yield (bmtrow.id, bmtrow.bmtbankname, bbtrow.id, bbtrow.bbtbranchname, bbtrow.bbtifsccode)
+
+    db.run(query.take(15).result).map(values => {
+      values
+    })
+  }
+
+  def getExistingBankMandate(buarfnum: Long, mmtamount: Double): Future[Option[(String,String)]] = {
+
+    logger.debug("Querying Existing bank Mandate for amount " + mmtamount)
+    fcmmtRepo.filter(x => (x.mmtbuarfnum === buarfnum) && (x.mmtmandatestatus =!= CANCEL_MANDATE) &&
+      (x.mmtamount >= mmtamount)).map(mmtRowList => {
+      if (mmtRowList.isEmpty) {
+        None
+      } else {
+        Some(mmtRowList.head.mmtexternalid.get, mmtRowList.head.mmtmandatetype.get)
+      }
+    })
+  }
+
+  def getAmountForMandateId(existingMandate: String): Future[Double] = {
+
+    val date = DateTimeUtils.convertDateToFormat(new Date(), "yyyy-MM-dd");
+    val startDate = date + " 00:00:00";
+    val endDate = date + " 23:59:59";
+    val startTime = new Timestamp(DateTimeUtils.convertDateToFormat(startDate, "yyyy-MM-dd HH:mm:ss").get.getTime);
+    val endTime = new Timestamp(DateTimeUtils.convertDateToFormat(endDate, "yyyy-MM-dd HH:mm:ss").get.getTime);
+
+    DateTimeUtils.convertDateToFormat(startDate, "yyyy-MM-dd HH:mm:ss").get.getTime
+    for {
+      mmtAmount <- fcmmtRepo.filter(x => x.mmtexternalid === existingMandate)
+      orderedAmountList <- fcmmtlRepo.filter(x => (x.createdate >= startTime) && (x.createdate <= endTime) && (x.mmtlmmtrfnum === mmtAmount.head.id))
+    } yield {
+      var sum: Double = 0D;
+      orderedAmountList.foreach(fcmmtlRow => sum += fcmmtlRow.mmtlsotamount.getOrElse(0D));
+      mmtAmount.head.mmtamount - sum;
+    }
+
+  }
+
+  def insertToMandateLogTable(sotRfnum: Long, existingMandate: String, orderAmount: Double, userName: String): Future[Any] = {
+
+    val fcmmtlRow = new FcmmtlRowWrapper(None, -1, Some(sotRfnum), Some(orderAmount)).get(userName)
+
+    fcmmtRepo.filter(x => x.mmtexternalid === existingMandate).map(fcmmtObj => {
+      val query = Fcmmtl returning Fcmmtl.map(_.id) into ((fcmmtlObj, id) => fcmmtlObj.copy(id = id)) += (fcmmtlRow.copy(mmtlmmtrfnum = fcmmtObj.head.id))
+      db.run(query.transactionally)
+    })
+
+  }
+
+  def getSubOrderMandateDetails(sotrfnum:Long):Future[Seq[FcmmtRow]] = {
+    val query = for{
+      mmtlRow <- Fcmmtl.filter(_.mmtlsotrfnum === sotrfnum)
+      mmtRow <- Fcmmt.filter(_.id === mmtlRow.mmtlmmtrfnum)
+    } yield(mmtRow)
+
+    db.run(query.result).map(values =>{
+      values
+    })
+  }
+}

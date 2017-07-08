@@ -1,0 +1,102 @@
+package helpers
+
+import java.io.File
+import javax.inject.Inject
+
+import com.ning.http.client.{AsyncHttpClient, AsyncHttpClientConfig}
+import constants._
+import org.slf4j.LoggerFactory
+import org.zendesk.client.v2.Zendesk
+import org.zendesk.client.v2.model.Ticket.Requester
+import org.zendesk.client.v2.model._
+import play.api.inject.ApplicationLifecycle
+
+import scala.concurrent.{ExecutionContext, Future}
+
+/**
+  * Created by Fincash on 11-05-2017.
+  */
+class ZendeskHelper @Inject()(implicit val ec: ExecutionContext, configuration: play.api.Configuration, lifeCycle: ApplicationLifecycle) extends CNDConstants with ZendeskConstants{
+
+  val logger,log = LoggerFactory.getLogger(classOf[ZendeskHelper])
+  val zendeskURL = configuration.underlying.getString("zendesk.url")
+  val zendeskAuthEmail = configuration.underlying.getString("zendesk.auth.email")
+  val zendeskAuthPass = configuration.underlying.getString("zendesk.auth.password")
+  val zendeskOauthToken = configuration.underlying.getString("zendesk.auth.oauthtoken")
+  val isTktAllowed = configuration.underlying.getBoolean("zendesk.tktAllowed")
+  private val maxConnections = configuration.underlying.getInt("zendesk.http.client.maxConnections")
+  private val maxConnectionsPerHost = configuration.underlying.getInt("zendesk.http.client.maxConnectionPerHost")
+  private val connectTimeOut = configuration.underlying.getInt("zendesk.http.client.connectTimeout")
+  private val readTimeOut = configuration.underlying.getInt("zendesk.http.client.readTimeout")
+  private val ASYNC_HTTP_CLIENT_CONFIG = new AsyncHttpClientConfig.Builder().setMaxConnections(maxConnections)
+    .setMaxConnectionsPerHost(maxConnectionsPerHost).setConnectTimeout(connectTimeOut).setReadTimeout(readTimeOut).build()
+  private val ASYNC_HTTP_CLIENT = new AsyncHttpClient(ASYNC_HTTP_CLIENT_CONFIG)
+
+  lifeCycle.addStopHook(() =>{
+    Future.successful(if(!ASYNC_HTTP_CLIENT.isClosed) ASYNC_HTTP_CLIENT.close())
+  })
+  val zendesk = new Zendesk.Builder(zendeskURL).setUsername(zendeskAuthEmail).setToken(zendeskOauthToken).setClient(ASYNC_HTTP_CLIENT).build()
+  val onBoardingSubject = configuration.underlying.getString("zendesk.onboarding.defaultSubject")
+  val purchaseSubject = configuration.underlying.getString("zendesk.purchase.defaultSubject")
+
+  def createRequester() : Requester = {
+    new Ticket.Requester()
+  }
+
+  def createTicketObject():Ticket = {
+    new Ticket()
+  }
+
+  def createExternalId(userId:Long, purposeId:Long, creator:String): String ={
+    userId.toString+"-"+purposeId.toString+"-"+creator
+  }
+
+  def getGroupANDPurposeFromOrderType(orderType:String, subOrderType:String):(Long, Long) = {
+    var assigneeGroup:Long = ZENDESK_GROUP_SUPPORT
+    var tktPurpose:Long = 0L
+    if(orderType.toLowerCase()=="p"){
+      assigneeGroup = ZENDESK_GROUP_PURCHASE
+      if(subOrderType.toLowerCase()=="sip"){
+        assigneeGroup = ZENDESK_GROUP_SYSTEMATIC_INVESTMENT
+        tktPurpose = TKT_PURPOSE_SIP
+      }else{
+        assigneeGroup = ZENDESK_GROUP_PURCHASE
+        tktPurpose = TKT_PURPOSE_BUY
+      }
+    } else{
+      assigneeGroup = ZENDESK_GROUP_REDEMPTION
+      tktPurpose = TKT_PURPOSE_SELL
+    }
+    (assigneeGroup, tktPurpose)
+  }
+
+  def getUserIdByEmail(email:String):Long = {
+    var userId:Long = 0L
+    if (email != null && email.length!=0) {
+      var emailId = email.trim()
+      var user = zendesk.lookupUserByEmail(emailId)
+      var userIter = user.iterator()
+      while(userIter.hasNext){
+        userId = userIter.next.getId
+      }
+      if(userId.equals(0L)){
+        val user = new org.zendesk.client.v2.model.User(true, email, email)
+        val userRetval = zendesk.createUser(user)
+        userId = userRetval.getId
+      }
+    }
+    userId
+  }
+
+  def createUpload(file: File, contentType : String, bytes: Array[Byte]): Option[String] ={
+    try{
+      val token = zendesk.createUpload(file.getName, contentType, bytes).getToken
+      Some(token)
+    }catch {
+      case ex : Exception =>{
+        logger.error("error in file upload createUpload() " + ex.getMessage)
+        None
+      }
+    }
+  }
+}

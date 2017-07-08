@@ -1,0 +1,34 @@
+package models
+
+import java.util.Date
+
+import play.api.libs.json._
+import models._
+import models.CheckoutJsonFormats._
+
+case class Redemption(redemptionId: String, fundsData: List[RedemptionFund], nomineeList: Option[List[CheckoutNominee]], bankList: List[CheckoutBank], selectedBank: Option[CheckoutBank] = None, selectedNominee: Option[CheckoutNominee] = None)
+
+case class RedemptionFund(fundId: Long, fundName: String, plan: String, option: FundOption, folioNo: String, holdingMode: String, selectedRedemptionMode: Option[String] = None, amount: Double, amountUnitFlag: Boolean, fullPartialFlag: Boolean, totalUnits: Option[BigDecimal] = None, redeemableUnits: Option[BigDecimal] = None, currValue: Option[Double] = None, currNav: Option[Double] = None, navDate: Option[Date] = None, redemptionAllowed: Option[String], minQuantity: Option[Double], minAmount: Option[Double], quantityMultiple: Option[Double], amountMultiple: Option[Double])
+
+
+case class RedemptionSummary(fundList: Seq[RedemptionFund], bankRfnum: Long, imagePath: String)
+
+case class ExchangeRedemptionSummary(orderId: Long, redemptionSummary: RedemptionSummary)
+
+/*case class PaymentObject(orderId: Long,
+                         paymentUrl: String,
+                         bseUrl: Option[String])*/
+
+
+object RedemptionJsonFormats {
+
+  import play.api.libs.json._
+  import models.FundsJsonFormats._
+
+  implicit val redemptionFundFormat = Json.format[RedemptionFund]
+  implicit val redemptionFormat = Json.format[Redemption]
+
+  implicit val redemptionSummaryFormat = Json.format[RedemptionSummary]
+  implicit val exchangeRedemptionSummaryFormat = Json.format[ExchangeRedemptionSummary]
+  //  implicit val paymentObjectFormat = Json.format[PaymentObject]
+}

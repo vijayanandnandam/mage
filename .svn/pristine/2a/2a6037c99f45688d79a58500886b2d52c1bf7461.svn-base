@@ -1,0 +1,4 @@
+
+POST        /orderMail                                        controllers.CheckoutController.sendOrderMail
+GET        /registrationMail                                 controllers.UserController.sendRegistrationMail
+

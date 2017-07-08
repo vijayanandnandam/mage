@@ -1,0 +1,9 @@
+
+GET    /checkOrderDetails/:orderId              controllers.OrderController.orderAcknowledgementDetails(orderId)
+GET     /checkPaymentStatus/:orderId            controllers.OrderController.checkOrderPaymentStatus(orderId)
+GET     /orderDetails/:orderId                  controllers.OrderController.getOrderDetails(orderId)
+GET     /registerClient                         controllers.BSEStarController.registerClient
+#GET     /bseRegistration                        controllers.BSEStarController.BSERegistration
+#GET     /bseRegisterFatca                       controllers.BSEStarController.BSERegisterFatca
+GET     /checkBseAndFatcaStatus                 controllers.BSEStarController.checkBseAndFatcaStatus
+GET     /checkBseStatus                         controllers.BSEStarController.checkBseStatus

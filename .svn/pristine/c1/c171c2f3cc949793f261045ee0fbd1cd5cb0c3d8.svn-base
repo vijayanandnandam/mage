@@ -1,0 +1,16 @@
+@import _root_.data.model.Tables._
+
+@(subOrderUnitDetails:SubOrderUnitDetails, utils: MailTemplateHelper)
+
+Update for Order with ID# @subOrderUnitDetails.subOrderId
+
+@if(subOrderUnitDetails.units.nonEmpty){Units: @subOrderUnitDetails.units.get}
+@if(subOrderUnitDetails.amount.nonEmpty){Amount: @subOrderUnitDetails.amount.get}
+@if(subOrderUnitDetails.tradeDate.nonEmpty){Trade Date: @subOrderUnitDetails.tradeDate.get}
+@if(subOrderUnitDetails.rtaRef.nonEmpty){Rta Ref: @subOrderUnitDetails.rtaRef.get}
+@if(subOrderUnitDetails.processId.nonEmpty){Process Id: @subOrderUnitDetails.processId.get}
+@if(subOrderUnitDetails.orderStateName.nonEmpty){Order State: @subOrderUnitDetails.orderStateName.get}
+Remark: @subOrderUnitDetails.remark
+
+
+

@@ -1,0 +1,53 @@
+package models
+
+import play.api.libs.json._
+import models._
+import models.CheckoutJsonFormats._
+
+case class Redemption(redemptionId: String,
+                      fundsData: List[RedemptionFund],
+                      nomineeList: Option[List[CheckoutNominee]],
+                      bankList: List[CheckoutBank],
+                      selectedBank: Option[CheckoutBank] = None,
+                      selectedNominee: Option[CheckoutNominee] = None,
+                      totalRedemptionAmount: Option[Long] = None)
+
+case class RedemptionFund(fund: FundDoc,
+                          plan: String,
+                          option: FundOption,
+                          folioNo: String,
+                          holdingMode: String,
+                          selectedRedemptionMode: Option[String] = None,
+                          selectedAWPFrequency: Option[String] = None,
+                          selectedAWPDate: Option[Long] = None,
+                          noOfInstallment: Option[Long] = None,
+                          amount: Long,
+                          totalUnits: Option[Double] = None,
+                          redeemableUnits: Option[Double] = None,
+                          currValue: Option[Double] = None,
+                          currNav: Option[Double] = None,
+                          navDate: Option[Long] = None)
+
+
+case class RedemptionSummary(folioNo: String,
+                             holdingMode: String,
+                             fundList: Seq[RedemptionFund],
+                             bankRfnum: Long,
+                             totalAmount: Long,
+                             imagePath: String)
+
+/*case class PaymentObject(orderId: Long,
+                         paymentUrl: String,
+                         bseUrl: Option[String])*/
+
+
+object RedemptionJsonFormats {
+
+  import models.FundsJsonFormats._
+
+  implicit val redemptionFundFormat = Json.format[RedemptionFund]
+  implicit val redemptionFormat = Json.format[Redemption]
+
+  implicit val redemptionSummaryFormat = Json.format[RedemptionSummary]
+//  implicit val paymentObjectFormat = Json.format[PaymentObject]
+}

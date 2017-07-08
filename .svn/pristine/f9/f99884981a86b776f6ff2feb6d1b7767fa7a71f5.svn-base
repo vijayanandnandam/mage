@@ -1,0 +1,118 @@
+package helpers
+
+import javax.inject.Inject
+
+import constants.HTTPErrorConstants
+import org.slf4j.LoggerFactory
+import play.api.libs.json.Json
+import play.api.mvc.Results._
+import play.api.mvc._
+import service.{BasicSecurityService, JwtService}
+
+import scala.concurrent.{ExecutionContext, Future}
+
+class AuthenticatedRequest[A](val _token: Option[String], request: Request[A]) extends WrappedRequest[A](request) {
+  var token = _token.getOrElse("")
+}
+
+class AuthenticatedAction @Inject()(implicit val ec: ExecutionContext, jwtService: JwtService,
+                                    basicSecurityService: BasicSecurityService) extends HTTPErrorConstants {
+
+  val logger, log = LoggerFactory.getLogger(classOf[AuthenticatedAction])
+
+  def Action = new ActionBuilder[AuthenticatedRequest] {
+
+    def invokeBlock[A](request: Request[A], block: (AuthenticatedRequest[A]) => Future[Result]): Future[Result] = {
+
+      if (request.path.contains("/secure/user/login")) {
+        //login and sigup cases
+        block(new AuthenticatedRequest(None, request)).map(result => setNonLoginHeader(result))
+      } else if (request.path.contains("/secure") || request.path.contains("/server")) {
+
+        //secure paths
+        request.headers.get("Authorization").map(authHeader => {
+          if (authHeader.nonEmpty) {
+            if (request.path.contains("/secure")) {
+              val token = authHeader.replaceFirst("(Bearer)\\s?", "")
+              if (token.isEmpty()) {
+                jwtService.createUserToken(None).flatMap(receivedToken => {
+                  block(new AuthenticatedRequest(Some(token), request)).map(result => setHeader(result, receivedToken))
+                })
+              } else {
+                try {
+                  jwtService.isTokenValid(token).flatMap(isValidTuple => {
+                    if (isValidTuple._1) {
+                      block(new AuthenticatedRequest(Some(token), request)).map(result => setHeader(result, token))
+                    } else if (isValidTuple._2) {
+                      unauthorizedAccessFuture(INVALID_AUTH)
+                    } else {
+                      jwtService.isTokenExpired(token).map(isExpired => {
+                        if (isExpired) {
+                          tokenExpiredResponse(TOKEN_EXPIRED)
+                        } else {
+                          unauthorizedAccess(INVALID_AUTH)
+                        }
+                      })
+                    }
+                  })
+                } catch {
+                  case e: Exception => unauthorizedAccessFuture(INVALID_AUTH)
+                }
+              }
+            } else if (request.path.contains("/server")) {
+              val token = authHeader.replaceFirst("Basic\\s?", "")
+              basicSecurityService.isServerUserValid(token).flatMap(isValid => {
+                println(isValid)
+                if (isValid) {
+                  block(new AuthenticatedRequest(Some(token), request)).map(result => setNonLoginHeader(result))
+                } else {
+                  unauthorizedAccessFuture(INVALID_AUTH)
+                }
+              })
+            } else {
+              unauthorizedAccessFuture(INVALID_AUTH)
+            }
+          } else {
+            unauthorizedAccessFuture(INVALID_AUTH)
+            //block(new AuthenticatedRequest(None, request)).map(result => setNonLoginHeader(result))
+          }
+        }).getOrElse(unauthorizedAccessFuture(INVALID_AUTH))
+      } else {
+        //all other paths
+        block(new AuthenticatedRequest(None, request)).map(result => setNonLoginHeader(result))
+      }
+
+    }
+
+    def unauthorizedAccessFuture(message: String): Future[Result] = {
+      Future.apply(
+        unauthorizedAccess(message)
+      )
+    }
+
+    def tokenExpiredResponse(message: String): Result = {
+      Ok(Json.obj("success" -> false, "refreshtoken" -> true, "error" -> message, "message" -> message))
+    }
+
+    def unauthorizedAccess(message: String): Result = {
+      Ok(Json.obj("success" -> false, "unauthorizedAccess" -> true, "error" -> message, "message" -> message))
+    }
+
+    def setHeader(res: Result, token: String) = {
+      res.withHeaders(
+        /*("Access-Control-Allow-Methods", "GET, POST"),
+        ("Access-Control-Allow-Headers", "id_token"),
+        ("Access-Control-Expose-Headers", "id_token"),*/
+        ("id_token", token)
+      )
+    }
+
+    def setNonLoginHeader(res: Result) = {
+      res/*.withHeaders(
+        ("Access-Control-Allow-Methods", "GET, POST")
+      )*/
+    }
+  }
+}
+
+

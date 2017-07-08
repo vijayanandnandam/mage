@@ -1,0 +1,542 @@
+package constants
+
+trait IntegrationConstants {
+
+  final val BSE_ORDER_API_PASS_CODE = "BSE_ORDER_API"
+
+  final val BSE_UPLOAD_API_PASS_CODE = "BSE_UPLOAD_API"
+  /**
+    * BSE Integration Name
+    */
+  final val BSE_INTEGRATION_NAME = "BSE"
+
+  final val BSE_USER_ID_KEY = "BSE_USER_ID"
+
+  final val BSE_MEMBER_ID_KEY = "BSE_MEMBER_ID"
+
+  final val BSE_PASSWORD_KEY = "BSE_PASSWORD"
+  /*/**
+   * FC BSE User Id
+   */
+  final val FC_BSE_USER_ID = 1023001L
+  /**
+   * FC BSE Member Id
+   */
+  final val FC_BSE_MEMBER_ID = "10230"
+  /**
+   * FC BSE Password
+   */
+  final val FC_BSE_PASSWORD = "$123456"*/
+  /**
+   * PassKey Length
+   */
+  final val PASS_KEY_LENGTH = 10
+  /**
+   * Pipe Separator
+   */
+  final val PIPE_SEPARATOR = "|"
+  /**
+   * FATCA Upload Flag for MFAPI
+   */
+  final val BSE_MF_API_FATCA_UPLOAD_FLAG = "01"
+  /**
+   * UCC Flag for MFAPI
+   */
+  final val BSE_MF_API_UCC_FLAG = "02"
+  /**
+   * Payment gateway flag for MFAPI
+   */
+  final val BSE_MF_API_PAYMENT_FLAG = "03"
+  /**
+   * Change Password flag for MFAPI
+   */
+  final val BSE_MF_API_CHANGE_PASSWORD_FLAG = "04"
+  /**
+   * Mandate Registration flag for MFAPI
+   */
+  final val BSE_MF_API_MANDATE_FLAG = "06"
+  /**
+   * STP Registration flag for MFAPI
+   */
+  final val BSE_MF_API_STP_FLAG = "07"
+  /**
+   * SWP Registration flag for MFAPI
+   */
+  final val BSE_MF_API_SWP_FLAG = "08"
+  /**
+   * Client Order Payment Status flag for MFAPI 
+   */
+  final val BSE_CLIENT_ORDER_PAYMENT_STATUS_FLAG = "11"
+  /**
+   * BSEMF Segment
+   */
+  final val BSE_PAYMENT_MF_SEGMENT = "BSEMF"
+  /**
+   * STARMF Segment
+   */
+  final val STARMF_PAYMENT_SEGMENT = "STARMF"
+  /**
+   * SGB Segment
+   */
+  final val SGB_PAYMENT_SEGMENT = "SGB"
+  /**
+   * Error Code 1
+   */
+  final val ERROR_CODE_1 = "1"
+  /**
+   * Blank User Id Message for Error Code 1
+   */
+  final val BSE_EMPTY_USER_ID_MSG = "User ID Should not be Blank"
+  /**
+   * Error Code 2
+   */
+  final val ERROR_CODE_2 = "2"
+  /**
+   * Blank Password Message for Error Code 2
+   */
+  final val BSE_EMPTY_PASSWORD_MSG = "Password Should not be Blank"
+  /**
+   * Error Code 3
+   */
+  final val ERROR_CODE_3 = "3"
+  /**
+   * Blank PassKey Message for Error Code 3
+   */
+  final val BSE_EMPTY_PASSKEY_MSG = "Passkey Should not be Blank"
+  /**
+   * Error Code 4
+   */
+  final val ERROR_CODE_4 = "4"
+  /**
+   * CAMS Image Verification Failure Message for Error Code 4
+   */
+  final val BSE_CAMS_IMG_VERIFY_MSG = "Image Not Verified By CAMS, Order Entry Not Allowed"
+  /**
+   * Error Code 5
+   */
+  final val ERROR_CODE_5 = "5"
+  /**
+   * Duplicate Unique Reference No Message for Error Code 5
+   */
+  final val BSE_DUPLICATE_REF_NO_MSG = "Duplicat Unique Ref No."
+  /**
+   * Error Code 6
+   */
+  final val ERROR_CODE_6 = "6"
+  /**
+   * Data Truncation Message for Error Code 6
+   */
+  final val BSE_DATA_TRUNC_MSG = "String Or Binary Data Would Be Truncated."
+  /**
+   * Error Code 7
+   */
+  final val ERROR_CODE_7 = "7"
+  /**
+   * Minimum Order Amount Failure Message for Error Code 7
+   */
+  final val BSE_MIN_ORDER_AMT_MSG = "Order Amt Is Less Than Minimum Specified For Scheme"
+  /**
+   * Error Code 8
+   */
+  final val ERROR_CODE_8 = "8"
+  /**
+   * Order Not Allowed Message for Error Code 8
+   */
+  final val BSE_ORDER_NOT_ALLOWED_MSG = "Order Entry Not Allowed In The Scheme. Contact Exchange Admin"
+  /**
+   * Error Code 9
+   */
+  final val ERROR_CODE_9 = "9"
+  /**
+   * Password Expire Message for Error Code 9
+   */
+  final val BSE_PASS_EXPIRE_MSG = "Password Expired"
+  /**
+   * Error Code 10
+   */
+  final val ERROR_CODE_10 = "10"
+  /**
+   * Invalid EUIN Message for Error Code 10
+   */
+  final val INVALID_EUIN_MSG = "Invalid EUIN"
+  /**
+   * Error Code 11
+   */
+  final val ERROR_CODE_11 = "11"
+  /**
+   * Mandate Not Approved Message for Error Code 11
+   */
+  final val MANDATE_NOT_APPROVE_MSG = "X-SIP Registration Failed, Mandate Not Approved"
+  /**
+   * Error Code 12
+   */
+  final val ERROR_CODE_12 = "12"
+  /**
+   * First Order in Market Hours Message for Error Code 12
+   */
+  final val FIRST_ORDER_MARKET_HOUR_MSG = "First Order Allowed Only In Market Hours"
+  /**
+   * Error Code 13
+   */
+  final val ERROR_CODE_13 = "13"
+  /**
+   * Xsip Start Date Limit Message for Error Code 13
+   */
+  final val XSIP_START_DATE_MSG = "Start Date Should Be Atleast 9 Days Later Than Registration Date"
+  /**
+   * Error Code 14
+   */
+  final val ERROR_CODE_14 = "14"
+  /**
+   * XSip Not Allowed Message for Error Code 14 
+   */
+  final val XSIP_NOT_ALLOWED_MSG = "X-SIP Not Allowed in this Scheme"
+  /**
+   * Error Code 15
+   */
+  final val ERROR_CODE_15 = "15"
+  /**
+   * Minimum Installment Message for Error Code 15
+   */
+  final val MIN_INSTALLMENT_MSG = "Number of Installment Is Less Than Minimum Installment Allowed"
+  /**
+   * Error Code 16
+   */
+  final val ERROR_CODE_16 = "16"
+  /**
+   * First Order Error Message for Error Code 16
+   */
+  final val INVALID_FIRST_ORDER_MSG = "Invalid First Order Flag"
+  /**
+   * Error Code 17
+   */
+  final val ERROR_CODE_17 = "17"
+  /**
+   * Redeem Date Message for Error Code 17
+   */
+  final val FUTURE_REDEEM_DATE_MSG = "Redeem Date Should Be Future Date"
+  /**
+   * Error Code 18
+   */
+  final val ERROR_CODE_18 = "18"
+  /**
+   * Invalid Pass Key Message for Error Code 18
+   */
+  final val INVALID_PASS_KEY_MSG = "Invalid Pass key."
+  /**
+   * Error Code 19
+   */
+  final val ERROR_CODE_19 = "19"
+  /**
+   * X-Sip Already Cancelled Message for Error Code 19
+   */
+  final val XSIP_ALREADY_CANCELLED_MSG = "X-SIP Has Been Already Cancelled Or Not Exists"
+  /**
+   * Error Code 20
+   */
+  final val ERROR_CODE_20 = "20"
+  /**
+   * Start Date Message for Error Code 20
+   */
+  final val START_DATE_MSG = "Start Date Cannot Be Lesser Than Current Date"
+  /**
+   * Error Code 21
+   */
+  final val ERROR_CODE_21 = "21"
+  /**
+   * Client Not Exists Message for Error Code 21
+   */
+  final val CLIENT_NOT_EXISTS_MSG = "Client Does Not Exists. Order Entry Failed"
+  /**
+   * Error Code 22
+   */
+  final val ERROR_CODE_22 = "22"
+  /**
+   * Client Code Empty Message for Error Code 22
+   */
+  final val CLIENT_CODE_BLANK_MSG = "Enter Client Code"
+  /**
+   * Error Code 23
+   */
+  final val ERROR_CODE_23 = "23"
+  /**
+   * Switch for Different RTA Message for Error Code 23
+   */
+  final val DIFF_RTA_SWITCH_MSG = "Switch Can Not Be Done For Two Different RTA"
+  /**
+   * Error Code 24
+   */
+  final val ERROR_CODE_24 = "24"
+  /**
+   * Scheme Not Found Message for Error Code 24
+   */
+  final val SCHEME_NOT_FOUND_MSG = "Scheme Code  Not Found / Disabled"
+  /**
+   * Error Code 25
+   */
+  final val ERROR_CODE_25 = "25"
+  /**
+   * Insufficient SO Amount Message for Error Code 25
+   */
+  final val INSUFFICIENT_SO_AMT_MSG = "SO Amount Insufficient For SI Scheme"
+  /**
+   * Error Code 26
+   */
+  final val ERROR_CODE_26 = "26"
+  /**
+   * KYC Not Done Message for Error Code 26
+   */
+  final val KYC_NOT_DONE_MSG = "KYC Not Done"
+  /**
+   * Error Code 27
+   */
+  final val ERROR_CODE_27 = "27"
+  /**
+   * Invalid Amount Message for Error Code 27
+   */
+  final val INVALID_AMT_MSG = "Amount Not Valid"
+  /**
+   * Error Code 28
+   */
+  final val ERROR_CODE_28 = "28"
+  /**
+   * Empty Folio No Message for Error Code 28
+   */
+  final val EMPTY_FLIO_NO_MSG = "Folio No. Not Provided"
+  /**
+   * Error Code 29
+   */
+  final val ERROR_CODE_29 = "29"
+  /**
+   * Invalid All Redeem Flag Message for Error Code 29
+   */
+  final val INVALID_ALL_REDEEM_MSG = "Invalid All Redeem Flag"
+  /**
+   * Error Code 30
+   */
+  final val ERROR_CODE_30 = "30"
+  /**
+   * Invalid Min Redeem Flag Message for Error Code 30
+   */
+  final val INVALID_MIN_REDEEM_MSG = "Invalid Min Redeem Flag"
+  /**
+   * Error Code 31
+   */
+  final val ERROR_CODE_31 = "31"
+  /**
+   * Maximum Order Amount Exceeded Message for Error Code 31
+   */
+  final val MAX_AMT_EXCEEDED_MSG = "Order Amt Is More Than Max Value Specified For Scheme"
+  /**
+   * Error Code 32
+   */
+  final val ERROR_CODE_32 = "32"
+  /**
+   * Switch Cancel And Modification Not Allowed Message for Error Code 32
+   */
+  final val SWITCH_CANCEL_NOT_ALLOWED_MSG = "Order Cancelation And Modification Not Allowed In Switch"
+  /**
+   * Error Code 33
+   */
+  final val ERROR_CODE_33 = "33"
+  /**
+   * Mandatory EUIN Message for Error Code 33
+   */
+  final val MANDATORY_EUIN_MSG = "EUIN Mandatory , If EUIN Declaration Yes"
+  /**
+   * Error Code 34
+   */
+  final val ERROR_CODE_34 = "34"
+  /**
+   * Invalid Upload String Message for Error Code 34
+   */
+  final val INVALID_UPLOAD_STRING_MSG = "Invalid Upload String Format"
+  /**
+   * Error Code 35
+   */
+  final val ERROR_CODE_35 = "35"
+  /**
+   * Invalid Flag Message for Error Code 35
+   */
+  final val INVALID_FLAG_MSG = "Invalid Upload String Format"
+  /**
+   * Error Code 36
+   */
+  final val ERROR_CODE_36 = "36"
+  /**
+   * Physical Mode Not Allowed Message for Error Code 36 
+   */
+  final val PHYSICAL_MODE_NOT_ALLOWED_MSG = "Physical Mode Not Allowed"
+  /**
+   * Error Code 37
+   */
+  final val ERROR_CODE_37 = "37"
+  /**
+   * Invalid EUIN Length Message For Error Code 37
+   */
+  final val INVALID_EUIN_LENGTH_MSG = "Invalid EUIN. After E EUIN Should Have 6 Digits As Length"
+  /**
+   * Error Code 38
+   */
+  final val ERROR_CODE_38 = "38"
+  /**
+   * Purchase Not Allowed Message for Error Code 38
+   */
+  final val PURCHASE_NOT_ALLOWED_MSG = "Purchase Not Allowed In This Scheme"
+  /**
+   * Error Code 39
+   */
+  final val ERROR_CODE_39 = "39"
+  /**
+   * Mandate Amount Exhausted Message for Error Code 39
+   */
+  final val MANDATE_EXHAUSTED_MSG = "Mandate Amount Exhausted"
+  /**
+   * Error Code 40
+   */
+  final val ERROR_CODE_40 = "40"
+  /**
+   * X-SIP Not allowed In AMC Message for Error Code 40
+   */
+  final val XSIP_NOT_ALLOWED_IN_AMC_MSG = "AMC Does Not Allow X-sip Registration"
+  /**
+   * Error Code 41
+   */
+  final val ERROR_CODE_41 = "41"
+  /**
+   * Invalid Mandate Id Message for Error Code 41
+   */
+  final val INVALID_MANDATE_ID_MSG = "Invalid Mandate Id"
+  /**
+   * Error Code 42
+   */
+  final val ERROR_CODE_42 = "42"
+  /**
+   * Both Mandate Id and Isip Mandate Id Blank Message for Error Code 42
+   */
+  final val BOTH_MANDATE_ID_BLANK_MSG = "Both Mandated Id And Isip Mandate Id Can Not Be Blank"
+  /**
+   * Error Code 43
+   */
+  final val ERROR_CODE_43 = "43"
+  /**
+   * Different AMC Switch Message for Error Code 43
+   */
+  final val SWITCH_IN_DIFF_AMC_NOT_ALLOWED_MSG = "Switching Within Different AMC Not Allowed"
+  /**
+   * Error Code 44
+   */
+  final val ERROR_CODE_44 = "44"
+  /**
+   * XSip Start Date Maximum Gap Message for Error Code 44
+   */
+  final val XSIP_MAX_START_DATE_GAP_MSG = "Start Date Falls Over The Maximum Gap Criteria"
+  /**
+   * Error Code 45
+   */
+  final val ERROR_CODE_45 = "45"
+  /**
+   * XSip Minimum Cancellation days Message for Error Code 45
+   */
+  final val XSIP_MIN_CANCEL_DAYS_MSG = "Xsip Can Be Cancelled Only Prior To 14 Days Of Xsip Trigger Date"
+  /**
+   * Error Code 46
+   */
+  final val ERROR_CODE_46 = "46"
+  /**
+   * Invalid Segment Value Message for Error Code 46
+   */
+  final val INVALID_SEGMENT_VALUE_MSG = "Invalid Segment Value"
+  /**
+   * Error Code 47
+   */
+  final val ERROR_CODE_47 = "47"
+  /**
+   * Invalid Order Number Message for Error Code 47
+   */
+  final val INVALID_ORDER_NUMBER_MSG = "Invalid Order Number"
+  /**
+   * Error Code 48
+   */
+  final val ERROR_CODE_48 = "48"
+  /**
+   * Invalid Order Number for Member Message for Error Code 48
+   */
+  final val INVALID_ORDER_NUM_FOR_MEMBER_MSG = "Invalid Order Number For Given Member"
+  /**
+   * Error Code 49
+   */
+  final val ERROR_CODE_49 = "49"
+  /**
+   * Invalid Order Number for Client Message for Error Code 49
+   */
+  final val INVALID_ORDER_NUM_FOR_CLIENT_MSG = "Invalid Order Number For Given Client"
+  /**
+   * Error Code 50
+   */
+  final val ERROR_CODE_50 = "50"
+  /**
+   * Payment Not initiated Message for Error Code 50
+   */
+  final val PAYMENT_NOT_INITIATED_MSG = "Payment Not Initiated For Given Order"
+  /**
+   * Approved NEFTRTGS Payment
+   */
+  final val NEFT_RTGS_PAYMENT_APPROVED_MSG = "Approved ( NEFTRTGS )"
+  /**
+   * Approved Direct Payment
+   */
+  final val DIRECT_PAYMENT_APPROVED_MSG = "Approved ( Direct )"
+  /**
+   * BSE Response Code 101
+   */
+  final val BSE_RESPONSE_CODE_101 = "101"
+  /**
+   * BSE Response Code 100
+   */
+  final val BSE_RESPONSE_CODE_100 = "100"
+  /**
+   * BSE Success Flag 0
+   */
+  final val BSE_SUCCESS_FLAG_0 = "0"
+  /**
+   * BSE Success Flag 1
+   */
+  final val BSE_SUCCESS_FLAG_1 = "1"
+  /**
+   * General Get Password Error Code
+   */
+  final val PASSWORD_ERROR_CODE_101 = "101"
+  /**
+   * General Order Entry Error Code
+   */
+  final val ORDER_ERROR_CODE_102 = "102"
+  /**
+   * General Sip Order Entry Error Code
+   */
+  final val SIP_ERROR_CODE_103 = "103"
+  /**
+   * General Spread Order Entry Error Code
+   */
+  final val SPREAD_ERROR_CODE_104 = "104"
+  /**
+   * General Switch Order Entry Error Code
+   */
+  final val SWITCH_ERROR_CODE_105 = "105"
+  /**
+   * General XSip Order Entry Error Code
+   */
+  final val XSIP_ERROR_CODE_106 = "106"
+  /**
+   * General Payment Not Completed Error Code
+   */
+  final val PAYMENT_ERROR_CODE_107 = "107"
+  /**
+   * General Error Code
+   */
+  final val GENERAL_ERROR_CODE = "100"
+  /**
+   * General Error Message for Error Code 100
+   */
+  final val GENERAL_ERROR_MSG = "Error Occured"
+}

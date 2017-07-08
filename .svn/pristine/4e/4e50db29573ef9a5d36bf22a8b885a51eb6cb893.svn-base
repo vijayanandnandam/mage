@@ -1,0 +1,5 @@
+GET        /sendMessage/:from/:to/:message                          controllers.MessageSenderController.send(from,to,message)
+GET        /generateOTP/:purpose/:from/:to/:message                 controllers.MessageSenderController.generateOTP(purpose,from,to,message)
+GET        /validateOTP/:purpose/:otp                               controllers.MessageSenderController.validateUserOTP(purpose,otp)
+GET        /generateOrderOTP/:purpose/:from/:to/:orderId/:message   controllers.MessageSenderController.generateOrderOTP(purpose,from,to,orderId,message)
+GET        /validateOrderOTP/:purpose/:orderId/:otp                 controllers.MessageSenderController.validateOrderOTP(purpose,orderId,otp)

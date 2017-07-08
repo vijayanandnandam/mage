@@ -1,0 +1,44 @@
+package service
+
+import java.util.Calendar
+import javax.inject.Inject
+
+import constants.{DBConstants, OrderConstants}
+import data.model.Tables.FcsotRow
+import repository.module.OrderRepository
+import utils.DateTimeUtils
+
+import scala.concurrent.{ExecutionContext, Future}
+
+/**
+  * Created by fincash on 26-04-2017.
+  */
+class PaymentService @Inject()(implicit ec: ExecutionContext,orderRepository: OrderRepository, marketService: MarketService) extends DBConstants with OrderConstants{
+
+  def getPaymentAllowedSubOrders(userPk:Long):Future[List[FcsotRow]] = {
+
+    val todayTime = Calendar.getInstance()
+
+    orderRepository.getBSECutOff(BSE_PAY_START_CUTOFF_KEY).flatMap(lastOrderCutOffTime => {
+      orderRepository.getBSECutOff(BSE_PAY_CUTOFF_KEY).flatMap(lastPayCutOffTime =>{
+
+        marketService.getPrevWorkingDay(todayTime).flatMap(prevWorkingDay => {
+          marketService.getPrevWorkingDay(prevWorkingDay).flatMap(prevToPrevWorkingDay => {
+            val prevToPrevCutOffWorkingDay = marketService.addCuttOffTimeToWorkingDay(prevToPrevWorkingDay, lastOrderCutOffTime)
+            val prevCutOffWorkingDay = marketService.addCuttOffTimeToWorkingDay(prevWorkingDay, lastOrderCutOffTime)
+            val currWorkingDayCutOff = marketService.addCuttOffTimeToWorkingDay(prevWorkingDay, lastPayCutOffTime)
+            var prevWorkingDaySqlTime = DateTimeUtils.convertCalendarToSqlTimestamp(prevToPrevCutOffWorkingDay)
+            marketService.isWorkingHoliday(todayTime).flatMap(isHolidayToday =>{
+
+              if(!isHolidayToday && todayTime.getTime.after(currWorkingDayCutOff.getTime)){
+                prevWorkingDaySqlTime = DateTimeUtils.convertCalendarToSqlTimestamp(prevCutOffWorkingDay)
+              }
+              orderRepository.getPaymentAllowedSubOrders(userPk, prevWorkingDaySqlTime)
+            })
+          })
+        })
+      })
+    })
+  }
+
+}

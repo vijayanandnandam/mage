@@ -1,0 +1,27 @@
+# Routes
+# This file defines all secure routes
+# ~~~~
+
+->         /fund                                           fund.Routes
+->         /sip                                            sip.Routes
+->         /checkout                                       checkout.Routes
+->         /report                                         report.Routes
+->         /user                                           user.Routes
+->         /lookup                                         lookup.Routes
+->          /bse                                            order.Routes
+
+
+
+GET        /dash                                           controllers.LoginController.secDash
+
+GET        /logout                                         controllers.LoginController.logout
+
+#CASH
+GET        /getSavingsPlusFunds                            controllers.CashController.getSavingsPlusFunds
+
+GET        /sendMessage/:from/:to/:message                 controllers.MessageSenderController.send(from,to,message)
+GET        /generateOTP/:purpose/:from/:to/:message        controllers.MessageSenderController.generateOTP(purpose,from,to,message)
+GET        /validateOTP/:purpose/:otp                      controllers.MessageSenderController.validateOTP(purpose,otp)
+
+POST         /checkmail                                      controllers.MailGunController.checkmail
+

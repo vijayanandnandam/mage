@@ -1,0 +1,92 @@
+package controllers
+
+import javax.inject.Inject
+
+import constants.{KycConstants, ZendeskConstants}
+import helpers.ZendeskHelper
+import org.slf4j.LoggerFactory
+import play.api.libs.json.{JsObject, JsValue, Json}
+import play.api.mvc.{Action, Controller}
+import repository.module.{KycRepository, ZendeskRepository}
+import service.ZendeskService
+
+import scala.concurrent.{ExecutionContext, Future}
+
+class ZendeskController @Inject()(implicit val ec: ExecutionContext, zendeskHelper: ZendeskHelper, zendeskService: ZendeskService, zendeskRepository: ZendeskRepository,
+                                  kycRepository: KycRepository) extends Controller with ZendeskConstants with KycConstants{
+
+  val logger, log = LoggerFactory.getLogger(classOf[ZendeskController])
+
+  def postRequest = Action.async(parse.json) { request =>
+    val requestData = request.body
+    val zendeskRequestObj = (requestData \ "zendeskRequest").asOpt[JsObject]
+    val message = new  StringBuilder
+    if(zendeskRequestObj.nonEmpty){
+      logger.debug(Json.stringify(zendeskRequestObj.get))
+      //{"kycRequest":{"userId":"100508","pan":"BYFPD2456P","mobile":"9535877327", "tags" : "" ,"kyc":"kyc_under_process"}}
+      val kycRequest = (zendeskRequestObj.get \ "kycRequest").asOpt[JsObject]
+      if(kycRequest.nonEmpty){
+        val userId = (kycRequest.get \ "userId").asOpt[JsValue]
+        val userName = (kycRequest.get \ "userName").asOpt[JsValue]
+        val kycStatus = (kycRequest.get \ "kyc").asOpt[JsValue]
+        val pan = (kycRequest.get \ "pan").asOpt[JsValue]
+        val mobile = (kycRequest.get \ "mobile").asOpt[JsValue]
+        val tags = (kycRequest.get \ "tags").asOpt[JsValue]
+
+        if (userId.nonEmpty && kycStatus.nonEmpty) {
+          val userIdString = userId.get.asInstanceOf[String]
+          val kycStatusSting = kycStatus.asInstanceOf[String]
+          if (userIdString.trim.length>0 && kycStatusSting.trim.length>0){
+            var kyc = KYC_NOTDONE
+            var kycType = ""
+            if (kycStatusSting.trim == ZENDESK_TICKET_VALUE_AADHAAR_EKYC || kycStatusSting.trim == ZENDESK_TICKET_VALUE_KYC_DONE_EKYC){
+              kyc = KYC_EXTERNALLY_DONE
+              kycType = KYCTYPE_AADHAR
+            } else if (kycStatusSting.trim == ZENDESK_TICKET_VALUE_KYC_DONE) {
+              kyc = KYC_DONE
+              kycType = KYCTYPE_PAN
+            } else if (kycStatusSting.trim == ZENDESK_TICKET_VALUE_KYC_NOT_DONE || kycStatusSting.trim == ZENDESK_TICKET_VALUE_EKYC_FAILED) {
+              kyc = KYC_NOTDONE
+            } else if (kycStatusSting.trim == ZENDESK_TICKET_VALUE_KYC_UNDER_PROCESS) {
+              kyc = KYC_UNDERPROCESS
+            }
+
+            kycRepository.updateuserKYCStatus(userIdString.trim.toLong, ZENDESK_SOURCE_API, kyc, kycType).map(isUpdated => {
+              if (isUpdated){
+                // updating user details in zendesk in case of successful update in DB
+                if(userName.nonEmpty){
+                  val username = userName.get.asInstanceOf[String]
+                  val zdUserId = zendeskHelper.getUserIdByEmail(username)
+                  val userField = new java.util.HashMap[String, AnyRef]()
+                  userField.put(zendeskHelper.ZENDESK_USER_FIELD_NAME_KYC, kycStatusSting.trim)
+                  zendeskService.setUserField(zdUserId, userField)
+                }
+                message.append("Kyc Status updation Successful")
+                Ok(Json.obj("success" -> true, "message" -> message.toString))
+              }
+              else {
+                message.append("KYC status Updation not successful")
+                Ok(Json.obj("success" -> false, "message" -> message.toString))
+              }
+            })
+          }
+          else {
+            message.append("UseId or KycStatus is Empty String")
+            Future{Ok(Json.obj("success" -> false, "message" -> message.toString))}
+          }
+        }
+        else {
+          message.append("UseId or KycStatus is Empty")
+          Future{Ok(Json.obj("success" -> false, "message" -> message.toString))}
+        }
+
+      }else{
+        message.append("kycRequest object not found")
+        Future{Ok(Json.obj("success" -> false, "message" -> message.toString))}
+      }
+    }else{
+      message.append("zendeskRequest not found")
+      Future{Ok(Json.obj("success" -> false, "message" -> message.toString))}
+    }
+  }
+}

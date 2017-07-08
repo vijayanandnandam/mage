@@ -1,0 +1,26 @@
+package controllers
+
+import javax.inject.Inject
+
+import helpers.ZendeskHelper
+import org.slf4j.LoggerFactory
+import play.api.libs.json.{JsObject, Json}
+import play.api.mvc.{Action, Controller}
+import repository.module.ZendeskRepository
+import service.ZendeskService
+
+import scala.concurrent.ExecutionContext
+
+class ZendeskController @Inject()(implicit val ec: ExecutionContext, zendeskHelper: ZendeskHelper, zendeskService: ZendeskService, zendeskRepository: ZendeskRepository) extends Controller {
+
+  val logger, log = LoggerFactory.getLogger(classOf[ZendeskController])
+
+  def postRequest = Action(parse.json) { request =>
+    val requestData = request.body
+    val zendeskRequestObj = (requestData \ "zendeskRequest").asOpt[JsObject]
+    if(zendeskRequestObj.nonEmpty){
+      logger.debug(Json.stringify(zendeskRequestObj.get))
+    }
+    Ok(Json.obj("success" -> true, "message" -> "Request Accepted  Successfully"))
+  }
+}

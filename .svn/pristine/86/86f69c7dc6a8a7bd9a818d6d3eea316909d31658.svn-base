@@ -1,0 +1,188 @@
+package service
+
+import javax.inject.Inject
+
+import constants.{DBConstants, InvestmentConstants, ProductConstants}
+import data.model.Tables.{FcamctRow, FcctmtRow, FcdrdRow, FcdsdRow, FcramtRow, FcsmtRow, FcsoptRow}
+import helpers.SchemeHelper
+import models.{FundDoc, Product, ProductOption}
+import org.slf4j.LoggerFactory
+import play.api.libs.json.Json
+import repository.module.{ProductRepository, SchemeRepository}
+import utils.DBConstantsUtil
+
+import scala.collection.mutable.ListBuffer
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
+
+/**
+  * Created by fincash on 02-02-2017.
+  */
+class ProductService @Inject()(productRepository: ProductRepository, schemeRepository: SchemeRepository,
+                               solrFundSearchService: SolrFundSearchService, schemeHelper: SchemeHelper)
+  extends ProductConstants with DBConstants with InvestmentConstants {
+
+  val logger, log = LoggerFactory.getLogger(classOf[ProductService])
+
+
+  def getQuickSipFunds(): Future[List[FundDoc]] = {
+    getProductFunds(SMART_SIP);
+  }
+
+  def getTaxSaverFunds(): Future[List[FundDoc]] = {
+    getProductFunds(TAX_SAVER);
+  }
+
+  def getSavingsPlusFunds(): Future[List[FundDoc]] = {
+    getProductFunds(SAVINGS_PLUS);
+  }
+
+  def getProductFunds(productName: String): Future[List[FundDoc]] = {
+    val product = productRepository.getProductByName(productName);
+
+    product.flatMap(product => {
+      productRepository.getProductStateObjectList(product.id).flatMap(productStateObjectList => {
+        val futures = for (productStateObject <- productStateObjectList) yield {
+          val soptRfnumArray = productStateObject.soptRfnumArray.split(',');
+          val soptIsDefaultArray = productStateObject.soptIsDefaultArray.split(',');
+          var soptWeightageArray = Array[String]();
+          var soptInvestmentModeArray = Array[String]();
+
+          if (productStateObject.soptIsWeightage.isDefined) {
+            soptWeightageArray = productStateObject.soptIsWeightage.get.split(',');
+          }
+
+          if (productStateObject.soptInvestmentModeArray.isDefined) {
+            soptInvestmentModeArray = productStateObject.soptInvestmentModeArray.get.split(',');
+          }
+
+          val productOptions = ListBuffer[ProductOption]();
+          soptWeightageArray.foreach(data => logger.debug(data));
+          soptInvestmentModeArray.foreach(data => logger.debug(data));
+
+          soptRfnumArray.zipWithIndex.foreach((data) => {
+            val index = data._2;
+            val soptRfnum = data._1.toLong;
+            val isDefault = soptIsDefaultArray(index);
+            val weightage = if (soptWeightageArray.length > 0) Some(soptWeightageArray(index).toDouble) else None;
+            val investmentMode = if (soptInvestmentModeArray.length > 0) Some(DBConstantsUtil.getInvestmentModeFullForm(soptInvestmentModeArray(index))) else None;
+            productOptions += new ProductOption(soptRfnum = soptRfnum, isDefault = isDefault, weightage = weightage, investmentMode = investmentMode);
+          });
+
+          getFundObjBySchemeId(new Product(productStateObject.productRfnum.get, productStateObject.productName.get, productStateObject.smtRfnum.get, productOptions.toList))
+        }
+        Future.sequence(futures);
+      })
+    })
+
+  }
+
+  def getFundObjBySchemeId(product: Product): Future[FundDoc] = {
+    val queries = for {
+      smtObj <- schemeRepository.getSchemeById(product.smtRfnum)
+      soptObj <- schemeRepository.getDefaultSchemeById(product.smtRfnum)
+      scatObj <- schemeRepository.getSchemeCategoryById(smtObj.smtctmtrfnum)
+      catObj <- schemeRepository.getSchemeCategoryById(scatObj.ctmtctmtrfnum.get)
+      amcObj <- schemeRepository.getSchemeAMCById(smtObj.smtamctrfnum)
+      dsdObj <- schemeRepository.getDailySchemeData(soptObj.id)
+      drdObjList <- schemeRepository.getDailyReturnData(soptObj.id)
+      ratioObj <- schemeRepository.getLatestRatioData(soptObj.id)
+      sipAmount <- schemeRepository.getMinSIPAmount(soptObj.id)
+    } yield (smtObj, soptObj, scatObj, catObj, amcObj, dsdObj, drdObjList, ratioObj, sipAmount)
+
+    queries.map(values => {
+      getFundObj(values._1, values._2, values._3, values._4, values._5, values._6, values._7, values._8, values._9, product)
+    })
+  }
+
+  /*def getFundsInvestment(fundsList: List[JsObject]): Future[List[ProductInvestment]] = {
+
+    val investmentModeFuture = for (fund <- fundsList) yield {
+      productRepository.getProductByFund((fund \ "id").as[Long]).map(x => {
+        if (!x.isEmpty) {
+          if (x.get._1.getOrElse("") == SIP_INVESTMENT_MODE) {
+            ProductInvestment(SIP, x.get._2, x.get._3)
+          } else if (x.get._1.getOrElse("") == LUMPSUM_INVESTMENT_MODE) {
+            ProductInvestment(LUMPSUM, x.get._2, x.get._3)
+          } else {
+            ProductInvestment("", x.get._2, x.get._3)
+          }
+        } else {
+          ProductInvestment("", 0, "")
+        }
+
+      })
+    }
+    Future.sequence(investmentModeFuture)
+  }*/
+
+  def getFundObj(smtObj: FcsmtRow, soptObj: FcsoptRow, scatObj: FcctmtRow, catObj: FcctmtRow, amcObj: FcamctRow, dsdObj: FcdsdRow,
+                 drdObjList: Seq[FcdrdRow], ratioObj: FcramtRow, sipAmount: Option[Int], productObj: Product): FundDoc = {
+
+    var sipAllowed = Some(false);
+    if (sipAmount.isDefined) {
+      sipAllowed = Some(true);
+    }
+    var fundDoc = new FundDoc(smtObj.id, smtObj.smtdisplayname, schemeHelper.getAge(soptObj.soptinceptiondate), 5, ratioObj.ramtaumincr, amcObj.id, amcObj.amctbrandname.get,
+      catObj.id, catObj.ctmtname, scatObj.id, scatObj.ctmtname, smtObj.smtsebirisk.get, selected = Some(true), productObj = Some(productObj), sipAllowed = sipAllowed);
+
+    var fundBasicFactSheet = Json.obj(
+      "id" -> smtObj.id,
+      "name" -> smtObj.smtdisplayname,
+      "isin" -> smtObj.smtisin,
+      "description" -> smtObj.smtfunddescription,
+      "nav" -> dsdObj.dsdnav,
+      "navValueChange" -> dsdObj.dsdnavchange,
+      "navPercentChange" -> dsdObj.dsdnavpercentchange,
+      "navAsOfDate" -> dsdObj.dsdnavasofdate.get.toString,
+      "inceptionDate" -> soptObj.soptinceptiondate,
+      "category" -> catObj.ctmtname,
+      "subCategory" -> scatObj.ctmtname,
+      "fundType" -> soptObj.soptstructure,
+      "aum" -> ratioObj.ramtaumincr,
+      "aumAsOfDate" -> ratioObj.ramtasofdate.get.toString,
+      "expenseRatio" -> ratioObj.ramtexpense,
+      "fincashRating" -> "5",
+      "exitLoad" -> "TBD",
+      "benchmarkName" -> "TBD",
+      "minLumpsum" -> smtObj.smtminlumpsum,
+      "minSIPAmt" -> sipAmount.getOrElse("0").toString,
+      "alphaRatio" -> ratioObj.ramtalpha,
+      "sharpeRatio" -> ratioObj.ramtsharpe,
+      "infoRatio" -> ratioObj.ramtinformation,
+      "ratioAsOfDate" -> ratioObj.ramtasofdate.get.toString,
+      "riskometer" -> smtObj.smtsebirisk,
+      "debtYield" -> ratioObj.ramtyieldtomaturity,
+      "maturity" -> ratioObj.ramtmaturity,
+      "duration" -> ratioObj.ramtmodifiedduration,
+      "amc" -> amcObj.amctbrandname,
+      "amcId" -> amcObj.id
+    );
+
+    drdObjList.foreach(returnData => {
+      if (returnData.drdreturnperiod == 1 && returnData.drdreturnunit == "M") {
+        fundBasicFactSheet = fundBasicFactSheet.+("ret1mn", Json.parse(returnData.drdreturnvalue.toString));
+      } else if (returnData.drdreturnperiod == 3 && returnData.drdreturnunit == "M") {
+        fundBasicFactSheet = fundBasicFactSheet.+("ret3mn", Json.parse(returnData.drdreturnvalue.toString));
+      } else if (returnData.drdreturnperiod == 6 && returnData.drdreturnunit == "M") {
+        fundBasicFactSheet = fundBasicFactSheet.+("ret6mn", Json.parse(returnData.drdreturnvalue.toString));
+      } else if (returnData.drdreturnperiod == 1 && returnData.drdreturnunit == "Y") {
+        fundBasicFactSheet = fundBasicFactSheet.+("ret1yr", Json.parse(returnData.drdreturnvalue.toString));
+      } else if (returnData.drdreturnperiod == 3 && returnData.drdreturnunit == "Y") {
+        fundBasicFactSheet = fundBasicFactSheet.+("ret3yr", Json.parse(returnData.drdreturnvalue.toString));
+      } else if (returnData.drdreturnperiod == 5 && returnData.drdreturnunit == "Y") {
+        fundBasicFactSheet = fundBasicFactSheet.+("ret5yr", Json.parse(returnData.drdreturnvalue.toString));
+      } else if (returnData.drdreturnperiod == 0 && returnData.drdreturnunit == "I") {
+        fundBasicFactSheet = fundBasicFactSheet.+("retSinceInception", Json.parse(returnData.drdreturnvalue.toString));
+      }
+
+      fundBasicFactSheet = fundBasicFactSheet.+("retAsOfDate", Json.toJson(returnData.drdreturnasofdate.get.toString));
+    });
+
+
+    fundDoc = fundDoc.copy(basicFactsheet = Some(Json.toJson(fundBasicFactSheet)));
+    fundDoc
+  }
+
+
+}

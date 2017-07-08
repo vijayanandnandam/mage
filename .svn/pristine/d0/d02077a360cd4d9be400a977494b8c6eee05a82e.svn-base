@@ -1,0 +1,235 @@
+package service.integration
+
+import javax.inject.Inject
+
+import constants.IntegrationConstants
+import helpers.FCServiceHelper
+import models._
+import models.integration._
+import models.integration.enumerations._
+import play.api.Logger
+
+import scala.concurrent.{ExecutionContext, Future}
+
+class FCService @Inject()(implicit ec: ExecutionContext, fcServiceHelper: FCServiceHelper) extends IntegrationConstants {
+
+  def getBSEOrderEntryParam(fcOrderEntry: FCOrderEntryModel): Future[BSEOrderEntryParam] = {
+
+    for {
+      parameterMap <- fcServiceHelper.getBSEDefaultParameters()
+      clientKycStatus <- fcServiceHelper.getClientKYCStatus(fcOrderEntry.clientCode)
+    } yield {
+
+      val userId: Long = parameterMap.get(BSE_USER_ID_KEY).getOrElse("0").toLong
+      val memberId: String = parameterMap.get(BSE_MEMBER_ID_KEY).getOrElse("")
+      val password: String = parameterMap.get(BSE_PASSWORD_KEY).getOrElse("")
+      val euin: Option[String] = parameterMap.get(BSE_EUIN_KEY)
+
+      val bseOrderEntryParam = BSEOrderEntryParam(fcOrderEntry.transCode, fcOrderEntry.uniqueRefNo.trim, fcOrderEntry.orderId,
+        userId, memberId, fcOrderEntry.clientCode.trim, fcOrderEntry.schemeCode.trim, fcOrderEntry.buySell, fcOrderEntry.buySellType,
+        fcOrderEntry.dpTransaction, fcOrderEntry.amount, fcOrderEntry.qty, AllRedeemEnum.N, fcOrderEntry.folioNo, fcServiceHelper.getOrderRemarks,
+        clientKycStatus, fcOrderEntry.internalRefNo, fcServiceHelper.getSubBrCode, euin,
+        fcServiceHelper.getEUINDeclaration(euin), MinRedeemEnum.N, fcServiceHelper.getDPC, fcOrderEntry.ipAdd.getOrElse("").trim, password,
+        fcServiceHelper.getBSEPassKey, fcServiceHelper.getSubBrARNCode, None, None)
+
+      bseOrderEntryParam
+    }
+
+
+  }
+
+  def getBSESipOrderEntryParam(fcSipOrderEntryModel: FCSipOrderEntryModel): Future[BSESipOrderEntryParam] = {
+
+
+    fcServiceHelper.getBSEDefaultParameters().map { parameterMap =>
+
+      val userId: Long = parameterMap.get(BSE_USER_ID_KEY).getOrElse("0").toLong
+      val memberId: String = parameterMap.get(BSE_MEMBER_ID_KEY).getOrElse("")
+      val password: String = parameterMap.get(BSE_PASSWORD_KEY).getOrElse("")
+      val euin: Option[String] = parameterMap.get(BSE_EUIN_KEY)
+
+      val bseSipOrderEntryParam = BSESipOrderEntryParam(fcSipOrderEntryModel.transCode,
+        fcSipOrderEntryModel.uniqueRefNo.trim,
+        fcSipOrderEntryModel.schemeCode.trim,
+        memberId,
+        fcSipOrderEntryModel.clientCode.trim,
+        userId,
+        fcSipOrderEntryModel.internalRefNo,
+        fcSipOrderEntryModel.transactionMode,
+        fcSipOrderEntryModel.dpTxnMode,
+        fcSipOrderEntryModel.startDate.trim,
+        fcSipOrderEntryModel.frequencyType,
+        fcSipOrderEntryModel.frequencyAllowed,
+        fcSipOrderEntryModel.installmentAmount,
+        fcSipOrderEntryModel.noOfInstallments,
+        fcServiceHelper.getOrderRemarks,
+        fcServiceHelper.getFolioNo,
+        fcSipOrderEntryModel.firstOrderFlag,
+        fcServiceHelper.getSubBrCode,
+        euin,
+        fcServiceHelper.getEUINDeclaration(euin),
+        fcServiceHelper.getDPC,
+        fcSipOrderEntryModel.sipRegId,
+        fcSipOrderEntryModel.ipAdd.getOrElse("").trim,
+        password,
+        fcServiceHelper.getBSEPassKey,
+        fcServiceHelper.getSubBrARNCode, None, None)
+
+      bseSipOrderEntryParam
+    }
+
+  }
+
+  def getBSEXsipOrderEntryParam(fcXsipOrderEntryModel: FCXsipOrderEntryModel): Future[BSEXsipOrderEntryParam] = {
+
+    fcServiceHelper.getBSEDefaultParameters().map { parameterMap =>
+
+      val userId: Long = parameterMap.get(BSE_USER_ID_KEY).getOrElse("0").toLong
+      val memberId: String = parameterMap.get(BSE_MEMBER_ID_KEY).getOrElse("")
+      val password: String = parameterMap.get(BSE_PASSWORD_KEY).getOrElse("")
+      val euin: Option[String] = parameterMap.get(BSE_EUIN_KEY)
+      val bseXsipOrderEntryParam = BSEXsipOrderEntryParam(fcXsipOrderEntryModel.transCode,
+        fcXsipOrderEntryModel.uniqueRefNo.trim,
+        fcXsipOrderEntryModel.schemeCode.trim,
+        memberId,
+        fcXsipOrderEntryModel.clientCode.trim,
+        userId,
+        fcXsipOrderEntryModel.internalRefNo,
+        fcXsipOrderEntryModel.transactionMode,
+        fcXsipOrderEntryModel.dpTxnMode,
+        fcXsipOrderEntryModel.startDate.trim,
+        fcXsipOrderEntryModel.frequencyType,
+        fcXsipOrderEntryModel.frequencyAllowed,
+        fcXsipOrderEntryModel.installmentAmount,
+        fcXsipOrderEntryModel.noOfInstallments,
+        fcServiceHelper.getOrderRemarks,
+        fcXsipOrderEntryModel.folioNo,
+        fcXsipOrderEntryModel.firstOrderFlag,
+        fcServiceHelper.getBrokerage,
+        fcXsipOrderEntryModel.mandateId,
+        fcServiceHelper.getSubBrCode,
+        euin,
+        fcServiceHelper.getEUINDeclaration(euin),
+        fcServiceHelper.getDPC,
+        fcXsipOrderEntryModel.xsipRegId,
+        fcXsipOrderEntryModel.ipAdd.getOrElse("").trim,
+        password,
+        fcServiceHelper.getBSEPassKey,
+        fcServiceHelper.getSubBrARNCode,
+        fcXsipOrderEntryModel.isipMandateId, None)
+
+      bseXsipOrderEntryParam
+    }
+
+  }
+
+  def getBSESpreadOrderEntryParam(fcSpreadOrderEntryModel: FCSpreadOrderEntryModel): Future[BSESpreadOrderEntryParam] = {
+
+    for {
+      parameterMap <- fcServiceHelper.getBSEDefaultParameters()
+      clientKycStatus <- fcServiceHelper.getClientKYCStatus(fcSpreadOrderEntryModel.clientCode)
+    } yield {
+
+      val userId: Long = parameterMap.get(BSE_USER_ID_KEY).getOrElse("0").toLong
+      val memberId: String = parameterMap.get(BSE_MEMBER_ID_KEY).getOrElse("")
+      val password: String = parameterMap.get(BSE_PASSWORD_KEY).getOrElse("")
+      val euin: Option[String] = parameterMap.get(BSE_EUIN_KEY)
+
+      val bseSpreadOrderEntryParam = BSESpreadOrderEntryParam(fcSpreadOrderEntryModel.transCode, fcSpreadOrderEntryModel.uniqueRefNo.trim,
+        fcSpreadOrderEntryModel.orderId, userId, memberId, fcSpreadOrderEntryModel.clientCode.trim, fcSpreadOrderEntryModel.schemeCode.trim,
+        fcSpreadOrderEntryModel.buySell, fcSpreadOrderEntryModel.buySellType, fcSpreadOrderEntryModel.dpTxnMode, fcSpreadOrderEntryModel.purchaseAmt,
+        fcSpreadOrderEntryModel.redeemAmt, fcSpreadOrderEntryModel.allUnitFlag, fcSpreadOrderEntryModel.redeemDate.trim, fcServiceHelper.getFolioNo,
+        fcServiceHelper.getOrderRemarks, clientKycStatus, fcSpreadOrderEntryModel.internalRefNo, fcServiceHelper.getSubBrCode, euin,
+        fcServiceHelper.getEUINDeclaration(euin), MinRedeemEnum.N, fcServiceHelper.getDPC, fcSpreadOrderEntryModel.ipAdd.getOrElse("").trim, password,
+        fcServiceHelper.getBSEPassKey, fcServiceHelper.getSubBrARNCode, None, None)
+
+      bseSpreadOrderEntryParam
+    }
+
+  }
+
+  def getBSESwitchOrderEntryParam(fcSwitchOrderEntryModel: FCSwitchOrderEntryModel): Future[BSESwitchOrderEntryParam] = {
+
+    for {
+      parameterMap <- fcServiceHelper.getBSEDefaultParameters()
+      clientKycStatus <- fcServiceHelper.getClientKYCStatus(fcSwitchOrderEntryModel.clientCode)
+    } yield {
+
+      val userId: Long = parameterMap.get(BSE_USER_ID_KEY).getOrElse("0").toLong
+      val memberId: String = parameterMap.get(BSE_MEMBER_ID_KEY).getOrElse("")
+      val password: String = parameterMap.get(BSE_PASSWORD_KEY).getOrElse("")
+      val euin: Option[String] = parameterMap.get(BSE_EUIN_KEY)
+      val bseSwitchOrderEntryParam = BSESwitchOrderEntryParam(fcSwitchOrderEntryModel.transCode, fcSwitchOrderEntryModel.uniqueRefNo.trim,
+        fcSwitchOrderEntryModel.orderId, userId, memberId, fcSwitchOrderEntryModel.clientCode.trim, fcSwitchOrderEntryModel.fromSchemeCode.trim,
+        fcSwitchOrderEntryModel.toSchemeCode.trim, fcSwitchOrderEntryModel.buySell, fcSwitchOrderEntryModel.buySellType,
+        fcSwitchOrderEntryModel.dpTxnMode, fcSwitchOrderEntryModel.switchAmt, fcSwitchOrderEntryModel.switchUnits, fcSwitchOrderEntryModel.allUnits,
+        fcServiceHelper.getFolioNo(fcSwitchOrderEntryModel.buySell), fcServiceHelper.getOrderRemarks, clientKycStatus, fcServiceHelper.getSubBrCode,
+        euin, fcServiceHelper.getEUINDeclaration(euin), MinRedeemEnum.N, fcSwitchOrderEntryModel.ipAdd.getOrElse("").trim,
+        password, fcServiceHelper.getBSEPassKey, fcServiceHelper.getSubBrARNCode, None, None)
+
+      bseSwitchOrderEntryParam
+
+    }
+
+  }
+
+  def getBSESTPEntryModel(fcSTPEntryModel: FCSTPEntryModel): Future[BSESTPEntryModel] = {
+
+    for {
+      parameterMap <- fcServiceHelper.getBSEDefaultParameters()
+    }yield{
+
+      val euin: Option[String] = parameterMap.get(BSE_EUIN_KEY)
+
+      val bseSTPEntryModel = BSESTPEntryModel(fcSTPEntryModel.clientCode.trim,
+        fcSTPEntryModel.fromSchemeCode.trim,
+        fcSTPEntryModel.toSchemeCode.trim,
+        fcSTPEntryModel.buySellType,
+        fcSTPEntryModel.transactionMode,
+        fcServiceHelper.getFolioNo,
+        fcSTPEntryModel.internalRefNo,
+        fcSTPEntryModel.startDate.trim,
+        fcSTPEntryModel.frequencyType,
+        fcSTPEntryModel.numberOfTransfers,
+        fcSTPEntryModel.installmentAmt,
+        fcSTPEntryModel.firstOrderFlag,
+        fcServiceHelper.getSubBrCode,
+        fcServiceHelper.getEUINDeclaration(euin),
+        euin,
+        fcServiceHelper.getOrderRemarks,
+        fcServiceHelper.getSubBrARNCode)
+
+      bseSTPEntryModel
+    }
+  }
+
+  def getBSESWPEntryModel(fcSWPEntryModel: FCSWPEntryModel): Future[BSESWPEntryModel] = {
+
+    for {
+
+      parameterMap <- fcServiceHelper.getBSEDefaultParameters()
+
+    }yield {
+      val euin: Option[String] = parameterMap.get(BSE_EUIN_KEY)
+
+      val bseSWPEntryModel = BSESWPEntryModel(fcSWPEntryModel.clientCode.trim,
+        fcSWPEntryModel.schemeCode.trim,
+        fcSWPEntryModel.transactionMode,
+        fcServiceHelper.getFolioNo,
+        fcSWPEntryModel.internalRefNo,
+        fcSWPEntryModel.startDate.trim,
+        fcSWPEntryModel.numberOfWithdrawl,
+        fcSWPEntryModel.frequencyType,
+        fcSWPEntryModel.installmentAmt,
+        fcSWPEntryModel.installmentUnits,
+        fcSWPEntryModel.firstOrderFlag,
+        fcServiceHelper.getSubBrCode,
+        fcServiceHelper.getEUINDeclaration(euin),
+        euin,
+        fcServiceHelper.getOrderRemarks,
+        fcServiceHelper.getSubBrARNCode)
+
+      bseSWPEntryModel
+    }
+  }
+}

@@ -1,0 +1,379 @@
+package controllers
+
+import javax.inject.Inject
+
+import constants.{HTTPErrorConstants, MongoConstants, UserConstants}
+import helpers.{AuthenticatedAction, MailHelper}
+import org.slf4j.LoggerFactory
+import pdi.jwt.{JwtAlgorithm, JwtClaim, JwtJson}
+import play.api.libs.json.Json
+import play.api.libs.json.Json.toJsFieldJsValueWrapper
+import play.api.mvc.{Controller, Result}
+import reactivemongo.api.commands.{UpdateWriteResult, WriteResult}
+import reactivemongo.bson.DefaultBSONHandlers._
+import reactivemongo.bson.{BSONDocument, BSONObjectID}
+import reactivemongo.core.errors.DatabaseException
+import repository.module.UserRepository
+import service._
+import utils.RequestUtils
+
+import scala.collection.mutable.ListBuffer
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.util.{Failure, Success}
+import play.api.mvc.{Action}
+
+class LoginController @Inject()(auth: AuthenticatedAction, userService: UserService, implicit val ec: ExecutionContext, mongoDbService: MongoDbService,
+                                jwtController: JWTController, userRepository: UserRepository, cartService: CartService, mailService: MailService, mailHelper: MailHelper, configuration: play.api.Configuration)
+  extends Controller with UserConstants with HTTPErrorConstants with MongoConstants {
+
+  val logger, log = LoggerFactory.getLogger(classOf[LoginController])
+
+  val staticImagePath = configuration.underlying.getString("mail.url.staticImagePath")
+  val baseUrl = configuration.underlying.getString("mail.url.baseurl")
+
+  def collection(name: String) = mongoDbService.collection(name)
+
+  /**
+    * takes in user object and creates a token. Returns the token, along with filling the db with expire time
+    *
+    * @return
+    */
+  def getLoginToken = auth.Action.async(parse.json) { request =>
+
+    var requestData = request.body
+    var username = requestData.\("username").as[String]
+    var password = requestData.\("password").as[String]
+
+    //    var token = userService.getTokenFromRequest(request);
+    var token = request.token;
+    var folioCount: Long = 0
+
+    val ipAddress = RequestUtils.getIpAddress(request)
+    userRepository.signInUser(username, password, ipAddress).flatMap(userTuple => {
+      if (userTuple._1 != 0 && userTuple._2 && userTuple._3) {
+        val userid = userTuple._1
+        val a = userRepository.getNumberOfFoliosByUserPk(userid).map { x => {
+          folioCount = x
+        }
+        }
+        Await.result(a, Duration.Inf)
+
+        userRepository.getUserByPk(userid).flatMap(user => {
+          if (user.nonEmpty) {
+            val firstName = user.get.ubdfirstname.getOrElse("")
+            val pan = user.get.ubdpan.getOrElse("")
+            val mob = user.get.ubdmobileno.getOrElse("")
+            var key = BSONObjectID.generate().stringify
+            var algo = JwtAlgorithm.HS256
+            var data = Json.obj(("id", userid), ("username", username), ("foliocount", folioCount), ("firstname", firstName),
+              ("pan", pan), ("mob", mob))
+            var claim = JwtClaim(data.toString()).issuedNow.expiresIn(TOKEN_TIMEOUT)
+            var newToken = JwtJson.encode(claim, key, algo)
+            val tokenExpireTime = System.currentTimeMillis + TOKEN_TIMEOUT
+            var selector = BSONDocument("token" -> token)
+            val modifier = BSONDocument(
+              "token" -> newToken,
+              "username" -> username,
+              "userid" -> userid,
+              "key" -> key,
+              "foliocount" -> folioCount,
+              "firstname" -> firstName,
+              "pan" -> pan,
+              "mob" -> mob,
+              "algo" -> algo.toString,
+              "expiry" -> tokenExpireTime
+            )
+
+            insertOrUpdateInMongo(token, newToken, modifier, username);
+          }
+          else {
+            Future {
+              Ok(Json.obj("error" -> "User doesn't exists"))
+            }
+          }
+
+        })
+
+      } else if (!userTuple._2) {
+        Future {
+          Ok(Json.obj("error" -> "User doesn't exists"))
+        }
+      } else {
+        Future {
+          Ok(Json.obj("error" -> "Invalid Password"))
+        }
+      }
+    })
+  }
+
+
+  /**
+    * takes in user object and creates a token. Returns the token, along with filling the db with expire time
+    *
+    * @return
+    */
+  def signup = auth.Action.async(parse.json) { request =>
+    val requestData = request.body;
+    var token = request.token;
+    val username = (requestData \ "username").as[String]
+    val email = (requestData \ "email").as[String]
+    val password = (requestData \ "password").as[String]
+
+    val ipAddress = RequestUtils.getIpAddress(request)
+    userRepository.signUpUser(username, password, ipAddress).flatMap { userid => {
+      if (userid > 0) {
+        userRepository.getUserByPk(userid).flatMap(user => {
+          if (user.nonEmpty) {
+            val firstName = user.get.ubdfirstname.getOrElse("")
+            val pan = user.get.ubdpan.getOrElse("")
+            val mob = user.get.ubdmobileno.getOrElse("")
+            val key = BSONObjectID.generate().stringify
+            val algo = JwtAlgorithm.HS256;
+            val data = Json.obj(("username", username));
+            val claim = JwtClaim(data.toString()).issuedNow.expiresIn(TOKEN_TIMEOUT)
+            val newToken = JwtJson.encode(claim, key, algo)
+            val tokenExpireTime = System.currentTimeMillis + TOKEN_TIMEOUT
+            val modifier = BSONDocument(
+              "token" -> newToken,
+              "username" -> username,
+              "userid" -> userid,
+              "key" -> key,
+              "foliocount" -> 0L,
+              "firstname" -> firstName,
+              "pan" -> pan,
+              "mob" -> mob,
+              "algo" -> algo.toString,
+              "expiry" -> tokenExpireTime
+            )
+
+            /*sending welcome mail*/
+            val heading = PropertiesLoaderService.getConfig().getString("mail.signup.welcome.heading")
+            val mailHeaderTemplate = views.html.mailHeader(heading,  mailHelper.getMth)
+            val mailBodyTemplate = views.html.welcome(mailHelper.getMth)
+            val mailTemplate = views.html.mail(mailHeaderTemplate, mailBodyTemplate, mailHelper.getMth)
+            val subj = PropertiesLoaderService.getConfig().getString("mail.signup.welcome.subject")
+            val bodyHTML = mailTemplate.toString()
+            val bodyText = views.html.welcomeTxt().toString()
+            mailService.sendMail(email, subj, bodyText, bodyHTML, None, None, None, None, None, Some(ListBuffer("priyabrata.behera@fincash.com")))
+            /*end of mail sending*/
+
+            insertOrUpdateInMongo(token, newToken, modifier, username)
+          }
+          else {
+            Future.apply(Ok(Json.obj("error" -> "User not found")))
+          }
+        })
+      }
+      else {
+        Future.apply(Ok(Json.obj("error" -> "User already exists")))
+      }
+    }
+    }
+  }
+
+  def insertOrUpdateInMongo(token: String, newToken: String, modifier: BSONDocument, username: String): Future[Result] = {
+    val selector = BSONDocument("token" -> token)
+    collection(TOKEN_COLLECTION_NAME).flatMap { coll =>
+      if (token.isEmpty()) {
+        val writeRes: Future[WriteResult] = mongoDbService.insertDoc(coll, modifier)
+        writeRes.onComplete {
+          case Failure(e) => {
+            logger.error("Mongo Error :: " + e.getMessage)
+            InternalServerError(Json.obj("success" -> false, "error" -> e.getMessage, "message" -> e.getMessage))
+          }
+          case Success(writeResult) => {
+            logger.debug("successfully inserted document with result: $writeResult")
+          }
+        }
+        writeRes.map(_ => {
+          Ok(Json.obj("id_token" -> newToken, "success" -> true))
+        })
+      }
+      else {
+        val writeRes: Future[UpdateWriteResult] = mongoDbService.updateDoc(coll, selector, modifier)
+        writeRes.onComplete {
+          case Failure(e) => {
+            logger.error("Mongo Error :: " + e.getMessage)
+            InternalServerError(Json.obj("success" -> false, "error" -> e.getMessage, "message" -> e.getMessage))
+          }
+          case Success(writeResult) => {
+            logger.debug("successfully inserted document with result: $writeResult")
+          }
+        }
+        writeRes.map(_ => {
+          Ok(Json.obj("id_token" -> newToken, "success" -> true))
+        })
+      }
+    }.recover {
+      case dex: DatabaseException => {
+        val abc = dex.getMessage();
+        Ok(Json.obj("error" -> dex.message, "success" -> false))
+      }
+      case e: Exception => {
+        val abce = e.getMessage;
+        Ok(Json.obj("error" -> e.getMessage, "success" -> false))
+      }
+    }
+  }
+
+  def socialLogin = Action.async(parse.json){ request => {
+    val requestData = request.body;
+    val name = (requestData \ "name").as[String]
+    val email = (requestData \ "email").as[String].toLowerCase
+
+    var folioCount: Long = 0
+    val ipAddress = RequestUtils.getIpAddress(request)
+
+    userRepository.getUserByUsername(email).flatMap(_user => {
+      //login user
+      if (_user.nonEmpty){
+        val user = _user.get
+        var userid = user.id
+        val a = userRepository.getNumberOfFoliosByUserPk(userid).map {x => {
+          folioCount = x
+        }}
+        Await.result(a, Duration.Inf)
+
+        val username = email
+        val firstName = user.ubdfirstname.getOrElse("")
+        val pan = user.ubdpan.getOrElse("")
+        val mob = user.ubdmobileno.getOrElse("")
+        var key = BSONObjectID.generate().stringify
+        var algo = JwtAlgorithm.HS256
+        var data = Json.obj(("id", userid), ("username", username), ("foliocount", folioCount), ("firstname", firstName),
+          ("pan", pan), ("mob", mob))
+        var claim = JwtClaim(data.toString()).issuedNow.expiresIn(TOKEN_TIMEOUT)
+        var newToken = JwtJson.encode(claim, key, algo)
+        val tokenExpireTime = System.currentTimeMillis + TOKEN_TIMEOUT
+//        var selector = BSONDocument("token" -> token)
+        val modifier = BSONDocument(
+          "token" -> newToken,
+          "username" -> username,
+          "userid" -> userid,
+          "key" -> key,
+          "foliocount" -> folioCount,
+          "firstname" -> firstName,
+          "pan" -> pan,
+          "mob" -> mob,
+          "algo" -> algo.toString,
+          "expiry" -> tokenExpireTime
+        )
+
+        collection(TOKEN_COLLECTION_NAME).flatMap { coll =>
+          val writeRes: Future[WriteResult] = mongoDbService.insertDoc(coll, modifier)
+          writeRes.onComplete {
+            case Failure(e) => {
+              logger.error("Mongo Error :: " + e.getMessage)
+              InternalServerError(Json.obj("success" -> false, "error" -> e.getMessage, "message" -> e.getMessage))
+            }
+            case Success(writeResult) => {
+              logger.debug("successfully inserted document with result: $writeResult")
+            }
+          }
+          writeRes.map(_ => {
+            Ok(Json.obj("id_token" -> newToken, "success" -> true))
+          })
+        }
+
+      }
+      //signup user
+      else {
+        val username = email
+        val password = scala.util.Random.alphanumeric.take(10).mkString
+        userRepository.signUpUser(username, password, ipAddress).flatMap { userid => {
+          if (userid > 0) {
+            userRepository.getUserByPk(userid).flatMap(user => {
+              if (user.nonEmpty) {
+                val firstName = user.get.ubdfirstname.getOrElse("")
+                val pan = user.get.ubdpan.getOrElse("")
+                val mob = user.get.ubdmobileno.getOrElse("")
+                val key = BSONObjectID.generate().stringify
+                val algo = JwtAlgorithm.HS256;
+                val data = Json.obj(("username", username));
+                val claim = JwtClaim(data.toString()).issuedNow.expiresIn(TOKEN_TIMEOUT)
+                val newToken = JwtJson.encode(claim, key, algo)
+                val tokenExpireTime = System.currentTimeMillis + TOKEN_TIMEOUT
+                val modifier = BSONDocument(
+                  "token" -> newToken,
+                  "username" -> username,
+                  "userid" -> userid,
+                  "key" -> key,
+                  "foliocount" -> 0L,
+                  "firstname" -> firstName,
+                  "pan" -> pan,
+                  "mob" -> mob,
+                  "algo" -> algo.toString,
+                  "expiry" -> tokenExpireTime
+                )
+
+                /*sending welcome mail*/
+                var addressingName = "Investor"
+                  if(name.length>0)
+                    addressingName = name
+
+                val subj = "Account password"
+                val mailHeaderTemplate = views.html.mailHeader("Account Password", mailHelper.getMth)
+                val mailBodyTemplate = views.html.password(addressingName, password, mailHelper.getMth)
+                val mailTemplate = views.html.mail(mailHeaderTemplate, mailBodyTemplate, mailHelper.getMth)
+
+                val bodyHTML = mailTemplate.toString()
+                val bodyText = views.html.passwordTxt(addressingName, password, mailHelper.getMth).toString()
+                mailService.sendMail(email, subj, bodyText, bodyHTML).map(_messageid => {
+                  logger.debug("Message id >>> " + _messageid);
+                })
+                /*end of mail sending*/
+
+                collection(TOKEN_COLLECTION_NAME).flatMap { coll =>
+                  val writeRes: Future[WriteResult] = mongoDbService.insertDoc(coll, modifier)
+                  writeRes.onComplete {
+                    case Failure(e) => {
+                      logger.error("Mongo Error :: " + e.getMessage)
+                      InternalServerError(Json.obj("success" -> false, "error" -> e.getMessage, "message" -> e.getMessage))
+                    }
+                    case Success(writeResult) => {
+                      logger.debug("successfully inserted document with result: $writeResult")
+                    }
+                  }
+                  writeRes.map(_ => {
+                    Ok(Json.obj("id_token" -> newToken, "success" -> true))
+                  })
+                }
+              }
+              else {
+                Future.apply(Ok(Json.obj("error" -> "User not found")))
+              }
+            })
+          }
+          else {
+            Future.apply(Ok(Json.obj("error" -> "User already exists")))
+          }
+        }
+        }
+      }
+    })
+  }}
+
+  def checkUsernameInDB = auth.Action.async(parse.json) { request => {
+    var username = (request.body \ "username").as[String]
+    userRepository.checkUser(username).map(value => {
+      Ok(Json.obj("doesUserExists" -> value))
+    })
+  }
+  }
+
+  def logout = auth.Action { request =>
+    Ok("logged out successfully!")
+  }
+
+  def secDash = auth.Action {
+    Ok("this is a secured location")
+  }
+
+  def Dash = auth.Action {
+    request =>
+      Ok("this location is unsecure")
+  }
+
+
+}

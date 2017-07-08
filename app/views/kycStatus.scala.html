@@ -1,0 +1,29 @@
+@import _root_.data.model.Tables._
+
+@(user: FcubdRow, status:Boolean,  utils: MailTemplateHelper)
+
+
+<div style="padding:4% 5%;background-color:white; position:relative; background-color:white; border-left:solid 1px #c1bdbd;border-right:solid 1px #c1bdbd;">
+    Dear <span style="text-transform: capitalize;">
+    @if(user.ubdfirstname){@user.ubdfirstname} else{Investor}</span>,<br>
+
+    @if(status){
+    <p>Congratulations! Your eKYC registration is successful.</p>
+    <p>You are just few steps away from investing online on Fincash.com</p>
+    }else{
+    <p>We are sorry to inform you that we are unable to process your eKYC registration.</p>
+    <p>Please try again after some time.</p>
+
+    <b>If the problem persists, we recommend you to opt for the normal PAN based KYC process.</b>
+    }
+
+    @contact()
+
+    <p>Please visit our <a href="@utils.getBaseUrl()/b/" style="color:#53ADD0">RESOURCE CENTRE</a> to know about Mutual Fund Investments and other investment products.</p>
+
+    <p style="position:absolute; bottom:2%;">
+        With Warm Regards,<br>
+        Team Fincash</p>
+</div>
+
+@products(utils.getBaseUrl(), utils.getImagePath())

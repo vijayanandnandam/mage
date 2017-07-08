@@ -1,0 +1,861 @@
+/**
+  * Created by Fincash on 24-01-2017.
+  */
+
+package controllers
+
+import java.io._
+import javax.inject.Inject
+
+import constants.{CNDConstants, DBConstants, DateConstants, KycConstants}
+import helpers.{AuthenticatedAction, MailHelper, UserHelper, ZendeskHelper}
+import models.UserJsonFormats._
+import models._
+import org.slf4j.LoggerFactory
+import org.zendesk.client.v2.model._
+import play.api.libs.json.Json
+import play.api.mvc.{Action, Controller}
+import repository.module.{KycRepository, UserRepository, ZendeskRepository}
+import repository.tables.{FceubdRepo, FckycRepo, FcubdRepo, FcupdRepo}
+import service._
+import utils.{DateTimeUtils, RequestUtils}
+
+import scala.collection.mutable
+import scala.collection.mutable.ListBuffer
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, ExecutionContext, Future}
+
+
+class UserController @Inject()(implicit val ec: ExecutionContext, auth: AuthenticatedAction, userService: UserService,
+                               application: Application, userRepository: UserRepository, userHelper: UserHelper,
+                               solrCNDSearchService: SolrCNDSearchService, kycRepository: KycRepository,
+                               zendeskHelper: ZendeskHelper, zendeskService: ZendeskService, zendeskRepository: ZendeskRepository, fcubdRepo: FcubdRepo, fceubdRepo: FceubdRepo, fcupdRepo: FcupdRepo, fckycRepo: FckycRepo,
+                               mailHelper: MailHelper, mailService: MailService)
+  extends Controller with CNDConstants with KycConstants with DBConstants with DateConstants {
+
+  val logger, log = LoggerFactory.getLogger(classOf[UserController])
+
+  def getUserData = auth.Action { request =>
+    val requestData = request.body
+    var token = request.token;
+
+    //    var user = userService.getUserDataFromDb(request);
+    Ok;
+  }
+
+  def getFirstName = auth.Action.async { request => {
+    userService.getUsernameFromRequest(request).flatMap(username => {
+      userRepository.getFirstNameByUsername(username.get).map(firstName => {
+        Ok(Json.obj("firstname" -> firstName))
+      })
+    })
+  }
+  }
+
+  def getUserDetails = auth.Action.async { request =>
+    userService.getUseridFromRequest(request).flatMap { userid => {
+      logger.debug("user  id >>>    " + userid)
+      if (userid.nonEmpty) {
+        userRepository.getUserByPk(userid.get).map { user => {
+          if(user.isDefined) {
+            val ubdPan = user.get.ubdpan.getOrElse("");
+            val mobile = user.get.ubdmobileno.getOrElse("")
+            Ok(Json.obj("mob" -> mobile, "email" -> user.get.ubdemailid, "mobRegDate" -> user.get.modifydate, "pan" -> ubdPan))
+          } else {
+            Ok(Json.obj("mob" -> "", "email" -> "", "mobRegDate" -> "", "pan" -> ""))
+          }
+        }
+        }
+      } else {
+        Future.apply(Ok(Json.obj("mob" -> "", "email" -> "", "mobRegDate" -> "", "pan" -> "")))
+      }
+    }
+    }
+  }
+
+  def panCheck = auth.Action.async(parse.json) { request => {
+    var requestData = request.body
+    var pan = (requestData \ "pan").as[String].toUpperCase
+    userService.getUsernameFromRequest(request).flatMap { username => {
+      userRepository.getUserIdByUsername(username.get).flatMap { userid => {
+        userRepository.checkPanExists(userid, pan).map(panExists => {
+          if (panExists) {
+            Ok(Json.obj("success" -> false, "message" -> "PAN already exists"))
+          }
+          else {
+            Ok(Json.obj("success" -> true, "message" -> "PAN doesn't exists"))
+          }
+        })
+      }
+      }
+    }
+    }
+  }
+  }
+
+  def panUpdate = auth.Action.async(parse.json) { request => {
+    var requestData = request.body
+    var pan = (requestData \ "pan").as[String].toUpperCase
+
+    userService.getUsernameFromRequest(request).flatMap { username => {
+      logger.debug("Username " + username)
+      userRepository.getUserIdByUsername(username.get).flatMap { userid => {
+        userRepository.checkPanExists(userid, pan).flatMap(panExists => {
+          if (!panExists) {
+            userRepository.savePanNumber(userid, pan).flatMap(data => {
+              if (data) {
+                /*zendesk ticket update logic*/
+                val istktAllowed = zendeskHelper.isTktAllowed
+                if (istktAllowed) {
+                  var customField = new CustomFieldValue(zendeskHelper.ZENDESK_TICKET_USER_STAGE, zendeskHelper.ZENDESK_TICKET_VALUE_PAN_UPDATED)
+                  val customFieldList = new java.util.ArrayList[CustomFieldValue]
+                  customFieldList.add(customField)
+                  val purpose = Some(zendeskHelper.TKT_PURPOSE_REGISTRATION)
+                  zendeskRepository.getTicketsByUserIdANDpurpose(userid, purpose).flatMap(fctktRows => {
+                    if (fctktRows.nonEmpty) {
+                      Future.apply(Some(fctktRows.head.tktticketid.toLong))
+                    } else {
+                      val requester = zendeskHelper.createRequester
+                      requester.setEmail(username.get)
+                      requester.setName(username.get)
+                      zendeskService.createTicket(requester, zendeskHelper.onBoardingSubject, None, Some(zendeskHelper.ZENDESK_GROUP_ONBOARDING), username.getOrElse(""), username.getOrElse(""), userid, None, purpose, None).map(tktIdOption => {
+                        tktIdOption
+                      })
+                    }
+                  }).map(tktOption => {
+                    if (tktOption.nonEmpty) {
+                      val tktId = tktOption.get
+                      logger.debug("zendesk ticket id >>>> " + tktId)
+                      val customFieldRes = zendeskService.setCustomField(tktId, customFieldList, None, None, None)
+                      logger.debug("Customfield Status -->" + customFieldRes)
+                      if (customFieldRes._2) {
+                        val zdUserId = zendeskHelper.getUserIdByEmail(username.get)
+                        val userField = new java.util.HashMap[String, AnyRef]()
+                        userField.put(zendeskHelper.ZENDESK_USER_FIELD_NAME_PAN, pan)
+                        zendeskService.setUserField(zdUserId, userField)
+                      }
+                    } else {
+                      logger.debug("zendesk ticket id not recieved")
+                    }
+                    Ok(Json.obj("success" -> true, "message" -> "PAN Updated successfully"))
+                  })
+                } else {
+                  Future.apply(Ok(Json.obj("success" -> true, "message" -> "PAN Updated but tkt not allowed for this config")))
+                }
+              } else {
+                Future.apply(Ok(Json.obj("success" -> false, "message" -> "PAN not saved")))
+              }
+            })
+          }
+          else {
+            Future.apply(Ok(Json.obj("success" -> false, "message" -> "PAN already exists")))
+          }
+        })
+      }
+      }
+    }
+    }
+  }
+  }
+
+  /*def mobUpdate = auth.Action.async(parse.json) { request => {
+    var requestData = request.body
+
+    var mob = (requestData \ "mob").as[String]
+
+    userService.getUsernameFromRequest(request).flatMap { username => {
+      logger.debug("Username " + username)
+      userRepository.getUserIdByUsername(username.get).flatMap { userid => {
+
+      }
+      }
+    }
+    }
+  }
+  }*/
+
+  def postUserData = auth.Action.async(parse.json) { request =>
+    var requestData = request.body
+    logger.debug(request.body.toString)
+
+    var userBasic = (requestData \ "userBasic").as[UserBasic]
+    //    var userBank = (requestData \ "userBank").as[UserBank]
+    var userAddress = (requestData \ "userAddress").as[UserAddress]
+    /*var userFatca = (requestData \ "userFatca").as[UserFatca]*/
+
+    userService.getUsernameFromRequest(request).flatMap { username => {
+      logger.debug("Username " + username)
+      userRepository.getUserIdByUsername(username.get).map { userid => {
+        var ubdrfnum = userRepository.saveUserBasic(userid, username.get, userBasic)
+        var buarfnum = userRepository.saveUserAddresses(userid, username.get, userAddress, userBasic)
+        Ok
+      }
+      }
+    }
+    }
+  }
+
+  /** ****************GET DATA ***************************/
+
+  def getUserBasicData = auth.Action.async { request => {
+    userService.getUsernameFromRequest(request).flatMap(username => {
+      userRepository.getUserIdByUsername(username.get).flatMap(userid => {
+        userRepository.getUserBasic(userid).map(userBasic => {
+          Ok(userHelper.getUserBasicObject(userBasic))
+        })
+      })
+    })
+  }
+  }
+
+  def getUserFatcaData = auth.Action.async { request => {
+    userService.getUsernameFromRequest(request).flatMap(username => {
+      userRepository.getUserIdByUsername(username.get).flatMap(userid => {
+        userRepository.getUserFatca(userid).map(userFatca => {
+          Ok(userHelper.getUserFactaObject(userFatca))
+        })
+      })
+    })
+  }
+  }
+
+  def getUserBankData = auth.Action.async { request => {
+    userService.getUsernameFromRequest(request).flatMap(username => {
+      userRepository.getUserIdByUsername(username.get).flatMap(userid => {
+        userRepository.getUserBank(userid).map(userBank => {
+          Ok(userHelper.getUserBankObject(userBank))
+        })
+      })
+    })
+  }
+  }
+
+  def getUserNomineeData = auth.Action.async(request => {
+    userService.getUsernameFromRequest(request).flatMap(username => {
+      userRepository.getUserIdByUsername(username.get).flatMap(userid => {
+        userRepository.getUserNominee(userid).map(userNominee => {
+          Ok(userHelper.getUserNomineeObject(userNominee))
+        })
+      })
+    })
+  })
+
+  def getUserAddressData = auth.Action.async(request => {
+    userService.getUsernameFromRequest(request).flatMap(username => {
+      userRepository.getUserIdByUsername(username.get).flatMap(userid => {
+        userRepository.getUserAddress(userid).map(userAddress => {
+          Ok(userHelper.getUserAddressObject(userAddress))
+        })
+      })
+    })
+  })
+
+  /** ****************POST DATA **************************/
+
+  def postUserBasicData = auth.Action.async(parse.json) { request => {
+    val requestData = request.body
+    logger.debug(request.body.toString)
+    var pan = ""
+    val userBasic = requestData.as[UserBasic]
+    if (userBasic.pan.nonEmpty) {
+      pan = userBasic.pan.get.toUpperCase
+    }
+    userService.getUsernameFromRequest(request).flatMap { username => {
+      logger.debug("Username " + username)
+      userRepository.getUserIdByUsername(username.get).flatMap { userid => {
+        userRepository.checkPanExists(userid, pan).flatMap { panExists => {
+          if (!panExists) {
+            userRepository.saveUserBasic(userid, username.get, userBasic).map(data => {
+              if (data) {
+                Ok(Json.obj("success" -> true, "message" -> "Basic details Saved successfully"))
+              }
+              else {
+                Ok(Json.obj("success" -> false, "message" -> "Basic details not saved"))
+              }
+            })
+          }
+          else {
+            Future.apply(Ok(Json.obj("success" -> false, "message" -> "Pan already exists")))
+          }
+        }
+        }
+
+      }
+      }
+    }
+    }
+  }
+  }
+
+  def postUserAddressData = auth.Action.async(parse.json) { request => {
+    var requestData = request.body
+
+    var userBasic = (requestData \ "userBasic").as[UserBasic]
+    var userAddress = (requestData \ "userAddress").as[UserAddress]
+
+    userService.getUsernameFromRequest(request).flatMap { username => {
+      logger.debug("Username " + username)
+      userRepository.getUserIdByUsername(username.get).map { userid => {
+        var res = userRepository.saveUserAddresses(userid, username.get, userAddress, userBasic)
+        Ok(Json.obj("amtP" -> res._1, "amtC" -> res._2))
+      }
+      }
+    }
+    }
+  }
+  }
+
+  def postUserFatcaData = auth.Action.async(parse.json) { request => {
+    var requestData = request.body
+    var userFatca = requestData.as[UserFatca]
+    userService.getUsernameFromRequest(request).flatMap { username => {
+      logger.debug("Username " + username)
+      userRepository.getUserIdByUsername(username.get).flatMap { userid => {
+        userRepository.saveUserFatca(userid, username.get, userFatca).map(futid => {
+          Ok(Json.obj("futid" -> futid))
+        }).recover({
+          case ex: Exception =>
+            logger.error(ex.getMessage + " Can't Update User Fatca")
+            throw ex
+        })
+      }
+      }
+    }
+    }
+  }
+  }
+
+  def postUserBankData = auth.Action.async(parse.json) { request => {
+    var requestData = request.body
+    var userBank = requestData.as[UserBank]
+    userService.getUsernameFromRequest(request).flatMap { username => {
+      logger.debug("Username " + username)
+      userRepository.getUserIdByUsername(username.get).flatMap { userid => {
+        userRepository.saveUserBanks(userid, username.get, userBank).map(buaid => {
+          Ok(Json.obj("buaid" -> buaid))
+        })
+      }
+      }
+    }
+    }
+  }
+  }
+
+  def postUserNomineeData = auth.Action.async(parse.json) { request => {
+    var requestData = request.body
+    var userNominee = requestData.as[Nominee]
+    userService.getUsernameFromRequest(request).flatMap { username => {
+      logger.debug("Username " + username)
+      userRepository.getUserIdByUsername(username.get).flatMap { userid => {
+        userRepository.saveUserNominee(userid, username.get, userNominee).map(ndtid => {
+          Ok(Json.obj("ndtid" -> ndtid))
+        })
+      }
+      }
+    }
+    }
+  }
+  }
+
+  /** ****************POST EKYC data **********************/
+  def postUserEkycData = auth.Action.async(parse.json) { request => {
+    val requestData = request.body
+    var userBasic = (requestData \ "userBasic").as[UserBasic]
+    var userAddress = (requestData \ "userAddress").as[UserAddress]
+    var eKycApiData = (requestData \ "eKycApiData").as[EKycApiData]
+    var userid = eKycApiData.userid.get.toLong
+
+    /** **************SET STATE & ADDRESS TYPE ****************************************/
+    userRepository.getUserAddress(userid).flatMap(_address => {
+      var permanentAddress = new Address(None, None, None, None, None, None, None, None, Some(CND_COUNTRY_INDIA), None)
+      val currentAddress = _address.currentAddress
+      if (_address.permanentAddress.nonEmpty) {
+        permanentAddress = _address.permanentAddress.get
+      }
+      if (userAddress.permanentAddress.nonEmpty) {
+        val aadharState = eKycApiData.aadharState
+        val aadharAddressType = eKycApiData.aadharAddressType
+        if (aadharState.nonEmpty && aadharState.get.length > 0) {
+          val results: Option[CNDDoc] = solrCNDSearchService.cndSearch(STATE, aadharState.get).headOption
+          logger.debug("AAdhar State : " + results)
+          if (!results.isEmpty)
+            permanentAddress = permanentAddress.copy(state = Some(results.get.cndRfnum.toString))
+        }
+        if (aadharAddressType.nonEmpty && aadharAddressType.get.length > 0) {
+          val results: Option[CNDDoc] = solrCNDSearchService.cndSearch(ADDRESS_TYPE, aadharAddressType.get).headOption
+          logger.debug("Address Type : " + results)
+          if (!results.isEmpty)
+            permanentAddress = permanentAddress.copy(addressType = Some(results.get.cndRfnum.toString))
+        }
+      }
+
+      val newAddress = UserAddress(Option(permanentAddress), currentAddress, true)
+
+      /** ***********************SET OCCUPATION & NATIONALITY ***************************/
+      userRepository.getUserFatca(userid).flatMap(_fatca => {
+        var userFatca = new UserFatca(None, None, None, None, None, None, None, None, None, None, None, None)
+        var aadharOccupation = userFatca.occupation.getOrElse(eKycApiData.aadharOccupation.getOrElse(""))
+        if (aadharOccupation.length > 0) {
+          val results: Option[CNDDoc] = solrCNDSearchService.cndSearch(OCCUPATION, aadharOccupation).headOption
+          logger.debug("Occupation : " + results)
+          if (!results.isEmpty)
+            userFatca = _fatca.copy(occupation = Some(results.get.cndRfnum.toString))
+        }
+
+        var aadharNationality = eKycApiData.aadharNationality.getOrElse("India")
+        if (aadharNationality.length > 0) {
+          val results: Option[CNDDoc] = solrCNDSearchService.cndSearch(COUNTRY, aadharNationality).headOption
+          if (!results.isEmpty)
+            userFatca = _fatca.copy(nationality = Some(results.get.cndRfnum.toString))
+        }
+
+
+        /** ***************************SET GENDER & MARITAL STATUS **************************/
+        userRepository.getUserBasic(userid).flatMap(existingBasic => {
+
+          val panName = existingBasic.panName.getOrElse(userBasic.panName.getOrElse(""))
+          val pan = existingBasic.pan.getOrElse(userBasic.pan.getOrElse(""))
+          val fatherName = existingBasic.fatherName.getOrElse(userBasic.fatherName.getOrElse(""))
+          val motherName = existingBasic.motherName.getOrElse(userBasic.motherName.getOrElse(""))
+
+          userBasic = userBasic.copy(panName = Some(panName))
+
+          var firstName, middleName, lastName: Option[String] = None
+          if (panName.length > 0) {
+            val array = panName.split(" ")
+            array.zipWithIndex.foreach { case (value, i) => {
+              if (i == 0) {
+                firstName = Some(value)
+              }
+              if (i == 1 && (array.length - 1) == i) {
+                lastName = Some(value)
+              } else if (i == 1) {
+                middleName = Some(value)
+              }
+              if (i >= 2) {
+                lastName = Some(lastName.get + value)
+              }
+            }
+            }
+          }
+          userBasic = userBasic.copy(firstName = firstName)
+          userBasic = userBasic.copy(middleName = middleName)
+          userBasic = userBasic.copy(lastName = lastName)
+          userBasic = userBasic.copy(fatherName = Some(fatherName))
+          userBasic = userBasic.copy(motherName = Some(motherName))
+
+          val aadharMarital = existingBasic.maritalStatus.getOrElse(userBasic.maritalStatus.getOrElse(""))
+          if (aadharMarital.length > 0) {
+            val results: Option[CNDDoc] = solrCNDSearchService.cndSearch(MARITAL_STATUS, aadharMarital).headOption
+            logger.debug("Marital Status : " + results)
+            if (!results.isEmpty)
+              userBasic = userBasic.copy(maritalStatus = Some(results.get.cndRfnum.toString))
+          }
+
+          if (userBasic.gender.getOrElse("").equalsIgnoreCase("male")) {
+            userBasic = userBasic.copy(gender = Some(MALE))
+          }
+          else if (userBasic.gender.getOrElse("").equalsIgnoreCase("female")) {
+            userBasic = userBasic.copy(gender = Some(FEMALE))
+          } else {
+            userBasic = userBasic.copy(gender = Some(OTHER))
+          }
+          if (userBasic.dob.nonEmpty) {
+            val dateArray = userBasic.dob.get.split("/");
+
+            if (dateArray(0).toLong > 12) {
+              userBasic = userBasic.copy(dob = DateTimeUtils.convertStringDateWithFormats(userBasic.dob.get, AADHAAR_DATE_FORMAT_2, YYYYMMDD))
+            } else {
+              userBasic = userBasic.copy(dob = DateTimeUtils.convertStringDateWithFormats(userBasic.dob.get, AADHAAR_DATE_FORMAT_1, YYYYMMDD))
+            }
+          }
+
+          /** ****************************DB ACTIONS ****************************************************/
+          userRepository.getUsernameByUserid(userid).flatMap(username => {
+            userRepository.saveUserAddresses(userid, username, newAddress, userBasic)
+            userRepository.saveUserBasic(userid, username, userBasic).flatMap(status => {
+              if (status) {
+                userRepository.saveUserFatca(userid, username, userFatca).flatMap(_futid => {
+                  if (_futid.nonEmpty) {
+                    userRepository.saveUserAadhar(userid, username, eKycApiData).flatMap(status => {
+                      if (status) {
+                        kycRepository.updateuserKYCStatus(userid, username, KYC_EXTERNALLY_DONE, KYCTYPE_AADHAR).flatMap(status => {
+                          if (status) {
+                            zendeskService.updateZendeskTicketForKyc(userid, username, KYC_EXTERNALLY_DONE).map(res => {
+                              userService.sendeKYCMail(userid, true).map(value => {
+                                logger.debug(value.toString)
+                              })
+                              Ok(Json.obj("success" -> true))
+                            })
+                          } else {
+                            Future.apply(Ok(Json.obj("success" -> false)))
+                          }
+                        })
+                      } else {
+                        Future.apply(Ok(Json.obj("success" -> false)))
+                      }
+                    })
+                  } else {
+                    Future.apply(Ok(Json.obj("success" -> false)))
+                  }
+                })
+              } else {
+                Future.apply(Ok(Json.obj("success" -> false)))
+              }
+            })
+          })
+        })
+      })
+    })
+  }
+  }
+
+  /** *******************ACTIVATE USER ***************************************/
+  def activateUser = auth.Action.async(parse.json) { request =>
+    val ipAddress = RequestUtils.getIpAddress(request)
+    val requestData = request.body
+    logger.debug(requestData.toString())
+    val userid = (requestData \ "userid").as[String].toLong
+    //Activate User
+    userService.activateUser(userid, ipAddress).map(responseTuple => {
+      if (responseTuple._1) {
+        //Get Pan for user
+        userRepository.getUserByPk(userid).map(user => {
+          if (user.nonEmpty && user.get.ubdpan.nonEmpty) {
+            val pan = user.get.ubdpan.get
+            //Get users with same pan
+            userRepository.getAllUsersByPan(pan).map(rows => {
+              if (rows.nonEmpty) {
+                // Update pan for all other Pan
+                rows.foreach(row => {
+                  if (row.id != userid) {
+                    userRepository.savePanNumber(row.id, "").map(value => {})
+                  }
+                })
+              }
+            })
+          }
+        }).recover {
+          case ex: Exception => {
+            logger.error(ex.getMessage, ex);
+          }
+        }
+        userService.approveDocuments(userid).map(retval => {}).recover {
+          case ex: Exception => {
+            logger.error(ex.getMessage, ex);
+          }
+        }
+        val mailResponse = this.userService.sendRegistrationStatusMail(userid).map(value => {
+          logger.debug(value.toString)
+        }).recover {
+          case ex: Exception => {
+            logger.error(ex.getMessage, ex);
+          }
+        }
+        Ok(Json.obj("success" -> true, "message" -> responseTuple._2))
+      }
+      else {
+        Ok(Json.obj("success" -> false, "message" -> responseTuple._2))
+      }
+    }).recover {
+      case ex: Exception => {
+        logger.error(ex.getMessage, ex);
+        Ok(Json.obj("success" -> false, "message" -> "some error occured while activating user"))
+      }
+    }
+
+  }
+
+  def registerInBSE = auth.Action.async(parse.json) { request => {
+    val ipAddress = RequestUtils.getIpAddress(request)
+    val requestData = request.body
+    logger.debug(requestData.toString())
+    val userid = (requestData \ "userid").as[String].toLong
+    userService.bseRegistration(userid, ipAddress).map(value => {
+      Ok(Json.obj("bse" -> value._1, "fatca" -> value._2))
+    }).recover {
+      case ex: Exception => Ok(Json.obj("bse" -> false, "fatca" -> false))
+    }
+  }
+  }
+
+  def isUserVarified = auth.Action.async { request => {
+    userService.getUseridFromRequest(request).flatMap(userid => {
+      if (userid.nonEmpty) {
+        userService.getEUBDbyPk(userid.get).map { row => {
+          if (row.nonEmpty) {
+            Ok(Json.obj("success" -> true, "status" -> row.get.eubdisvarified))
+          }
+          else {
+            Ok(Json.obj("success" -> false, "status" -> "User not varified"))
+          }
+        }
+        }
+      }
+      else {
+        Future {
+          Ok(Json.obj("success" -> false, "status" -> "Userid Empty"))
+        }
+      }
+    })
+  }
+  }
+
+  def isUserIndividual = auth.Action.async { request => {
+    userService.getUserObjectFromReq(request).flatMap(userObj => {
+      if (userObj.nonEmpty && userObj.get.userid.nonEmpty) {
+        userRepository.getUserByPk(userObj.get.userid.get).map(ubdRow => {
+          if (ubdRow.nonEmpty && ubdRow.get.ubdcndtaxstatusrfnum.nonEmpty) {
+            if (ubdRow.get.ubdcndtaxstatusrfnum.get == TAX_STATUS_INDIVIDUAL) {
+              Ok(Json.obj("success" -> true, "taxStatus" -> TAX_STATUS_INDIVIDUAL))
+            }
+            else {
+              Ok(Json.obj("success" -> false, "taxStatus" -> ubdRow.get.ubdcndtaxstatusrfnum))
+            }
+          }
+          else {
+            Ok(Json.obj("success" -> false))
+          }
+        })
+      }
+      else {
+        Future {
+          Ok(Json.obj("success" -> false))
+        }
+      }
+    })
+  }
+  }
+
+  def createRegistrationTicket = Action.async { request => {
+
+    userService.getUserObjectFromReq(request).flatMap(userLoginObject => {
+      val userName: String = userLoginObject.get.username.getOrElse("")
+      val userId: Long = userLoginObject.get.userid.getOrElse(0L)
+      val baseUrl = this.mailHelper.baseUrl
+      var kycstatus = KYC_NOTDONE
+      var kycStatName = ""
+      kycRepository.getDmtIds(userId).flatMap(dmtObj => {
+        val photopath = dmtObj._11
+        val panpath = dmtObj._12
+        val addresspath = dmtObj._13
+        val bankpath = dmtObj._14
+        val signaturepath = dmtObj._15
+
+        val pathMap = Map("photograph" -> photopath, "pan" -> panpath, "address" -> addresspath, "bank" -> bankpath, "signature" -> signaturepath)
+        logger.debug("photo--->" + photopath + "pan-->" + panpath + "address-->" + addresspath + "bank-->" + bankpath + "sign--->" + signaturepath)
+        fcubdRepo.getById(userId).flatMap(ubdRowOpion => {
+          fceubdRepo.getById(userId).flatMap(eubdRow => {
+            if (eubdRow.get.eubdisvarified == Y_FLAG) {
+              Future.apply(Ok(Json.obj("Success" -> true, "message" -> "user already verified")))
+            } else {
+              if (ubdRowOpion.nonEmpty) {
+                val ubdRow = ubdRowOpion.get
+                userRepository.getUserAddress(userId).flatMap(amtRowRes => {
+                  val amtRow = amtRowRes
+                  userRepository.getUserBank(userId).flatMap(userBank => {
+                    val bankDetails = userBank
+                    userRepository.getUserFatca(userId).flatMap(userFatca => {
+                      val fatcaDetails = userFatca
+                      userRepository.getUserParentDetails(userId).flatMap(updRow => {
+                        userRepository.getUserNominee(userId).flatMap(userNominee => {
+
+                          kycRepository.getUserKYCStatus(userId).flatMap(kycRowList => {
+                            if (kycRowList.isEmpty) {
+                              kycstatus = "Not Available"
+                            } else {
+                              var kycSt = kycRowList.head.kycstatus
+                              if (kycSt == KYC_DONE) {
+                                kycstatus = "KYC Done"
+                                kycStatName = zendeskHelper.ZENDESK_TICKET_VALUE_KYC_DONE
+                              }
+                              else if (kycSt == KYC_UNDERPROCESS) {
+                                kycstatus = "KYC under-process"
+                                kycStatName = zendeskHelper.ZENDESK_TICKET_VALUE_KYC_UNDER_PROCESS
+                              }
+                              else if (kycSt == KYC_EXTERNALLY_DONE) {
+                                kycstatus = "KYC externally done"
+                                kycStatName = zendeskHelper.ZENDESK_TICKET_VALUE_AADHAAR_EKYC
+                              }
+                              else if (kycSt == KYC_NOTDONE) {
+                                kycstatus = "KYC not done"
+                                kycStatName = zendeskHelper.ZENDESK_TICKET_VALUE_KYC_NOT_DONE
+                              }
+                            }
+                            val bodyText = views.html.registrationVerificationTxt(ubdRow, Some(updRow), Some(userNominee), amtRow, bankDetails, fatcaDetails, kycstatus, mailHelper.getMth).toString()
+                            var attachmentFiles = new mutable.HashMap[String, String]()
+                            var i = 0
+                            var attachments = ListBuffer[Future[File]]()
+                            for ((k, v) <- pathMap) {
+                              i += 1
+                              val url = v
+                              if (url.length > 0) {
+                                if (url.indexOf('.') > (-1)) {
+                                  val fileType = url.split('.').last
+                                  val downloadurl = baseUrl + "/" + url
+                                  logger.debug("Download url [" + downloadurl + "]")
+                                  attachments.+=(mailHelper.downLoadFile(downloadurl, fileType).map(_file => {
+                                    attachmentFiles += (k + "_" + _file.getName -> _file.getCanonicalPath)
+                                    logger.debug("Downloaded Succesfully [" + _file.getName + " " + _file.getCanonicalPath + "]")
+                                    _file
+                                  }))
+                                }
+                              }
+                            }
+                            Await.result(Future.sequence(attachments), Duration(60000, "millis"))
+                            /*.map(_ => )*/
+                            val istktAllowed = zendeskHelper.isTktAllowed
+                            if (istktAllowed) {
+                              val listofFiles = attachments.toList
+                              val comment = new Comment()
+                              comment.setBody(bodyText)
+                              comment.setPublic(false)
+                              val zdToken = new java.util.ArrayList[String]
+                              val customField1 = new CustomFieldValue(zendeskHelper.ZENDESK_TICKET_USER_STAGE, zendeskHelper.ZENDESK_TICKET_VALUE_REGISTRATION_COMPLETE)
+                              val customField2 = new CustomFieldValue(zendeskHelper.ZENDESK_TICKET_KYC_STATUS, kycStatName)
+                              val customFieldList = new java.util.ArrayList[CustomFieldValue]
+                              customFieldList.add(customField1)
+                              customFieldList.add(customField2)
+                              zendeskRepository.getTicketsByUserIdANDpurpose(userId, Some(TKT_PURPOSE_REGISTRATION)).flatMap(fctktRows => {
+                                if (fctktRows.nonEmpty) {
+                                  val tktId = fctktRows.head.tktticketid
+                                  val isSuccess = zendeskService.setCustomField(tktId.toLong, customFieldList, None, None, None)._2
+                                  zendeskService.updateStatus(tktId.toLong, org.zendesk.client.v2.model.Status.SOLVED).map(status => {
+                                    logger.debug("registration complete ticket update status ->" + status)
+                                  })
+                                } else {
+                                  logger.debug("no signup ticket associated with the user with id" + userId)
+                                }
+                                Future.sequence(for (sendfile <- listofFiles) yield {
+                                  sendfile.map(file => {
+                                    if (file.exists) {
+                                      var contentType = ""
+                                      val fin = new FileInputStream(file.getAbsoluteFile)
+                                      val cnt = fin.available
+                                      val bytes = Array.ofDim[Byte](cnt)
+                                      fin.read(bytes)
+                                      fin.close()
+                                      var fileExt = file.getName.split('.').last.toLowerCase()
+                                      if (Array("jpg", "jpeg").indexOf(fileExt) >= 0) {
+                                        contentType = "image/jpeg"
+                                      } else if (Array("png").indexOf(fileExt) >= 0) {
+                                        contentType = "image/png"
+                                      } else if (Array("pdf").indexOf(fileExt) >= 0) {
+                                        contentType = "application/pdf"
+                                      }
+                                      zendeskService.createUpload(file, contentType, bytes)
+                                    } else {
+                                      None
+                                    }
+                                  })
+                                }).map(zdTokenList => {
+                                  zdTokenList.foreach(value => {
+                                    if (value.nonEmpty) {
+                                      zdToken.add(value.get)
+                                    }
+                                  })
+                                  comment.setUploads(zdToken)
+                                  listofFiles.foreach(eachFile => {
+                                    eachFile.map(file => {
+                                      logger.debug("Deleting file >>> " + file.getAbsolutePath)
+                                      if (file.exists) {
+                                        file.delete
+                                      }
+                                    })
+                                  })
+                                  val newRequester = zendeskHelper.createRequester
+                                  newRequester.setEmail(userName)
+                                  newRequester.setName(ubdRow.ubdfirstname.getOrElse(userName))
+                                  val newCustomField = new CustomFieldValue(zendeskHelper.ZENDESK_TICKET_USER_STAGE, zendeskHelper.ZENDESK_TICKET_VALUE_DOCUMENTS_PENDING)
+                                  val newCustomFieldList = new java.util.ArrayList[CustomFieldValue]
+                                  newCustomFieldList.add(newCustomField)
+                                  zendeskRepository.getTicketsByUserIdANDpurpose(userId, Some(TKT_PURPOSE_KYC)).flatMap(fctktRows => {
+                                    if (fctktRows.isEmpty) {
+                                      zendeskService.createTicket(newRequester, "Documents Uploaded", Some(comment), Some(zendeskHelper.ZENDESK_GROUP_ONBOARDING), userName, userName, userId, None, Some(TKT_PURPOSE_KYC), None).map(newTktId => {
+                                        if (newTktId.nonEmpty) {
+                                          zendeskService.setCustomField(newTktId.get, newCustomFieldList, Some(newRequester), None, None)
+                                          val zdUserId = zendeskHelper.getUserIdByEmail(userName)
+                                          val userField = new java.util.HashMap[String, Object]()
+                                          userField.put(zendeskHelper.ZENDESK_USER_FIELD_NAME_BANK, bankDetails.bank.get.bankName.getOrElse("NA"))
+                                          userField.put(zendeskHelper.ZENDESK_USER_FIELD_NAME_DOB, ubdRow.ubddob.getOrElse("NA"))
+                                          zendeskService.setUserField(zdUserId, userField)
+                                          zendeskService.setUserName(zdUserId, ubdRow.ubdfirstname.getOrElse(userName))
+                                        }
+                                      })
+                                    } else {
+                                      val tktId = fctktRows.head.tktticketid
+                                      Future.apply(zendeskService.setTktComment(tktId.toLong, comment, Some(newRequester)))
+                                    }
+                                  })
+                                })
+                                Future.apply(Ok(Json.obj("Success" -> true, "message" -> "tkt request queued")))
+                              })
+                            } else {
+                              Future.apply(Ok(Json.obj("Success" -> false, "message" -> "tkt not allowed for this config")))
+                            }
+                          })
+                        })
+                      })
+                    })
+                  })
+                })
+              } else {
+                Future.apply(Ok(Json.obj("Success" -> false, "Message" -> "given user doesn't exist in database")))
+              }
+            }
+          })
+        })
+      })
+    })
+  }
+  }
+
+  def updateUserStageinTicket = Action.async { request => {
+    val istktAllowed = zendeskHelper.isTktAllowed
+    if(istktAllowed){
+      userService.getUserObjectFromReq(request).flatMap(userLoginObject => {
+        val userName: String = userLoginObject.get.username.getOrElse("")
+        val userId: Long = userLoginObject.get.userid.getOrElse(0L)
+        val userStage: String = zendeskHelper.ZENDESK_TICKET_VALUE_AADHAAR_KYC_INITIATED
+        val purpose = Some(zendeskHelper.TKT_PURPOSE_REGISTRATION)
+        val customField = new CustomFieldValue(zendeskHelper.ZENDESK_TICKET_USER_STAGE, userStage)
+        val customFieldList = new java.util.ArrayList[CustomFieldValue]
+        customFieldList.add(customField)
+
+        zendeskRepository.getTicketsByUserIdANDpurpose( userId, purpose).flatMap(fctktRows =>{
+          if (fctktRows.nonEmpty && !fctktRows.head.tktticketid.equalsIgnoreCase("0")) {
+            Future.apply(Some(fctktRows.head.tktticketid.toLong))
+          } else {
+            var oldTktrfnum: Option[Long] = None
+            if (fctktRows.nonEmpty) {
+              oldTktrfnum = Some(fctktRows.head.id)
+            }
+            val requester = zendeskHelper.createRequester
+            requester.setEmail(userName)
+            requester.setName(userName)
+            zendeskService.createTicket(requester, zendeskHelper.onBoardingSubject, None, Some(zendeskHelper.ZENDESK_GROUP_ONBOARDING), userName, userName, userId, None, purpose, oldTktrfnum).map(tktIdOption => {
+              tktIdOption
+            })
+          }
+        }).map(tktOption  => {
+          if (tktOption.nonEmpty) {
+            val tktId = tktOption.get
+            logger.debug("zendesk ticket id >>>> " + tktId)
+            val customFieldRes = zendeskService.setCustomField(tktId, customFieldList, None, None, None)
+            logger.debug("Customfield Status -->" + customFieldRes)
+            Ok(Json.obj("success" -> true, "message" -> "aadharkyc update successful"))
+          } else {
+            logger.debug("zendesk ticket id not recieved")
+            Ok(Json.obj("success" -> false, "message" -> "aadharkyc update not successful no id"))
+          }
+        })
+      })
+    }else{
+      Future.apply(Ok(Json.obj("success" -> false, "message" -> "ticket update not allowed for this config")))
+    }
+  }
+  }
+
+
+}
+

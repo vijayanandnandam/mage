@@ -1,0 +1,37 @@
+@import _root_.data.model.Tables._
+
+@(user: FcubdRow, typeISIP:Boolean, orders :List[SubOrderDetails], urnMap:Map[Long, String], utils: MailTemplateHelper)
+
+Dear @if(user.ubdfirstname){@user.ubdfirstname} else{Investor},
+
+Thank you for choosing Fincash.com for your investment needs.
+We have received your SIP registration request and the details of registration is as below.
+@for(order <- orders) {
+@if(typeISIP){Unique Registration Number (URN) - @urnMap(order.subOrderId)}
+Id - @order.subOrderId
+Order Date - @order.createDate
+Scheme - @order.schemeName (Plan- @order.schemePlan, Option- @order.schemeOption)
+Amount(in Rs.) - @utils.parse(order.amount.get)
+Date & Frequency - @order.sipDayOfMonth - @order.sipFrequency
+No. of Installments - @order.sipNoOfInstallments
+}
+@if(!typeISIP){In order to automate deduction of the invested amount from your bank account you need to submit a signed one-time mandate.
+Soon we will get in touch with you to pick-up the mandate form from you.
+}
+@if(typeISIP){
+    Please complete the online registration of your SIP for future debits by registering the above URN in your bank’s website within 20 days (follow the below steps):
+* Login to your bank website
+* Select the Bill Pay or Biller Registration section
+* Select BSE Limited from the Biller list
+* Enter the URN number as above
+Please ignore if you have already added BSE as biller in your bank account with the above URN.
+Note: While registering the URN on your bank website, please select Auto Pay option (if available) to avoid authorization for each SIP debit. On successful registration of URN on your registered bank website, your ISIP would be registered in our records subject to the confirmation received from your bank.
+
+Kindly note that the transaction is liable to be rejected in case information provided is incomplete/incorrect.
+}
+@contactTxt()
+
+Please visit our RESOURCE CENTRE ("@utils.getBaseUrl()/b/") to know about Mutual Fund Investments and other investment products.
+
+With Warm Regards,
+Team Fincash

@@ -1,0 +1,155 @@
+package service
+
+import javax.inject.Inject
+
+import constants.DBConstants
+import data.model.Tables.{FcaiptRow, FcamctRow, FcbsatRow, FcsoptRow}
+import helpers.SchemeHelper
+import models._
+import models.enumerations.AssetClassEnum
+import models.enumerations.AssetClassEnum.AssetClassEnum
+import org.slf4j.LoggerFactory
+import reactivemongo.api.collections.bson.BSONCollection
+import reactivemongo.bson.BSONDocument
+import repository.module.{FolioRepository, SchemeRepository}
+
+import scala.collection.mutable
+import scala.collection.mutable.ListBuffer
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, Future}
+
+class SchemeService @Inject()(schemeRepository: SchemeRepository,
+                              schemeHelper: SchemeHelper, folioRepository: FolioRepository) extends DBConstants {
+
+  val logger, log = LoggerFactory.getLogger(classOf[SchemeService])
+
+
+  def getScheme(id: String, schemeMaster: Future[BSONCollection]): Future[FundDoc] = {
+
+    val query = BSONDocument("fid" -> id)
+
+    schemeMaster.flatMap { collection =>
+      collection.find(query).one[FundDoc].map { fndDoc => fndDoc.get }
+    }
+
+  }
+
+  def getSchemes(idList: List[BSONDocument], schemeMaster: Future[BSONCollection]): Future[ListBuffer[FundDoc]] = {
+
+    val fundList = ListBuffer[FundDoc]();
+    schemeMaster.map { collection =>
+      idList.foreach { doc =>
+        val fundId = doc.getAs[Int]("fundId").get.toString()
+        logger.debug(fundId)
+        val query = BSONDocument("fid" -> fundId);
+        val fundFuture = collection.find(query).one[FundDoc].map { fndDoc =>
+
+          /*val fund = fndDoc.get.copy(investmentMode = Some(InvestmentModeEnum.withName(doc.getAs[String]("investmentMode").get)));
+          fundList.+=(fund);*/
+        }
+        Await.ready(fundFuture, Duration.Inf);
+      }
+      logger.debug(fundList.toString());
+      fundList;
+    }
+  }
+
+  def getSchemeOptionFolioNo(userPk: Long, soptrfnum: Long):Future[Option[String]] = {
+    folioRepository.getSchemeFolioNo(userPk,soptrfnum).flatMap(folioSeq =>{
+      if(folioSeq.isEmpty){
+        Future.apply(None)
+      } else{
+        val folioIdList = folioSeq.map(_.id).toList
+        folioRepository.getMaxHoldingFolioId(folioIdList).map(maxFolioId =>{
+          if(maxFolioId.isEmpty){
+            None
+          } else{
+            Some(folioSeq.toList.filter(_.id == maxFolioId.get).head.fomtfoliono)
+          }
+        })
+      }
+    })
+  }
+
+  def mapSchemesToAssetClass(fundDetailsList: ListBuffer[FundDetails]): ListBuffer[AssetClassFundDetails] = {
+
+    val assetClassFundDetailsList = ListBuffer[AssetClassFundDetails]()
+    val assetClassFundListMap = mutable.HashMap[AssetClassEnum, ListBuffer[DashboardFundDetail]]()
+    assetClassFundListMap.+=(AssetClassEnum.EQUITY_FUNDS -> ListBuffer[DashboardFundDetail]())
+    assetClassFundListMap.+=(AssetClassEnum.DEBT_FUNDS -> ListBuffer[DashboardFundDetail]())
+    assetClassFundListMap.+=(AssetClassEnum.GOLD_FUND -> ListBuffer[DashboardFundDetail]())
+
+    for (fund <- fundDetailsList) {
+      if (!assetClassFundListMap.get(fund.assetClass).isEmpty) {
+        val fundDetailList = assetClassFundListMap.get(fund.assetClass).get
+        val fundDetails = fund.fundBasicDetails
+        fundDetailList.+=(DashboardFundDetail(fund.fundId, fundDetails.fundName, fundDetails.plan, fundDetails.divFreq, fundDetails.divOption, fund.currentValue))
+        assetClassFundListMap.+=(fund.assetClass -> fundDetailList)
+      }
+    }
+    for (key <- assetClassFundListMap) {
+
+      assetClassFundDetailsList.+=(AssetClassFundDetails(key._1, key._2))
+    }
+
+    assetClassFundDetailsList
+  }
+
+  def getTopThreeSchemes(fundDetails: ListBuffer[FundDetails]): ListBuffer[DashboardTopFund] = {
+
+    val fundsList: ListBuffer[DashboardTopFund] = ListBuffer[DashboardTopFund]()
+    val fundListFuture = for (fund <- fundDetails) yield {
+
+      schemeRepository.getSchemeLastReturn(YEAR, 1, fund.fundId).map(value => {
+        if (value.nonEmpty) {
+          if (value.get.nonEmpty) {
+            val fundDetails = fund.fundBasicDetails
+            fundsList.+=(DashboardTopFund(fund.fundId, fundDetails.fundName, fundDetails.plan,
+              fundDetails.divFreq, fundDetails.divOption, BigDecimal(value.get.get.toDouble)))
+          }
+        }
+      })
+    }
+    val future = Future.sequence(fundListFuture).map(_ => ())
+    Await.result(future, Duration.Inf);
+    if (fundsList.nonEmpty) {
+      val sortedFundsList = fundsList.sortWith(_.fundReturn > _.fundReturn).take(3)
+      sortedFundsList
+    }
+    else {
+      fundsList
+    }
+  }
+
+  def getSchemeAIPDataByOptionsList(schemeOptions: List[FcsoptRow]): Future[List[FcaiptRow]] = {
+    Future.sequence(for (option <- schemeOptions) yield {
+      schemeRepository.getAllAIPDataByOptionId(option.id)
+    }).map(data => {
+      data.flatten;
+    })
+  }
+  def getSchemeBSATDataByOptionsList(schemeOptions: List[FcsoptRow]): Future[List[FcbsatRow]] = {
+    Future.sequence(for (option <- schemeOptions) yield {
+      schemeRepository.getBSATData(option.id)
+    }).map(data => {
+      data.flatten
+    })
+  }
+
+  def getSchemeIdByOptionId(soptRfnum: String): Future[Long] = {
+    schemeRepository.getSchemeOptionById(soptRfnum.toLong).map(sopt => sopt.soptsmtrfnum);
+  }
+
+  def getSchemeOptionAmcDetails(soptrfnum: Long): Future[FcamctRow] = {
+    schemeRepository.getSchemeOptionAmcDetails(soptrfnum).map(amctRowList => amctRowList.head)
+  }
+
+  def getMergedSoptId(soptrfnum:Long): Future[Option[Long]] = {
+    schemeRepository.getMergerSchemes(soptrfnum)
+  }
+
+  def getMergedSoptForPurchase(soptrfnum:Long): Future[Option[Long]] = {
+    schemeRepository.getPurchaseMergedScheme(soptrfnum)
+  }
+}

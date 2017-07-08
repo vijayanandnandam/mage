@@ -1,0 +1,357 @@
+package repository.module
+
+import java.util.Date
+
+import com.google.inject.Inject
+import constants.{BaseConstants, DBConstants, MapperConstants}
+import data.model.Tables.{Fcaipt, Fcbse, FcaiptRow, Fcamct, FcamctRow, FcctmtRow, Fcdrd, Fcsra, Fcdam, Fcdsd, FcdrdRow, Fcdsa, FcdsdRow, FcostmRow, Fcramt, FcramtRow, Fcremt, Fcsft, Fcsmt, FcsmtRow, Fcsopt, FcsoptRow, Fcsraa}
+import org.slf4j.LoggerFactory
+import play.api.Logger
+import play.api.db.slick.{DatabaseConfigProvider, HasDatabaseConfigProvider}
+import repository.tables._
+import slick.jdbc.JdbcProfile
+import utils.DateTimeUtils
+
+import scala.collection.mutable.ListBuffer
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
+
+/**
+  * Created by fincash on 01-02-2017.
+  */
+class SchemeRepository @Inject()(protected val dbConfigProvider: DatabaseConfigProvider, fcsmtRepo: FcsmtRepo,
+                                 fcsoptRepo: FcsoptRepo, fcctmtRepo: FcctmtRepo, fcamctRepo: FcamctRepo,
+                                 fcdsdRepo: FcdsdRepo, fcdrdRepo: FcdrdRepo, fcremtRepo: FcremtRepo,
+                                 fcsraRepo: FcsraRepo, fcsftRepo: FcsftRepo, fcaiptRepo: FcaiptRepo, fcostmRepo: FcostmRepo,
+                                 fcbseRepo: FcbseRepo)
+  extends HasDatabaseConfigProvider[JdbcProfile] with DBConstants with BaseConstants with MapperConstants {
+
+  val logger, log = LoggerFactory.getLogger(classOf[SchemeRepository])
+
+
+  import profile.api._
+
+  def getSchemePrice(soptrfnum: Long, date: Date): Future[Option[BigDecimal]] = {
+
+    val transactionDate = DateTimeUtils.convertDateToYYYYMMDD(date)
+    val query = sql"""SELECT
+                            PRMTOPENPRICE
+                        FROM
+                            FCPRMT
+                        WHERE
+                            PRMTRFNUM IN (SELECT
+                                    PPAPRMTRFNUM
+                                FROM
+                                    FCPPA
+                                WHERE
+                                    PPADSARFNUM = (SELECT
+                    DSARFNUM
+                FROM
+                    FCDSA
+                WHERE
+                    DSADAMRFNUM = ${MSTAR_DATASOURCE_ID} AND DSASOPTRFNUM = ${soptrfnum})
+                                AND DATE(PRMTDATE) = DATE(${transactionDate}))""".as[BigDecimal]
+    db.run(query).map(value => value.headOption)
+  }
+
+  def getSchemeById(id: Long): Future[FcsmtRow] = {
+    fcsmtRepo.getById(id).map(_.head)
+  }
+
+  def getSchemeOptionById(id: Long): Future[FcsoptRow] = {
+    fcsoptRepo.getById(id).map(_.head)
+  }
+
+  def getDefaultSchemeById(id: Long): Future[FcsoptRow] = {
+    fcsoptRepo.filter(soptObj => soptObj.soptsmtrfnum === id && soptObj.soptisdefault === Y_FLAG).map(_.head)
+  }
+
+  def getSchemeCategoryById(id: Long): Future[FcctmtRow] = {
+    fcctmtRepo.getById(id).map(_.head)
+  }
+
+
+  def getSchemeAMCById(id: Long): Future[FcamctRow] = {
+    fcamctRepo.getById(id).map(_.head)
+  }
+
+  def getDailySchemeData(soptId: Long): Future[Option[FcdsdRow]] = {
+
+    val query = for {
+      damObj <- Fcdam.filter(_.damname === MSTAR_DATASOURCE).result
+      dsaObjList <- Fcdsa.filter(x => x.dsadamrfnum === damObj.head.id && x.dsasoptrfnum === soptId).result
+      dsdObj <- Fcdsd.filter(_.dsddsarfnum === dsaObjList.head.id).result
+    } yield (dsdObj)
+    db.run(query.transactionally).map(x => {
+      if (x.nonEmpty) {
+        Some(x.head)
+      } else {
+        None
+      }
+    }).recover {
+      case ex: Exception => {
+        Logger.debug("Scheme option id is:##################" + soptId);
+        throw ex
+      };
+    }
+  }
+
+  def getDailyReturnData(soptId: Long): Future[Seq[FcdrdRow]] = {
+
+    val query = for {
+      damObj <- Fcdam.filter(_.damname === MSTAR_DATASOURCE).result
+      dsaObjList <- Fcdsa.filter(x => x.dsadamrfnum === damObj.head.id && x.dsasoptrfnum === soptId).result
+      drdObj <- Fcdrd.filter(_.drddsarfnum === dsaObjList.head.id).result
+    } yield (drdObj)
+    db.run(query.transactionally).map(x => x).recover {
+      case ex: Exception => {
+        Logger.debug("Scheme option id is:##################" + soptId);
+        throw ex
+      };
+    }
+  }
+
+  def getLatestRatioData(soptId: Long): Future[Option[FcramtRow]] = {
+
+    getDSAId(soptId).flatMap(dsaId => {
+
+      val query = for {
+      //damObj <- Fcdam.filter(_.damname === MSTAR_DATASOURCE)
+      //dsaObjList <- Fcdsa.filter(x => x.dsadamrfnum === damObj.id && x.dsasoptrfnum === soptId)
+        fcsraaObj <- Fcsraa.filter(x => x.sraadsarfnum === dsaId).sortBy(_.createdate desc).take(1)
+        fcramtObj <- Fcramt.filter(ramt => ramt.id === fcsraaObj.sraaramtrfnum)
+      } yield (fcramtObj)
+
+      db.run(query.result.transactionally).map(values => {
+        if (values.nonEmpty) {
+          Some(values.head)
+        } else {
+          None
+        }
+      }).recover {
+        case ex: Exception => {
+          logger.debug("Scheme option id is:##################" + soptId);
+          throw ex
+        };
+      }
+    })
+
+  }
+
+  def getDSAId(soptId: Long): Future[Long] = {
+
+    val query = for {
+      damObj <- Fcdam.filter(_.damname === MSTAR_DATASOURCE)
+      dsaObjList <- Fcdsa.filter(x => x.dsadamrfnum === damObj.id && x.dsasoptrfnum === soptId)
+    } yield (dsaObjList)
+
+    db.run(query.result).map(value => {
+      value.head.id
+    }).recover {
+      case ex: Exception => {
+        logger.debug("Scheme option id is:##################" + soptId);
+        throw ex
+      };
+    }
+  }
+
+  def getMinSIPAmount(soptId: Long): Future[Option[Int]] = {
+    val query = for {
+      fcaiptObj <- Fcaipt.filter(x => x.aiptsoptrfnum === soptId && x.aiptidentifier === BSE_DATASOURCE).groupBy(x => x.aiptsoptrfnum).map {
+        case (aiptminamount, group) => (aiptminamount, group.map(_.aiptminamount).min)
+      }
+    } yield (fcaiptObj)
+
+    db.run(query.result.transactionally).map(data => {
+      if (data.length > 0) {
+        data.head._2
+      } else {
+        None
+      }
+    }).recover {
+      case ex: Exception => throw ex;
+    }
+
+  }
+
+  def getSchemeLastReturn(remtperiodunit: String, remtperiodvalue: Int, soptrfnum: Long): Future[Option[Option[Float]]] = {
+    getReturnIds(soptrfnum).flatMap(values => {
+      val query = Fcremt.filter(x => (x.remtperiodunit === remtperiodunit) && (x.remtperiodvalue === remtperiodvalue) && (x.id inSetBind (values))).sortBy(_.remtreturnasofdate desc).map(_.remtreturn).result
+      db.run(query).map(returnList => {
+        returnList.headOption
+      })
+    })
+  }
+
+  def getReturnIds(soptrfnum: Long): Future[List[Long]] = {
+    val query = for {
+      damObj <- Fcdam.filter(_.damname === MSTAR_DATASOURCE).result
+      dsaObjList <- Fcdsa.filter(x => x.dsadamrfnum === damObj.head.id && x.dsasoptrfnum === soptrfnum).result
+      sraObj <- Fcsra.filter(_.sradsarfnum === dsaObjList.head.id).result
+    } yield (sraObj)
+    db.run(query).map(values => {
+      val remtIdList: ListBuffer[Long] = ListBuffer[Long]()
+      values.foreach(value => {
+        remtIdList.+=(value.id)
+      })
+      remtIdList.toList
+    })
+  }
+
+  def getSipSchemes(smtrfnum: Long, soptSipSchemeIds: List[Long]): Future[ListBuffer[FcsoptRow]] = {
+
+    val sipSchemeIds = soptSipSchemeIds.mkString(",")
+    val query = sql"""SELECT
+                            *
+                        FROM
+                            FCSOPT
+                        WHERE
+                            SOPTSMTRFNUM = ${smtrfnum} AND SOPTRFNUM in (#${sipSchemeIds})
+                        ORDER BY FIELD(SOPTSCHEMEPLAN, ${GROWTH_FUND}, ${DIVIDEND_FUND}) ,
+                        FIELD(SOPTDIVIOPTIONTYPE, ${PAYOUT}, ${REINVESTMENT_DIVIDEND}) , FIELD(SOPTDIVIDENDFRQN,
+                                ${NORMAL},${DAY},${WEEK},${FORTNIGHTLY},${MONTH},${QUATERLY},
+                                ${HALFYEARLY},${YEAR})""".as[FcsoptRow]
+
+    db.run(query).map(values => {
+      val schemeOptionList = ListBuffer[FcsoptRow]()
+
+      values.foreach(soptRow => {
+
+        schemeOptionList.+=(soptRow)
+      })
+      schemeOptionList
+    })
+  }
+
+  def getSipSchemePlanOptions(smtrfnum: Long, soptSipSchemeIds: List[Long], schemePlanType: String, divFreq: String) = {
+    val sipSchemeIds = soptSipSchemeIds.mkString(",")
+    val query = sql"""SELECT
+                            *
+                        FROM
+                            FCSOPT
+                        WHERE
+                            SOPTSMTRFNUM = ${smtrfnum} AND SOPTRFNUM in (#${sipSchemeIds})
+                        AND SOPTSCHEMEPLAN = ${schemePlanType} AND SOPTDIVIDENDFRQN = ${divFreq}
+                        ORDER BY FIELD(SOPTSCHEMEPLAN, ${GROWTH_FUND}, ${DIVIDEND_FUND}) ,
+                        FIELD(SOPTDIVIOPTIONTYPE, ${PAYOUT}, ${REINVESTMENT_DIVIDEND}) , FIELD(SOPTDIVIDENDFRQN,
+                                ${NORMAL},${DAY},${WEEK},${FORTNIGHTLY},${MONTH},${QUATERLY},
+                                ${HALFYEARLY},${YEAR})""".as[FcsoptRow]
+
+    db.run(query).map(values => {
+      val schemeOptionList = ListBuffer[FcsoptRow]()
+
+      values.foreach(soptRow => {
+
+        schemeOptionList.+=(soptRow)
+      })
+      schemeOptionList
+    })
+  }
+
+  def getPlanOptionFreq(smtrfnum: Long, schemeplanType: String, divFreqType: String, divOptionType: String): Future[List[FcaiptRow]] = {
+
+    val query = Fcaipt.filter(x => {
+      x.aiptsoptrfnum in Fcsopt.filter(x => {
+        x.soptsmtrfnum === smtrfnum && x.soptdividendfrqn === divFreqType && x.soptschemeplan === schemeplanType &&
+          x.soptdivioptiontype === divOptionType
+      }).map(_.id)
+    })
+
+    db.run(query.result).map(frequencyList => {
+      frequencyList.toList
+    })
+  }
+
+  def getPlanDetails(smtrfnum: Long): Future[List[FcaiptRow]] = {
+
+    val query = for {
+      soptObj <- Fcsopt.filter(_.soptsmtrfnum === smtrfnum).map(_.id).result
+      aiptRow <- Fcaipt.filter(_.aiptsoptrfnum inSetBind (soptObj)).result
+    } yield (aiptRow)
+
+    db.run(query).map(values => {
+      values.toList
+    })
+  }
+
+  def getSchemeOptionDates(smtrfnum: Long, schemePlan: String, divFreq: String, divOption: String): Future[List[FcaiptRow]] = {
+
+    val query = for {
+      aiptObj <- Fcaipt.filter(x => (x.aiptidentifier === BSE_DATASOURCE) && (x.aiptsoptrfnum in Fcsopt.filter(x => x.soptschemeplan === schemePlan && x.soptdividendfrqn === divFreq && x.soptdividendfrqn === divFreq && x.soptsmtrfnum === smtrfnum).map(_.id))).result
+    } yield (aiptObj)
+
+    db.run(query).map(values => {
+      values.toList
+    })
+  }
+
+  def getSIPFlag(soptrfnum: Long): Future[String] = {
+    fcsftRepo.getById(soptrfnum).map(x => {
+      if (x.isEmpty) {
+        NO
+      } else {
+        x.get.sftsipflag
+      }
+    })
+  }
+
+  def getSIPSchemePlans(smtrfnum: Long): Future[List[FcsoptRow]] = {
+
+    val query = Fcsopt.filter(_.id in Fcsft.filter(x => (x.id in Fcsopt.filter(_.soptsmtrfnum === smtrfnum).map(_.id)) && (x.sftsipflag === YES)).map(_.id))
+
+    db.run(query.result).map(values => {
+      values.toList
+    })
+  }
+
+  def getSchemeOptions(smtrfnum: Long, schemePlan: String, divFreq: String): Future[List[String]] = {
+
+    val schemeOptionsList = fcsoptRepo.filter(x => (x.soptschemeplan === schemePlan && x.soptdividendfrqn === divFreq && x.soptsmtrfnum === smtrfnum)).map(values => {
+      val valuesList = values.toList
+      for (value <- valuesList) yield {
+        value.soptdivioptiontype
+      }
+    })
+    schemeOptionsList
+  }
+
+  def getAllOptionsBySchemeId(id: Long): Future[Seq[FcsoptRow]] = {
+
+    val query = sql"""SELECT
+                    sopt.*
+                FROM
+                    FCSOPT sopt,
+                    FCBSE bse
+                WHERE
+                    sopt.SOPTSMTRFNUM = ${id}
+                        AND sopt.SOPTISACTIVE = ${Y_FLAG}
+                        AND sopt.SOPTRFNUM = bse.BSESOPTRFNUM
+                        AND bse.BSEPURCHASEALLOWED = ${Y_FLAG}""".as[FcsoptRow];
+
+    db.run(query).map(values => {
+      val schemeOptionList = ListBuffer[FcsoptRow]()
+      values.foreach(soptRow => {
+        schemeOptionList.+=(soptRow)
+      })
+      schemeOptionList
+    })
+
+  }
+
+  def getAllAIPDataByOptionId(id: Long): Future[List[FcaiptRow]] = {
+    fcaiptRepo.filter(x => x.aiptsoptrfnum === id && x.aiptidentifier === BSE_DATASOURCE).map(data => data.toList)
+  }
+
+  def getSchemeWithAmcDetails(smtrfnum: Long): Future[Seq[(FcsmtRow, FcamctRow)]] = {
+    val query = for {
+      smtObj <- Fcsmt.filter(_.id === smtrfnum)
+      amctObj <- Fcamct.filter(_.id === smtObj.smtamctrfnum)
+    } yield (smtObj, amctObj)
+
+    db.run(query.result).map(value => value)
+  }
+
+  def getOrderStateName(ostmrfnum: Long): Future[Option[FcostmRow]] = {
+    fcostmRepo.getById(ostmrfnum).map(value => value)
+  }
+}

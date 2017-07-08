@@ -1,0 +1,7 @@
+zendesk.url = "https://fincashhelp.zendesk.com"
+zendesk.auth.email = "deepak.vyas@fincash.com"
+zendesk.auth.password = "gsgz4vet"
+zendesk.auth.oauthtoken = "WLQrvM0N05OVV03hfdcdFdTPgLsmCqipwGIagtcj"
+
+zendesk.onboarding.defaultSubject = "New Onboarding"
+zendesk.purchase.defaultSubject = "New Order"

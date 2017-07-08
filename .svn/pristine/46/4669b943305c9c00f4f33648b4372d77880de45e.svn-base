@@ -1,0 +1,31 @@
+# Routes
+# This file defines all application routes (Higher priority routes first)
+#
+#All the secure routes are configured from here
+->          /api/secure                         secure.Routes
+->          /api/server                         server.Routes
+->          /api/                               nonsecure.Routes
+
+
+POST        /api/refreshToken                   controllers.JWTController.refreshToken
+
+#IFSC
+POST        /api/getbanks                       controllers.BankController.searchBanks
+GET         /api/indexBanks                     controllers.BankController.addBanks
+
+#KYC
+#POST    /getKycData                             controllers.KYCController.getKycData
+POST        /api/messageStatus                  controllers.MessageSenderController.messageStatus
+GET         /api/getOTPStatus/:messageId        controllers.MessageSenderController.getMessageStatus(messageId)
+
+
+# Map static resources from the /public folder to the /assets URL path
+GET         /api/assets/*file                   controllers.Assets.at(path="/public", file)
+
+#ForgotPassword
+POST        /api/forgotPasswordMail             controllers.PasswordController.sendPassResetMail
+POST        /api/getMailKeyValidity             controllers.PasswordController.getMailKeyValidity
+POST        /api/resetPassword                  controllers.PasswordController.resetPassword
+
+GET         /api/hc                             controllers.TestController.healthCheck()
+GET         /api/socket                         controllers.SocketTestController.socket

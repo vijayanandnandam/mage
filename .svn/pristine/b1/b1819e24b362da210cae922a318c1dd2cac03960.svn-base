@@ -1,0 +1,25 @@
+package modules
+
+import com.google.inject.AbstractModule
+import org.springframework.context.support.ClassPathXmlApplicationContext
+import com.fincash.integration.ws.client.bsestar.MFOrder
+import org.springframework.ws.client.core.WebServiceTemplate
+import com.google.inject.name.Names
+
+class ApplicationContextBinderModule extends AbstractModule{
+  
+  override def configure = {
+    val applicationContext = new ClassPathXmlApplicationContext("applicationContext-integration.xml")
+    applicationContext.start()
+    applicationContext.registerShutdownHook()
+    
+    // Guice instance binding
+    
+    bind(classOf[WebServiceTemplate]).annotatedWith(Names.named("bseOrderTemplate")).toInstance(applicationContext.getBean("bseOrderTemplate").asInstanceOf[WebServiceTemplate])
+    bind(classOf[WebServiceTemplate]).annotatedWith(Names.named("bseUploadTemplate")).toInstance(applicationContext.getBean("bseUploadTemplate").asInstanceOf[WebServiceTemplate])
+    bind(classOf[com.fincash.integration.ws.client.bsestar.ObjectFactory]).annotatedWith(Names.named("bseOrderObjectFactory"))
+        .toInstance(applicationContext.getBean("bseStarObjectFactory").asInstanceOf[com.fincash.integration.ws.client.bsestar.ObjectFactory])
+    bind(classOf[com.fincash.integration.ws.client.bsestar.upload.ObjectFactory]).annotatedWith(Names.named("bseUploadObjectFactory"))
+        .toInstance(applicationContext.getBean("bseStarUploadObjectFactory").asInstanceOf[com.fincash.integration.ws.client.bsestar.upload.ObjectFactory])
+  }
+}

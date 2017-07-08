@@ -1,0 +1,479 @@
+package service.integration
+
+import java.io.IOException
+import java.net.SocketTimeoutException
+import java.text.SimpleDateFormat
+import javax.inject.{Inject, Named}
+
+import constants.{DBConstants, IntegrationConstants, OrderConstants}
+import data.model.Tables.{FcomtRow, FcsotRow}
+import helpers.{OrderHelper, PoolingClientConnectionManager}
+import models.{OrderModel, ProcessedSubOrderModel, SubOrder, UserLoginObject}
+import org.apache.http.HttpHost
+import org.apache.http.client.methods.HttpPost
+import org.apache.http.client.protocol.HttpClientContext
+import org.apache.http.entity.StringEntity
+import org.apache.http.impl.auth.BasicScheme
+import org.apache.http.impl.client.BasicAuthCache
+import org.slf4j.LoggerFactory
+import play.api.libs.json._
+import play.api.libs.ws.WSClient
+import play.api.mvc.{Action, Controller}
+import repository.module.{BankRepository, IntegrationRepository, OrderRepository}
+import service._
+import utils.RequestUtils
+
+import scala.collection.mutable.ListBuffer
+import scala.concurrent.{ExecutionContext, Future}
+
+/**
+  * Created by Fincash on 30-05-2017.
+  */
+class BirlaIntegrationServiceImpl @Inject()(implicit ec: ExecutionContext, configuration: play.api.Configuration, ws: WSClient,
+                                            bseStarOrderEntryService: BSEStarOrderEntryServiceImpl,
+                                            bseUploadService: BSEStarUploadServiceImpl,orderHelper: OrderHelper,
+                                            @Named("externalPoolingClientConnectionManager") bslPoolingClient: PoolingClientConnectionManager,
+                                            orderRepository: OrderRepository, integrationRepository: IntegrationRepository,
+                                            schemeService: SchemeService, aMCService: AMCService,
+                                            bankRepository: BankRepository, bankService: BankService)
+  extends IntegrationService with DBConstants with IntegrationConstants with OrderConstants with Controller {
+
+  val logger, log = LoggerFactory.getLogger(classOf[RelianceIntegrationServiceImpl])
+  val ARNCODE = configuration.underlying.getString("fincash.arncode")
+  val URL_HOST = configuration.underlying.getString("birla.url.host")
+  val FOLIO_URL = configuration.underlying.getString("birla.url.folioPath")
+  val IR_URL = configuration.underlying.getString("birla.url.irPath")
+  val REDEMPTION_URL = configuration.underlying.getString("birla.url.redemptionPath")
+  val API_KEY = configuration.underlying.getString("birla.account.apikey")
+  val IP = configuration.underlying.getString("birla.account.ip")
+  val USER_ID = configuration.underlying.getString("birla.account.userid")
+  val PASSWORD = configuration.underlying.getString("birla.account.password")
+  val SCHEME_CODE = configuration.underlying.getString("birla.product.schemecode")
+  val IS_INSTA = configuration.underlying.getString("birla.product.IsInstantRedemption")
+  val SALT = configuration.underlying.getString("birla.account.salt")
+  val ENC_PWD = configuration.underlying.getString("birla.account.encrytPwd")
+  val IV_VALUE = configuration.underlying.getString("birla.account.ivValue")
+
+  /**
+    *
+    * @param ipAddress
+    * @return
+    */
+  def filterIpAddress(ipAddress : Option[String]) : Option[String] = {
+    if(ipAddress.get.startsWith("10.1")){
+      Some(IP)
+    }else{
+      ipAddress
+    }
+  }
+
+  /**
+    *
+    * @param orderModel
+    * @param order
+    * @param subOrder
+    * @param subOrderModel
+    * @param userLoginObject
+    * @return
+    */
+  override def placeSubOrders(orderModel: OrderModel, order: FcomtRow, subOrder: FcsotRow, subOrderModel: SubOrder, userLoginObject: UserLoginObject): Future[ProcessedSubOrderModel] = {
+    /*logger.debug(" ARNCODE [" + ARNCODE+"] URLHOST [" + URL_HOST+"] FOLIOPATH [" + FOLIO_URL+"]  IRPATH ["+IR_URL+"] REDEMPTIONPATH ["+REDEMPTION_URL+"] APIKEY ["+API_KEY+"] IP ["+IP+"] USERID ["+
+      USER_ID+"] PASSWORD ["+PASSWORD+"] SCHEMDCODE  ["+ SCHEME_CODE+"] INSTA ["+IS_INSTA+"] SALT ["+SALT+"] ENCPWD ["+ ENC_PWD+"] IVVALUE ["+IV_VALUE+"]")*/
+    val ipAddress = filterIpAddress(orderModel.ipAddress)
+    val userName = userLoginObject.username.getOrElse("")
+    val subOrderId = subOrder.id
+    val soptrfNum = subOrder.sotsoptrfnum
+    val investmentMode = subOrderModel.investmentMode
+    val schemeDisplayName = None
+    val schemePlan = None
+    val schemeOption = None
+    val folioNo = subOrderModel.folioNo.getOrElse("").trim
+    val amount = subOrderModel.amount
+    val units = subOrderModel.quantity.getOrElse(0.0)
+    var isSuccess = false
+    var connectionFail = false
+    var refno: Option[String] = None
+    val redFlag = REDEMPTION_PARTIAL
+    var unitAmtFlag = AMOUNTUNIT_AMOUNT
+    var unitAmtValue = 100.00
+    val userId = userLoginObject.userid.get
+    val buySellTypeName = orderHelper.getBuySellTypeName(order.omtbuysell, subOrder.sotbuyselltype)
+    val targetHost = new HttpHost(URL_HOST, 443, "https")
+    val authCache = new BasicAuthCache()
+    val basicAuth = new BasicScheme()
+    authCache.put(targetHost, basicAuth)
+    val context = HttpClientContext.create()
+    context.setAuthCache(authCache)
+    val checsumInstance = new Checksum(IV_VALUE);
+    if (amount.nonEmpty) {
+      unitAmtFlag = AMOUNTUNIT_AMOUNT
+      unitAmtValue = amount.get
+    }
+    if (amount.isEmpty && units > 0.0) {
+      unitAmtFlag = AMOUNTUNIT_UNIT
+      unitAmtValue = units
+    }
+
+    val irresponse = getIRDetailsForFolio(folioNo, ipAddress, targetHost, context, checsumInstance)
+    val bankSuccess = (irresponse \ "success").as[Boolean]
+    if (bankSuccess){
+      val IRDetails = (irresponse \ "response").as[JsValue]
+      val bankDetails = (IRDetails \ "BankDetails").as[Seq[JsValue]]
+      val IRHeaderId = (IRDetails \ "IRHeaderId").as[JsValue].asOpt[String]
+      val schemeDetails = (IRDetails \ "SchemeDetails").as[JsArray]
+      val bankName = (bankDetails.head \ "BankName").as[JsValue].asOpt[String]
+      val branchName = (bankDetails.head \ "BranchName").as[JsValue].asOpt[String]
+      val branchCity = (bankDetails.head \ "BranchCity").as[JsValue].asOpt[String]
+      val accountNumber = (bankDetails.head \ "AccountNumber").as[JsValue].asOpt[String]
+      val accountType = (bankDetails.head \ "AccountType").as[JsValue].asOpt[String]
+      val IFSCCode = (bankDetails.head \ "IFSCCode").as[JsValue].asOpt[String]
+      val payoutID = (bankDetails.head \ "PayoutID").as[JsValue].asOpt[String]
+      val withdrawalRequest = Json.obj(
+        "UserId" -> USER_ID,
+        "Password" -> PASSWORD,
+        "FolioNo" -> folioNo,
+        "SchemeCode" -> SCHEME_CODE,
+        "Amount" -> unitAmtValue,
+        "Bank_Name" -> bankName.get,
+        "BranchName" -> branchName.get,
+        "BankCity" -> branchCity.get,
+        "AccNo" -> accountNumber.get,
+        "AccType" -> accountType.get,
+        "IFSCcode" -> IFSCCode.get,
+        "RedeemPayout" -> payoutID.get,
+        "IsInstantRedemption" -> Y_FLAG,
+        "IRHeaderId" -> IRHeaderId.get,
+        "IsIRMAXAmount" -> N_FLAG, // Y_FLAG
+        "ClientIpAddress" -> ipAddress.get,
+        "OS" -> "Test",
+        "IMEI" -> "Test",
+        "UDP" -> "UDP",
+        "UDP1" -> "",
+        "UDP2" -> "",
+        "UDP3" -> "",
+        "UDP4" -> "",
+        "UDP5" -> ""
+      )
+      val dateTimeStamp = new java.util.Date
+      val headerDateTimeStamp: String = new SimpleDateFormat("dd/MM/yyyy hh:mm:ss a").format(dateTimeStamp)
+      val formatedDateTimeStamp: String = new SimpleDateFormat("ddMMyyHHmmss").format(dateTimeStamp)
+
+      val jsonObj = Json.obj("WithdrawalAmountRequest" -> withdrawalRequest)
+      val inputString: String = folioNo + "|" + unitAmtValue.toLong + "|" + SCHEME_CODE + "|" + IFSCCode.get + "|" + Y_FLAG + "|"
+      logger.debug("INPUTString >>> " + inputString)
+      val httpClient = bslPoolingClient.getHttpClient
+      val httpPost = new HttpPost(REDEMPTION_URL)
+      val newSalt = checsumInstance.GenerateSaltValue(inputString, SALT, formatedDateTimeStamp)
+      logger.debug("NEW SALT >> " + newSalt)
+      logger.debug("TS >> " + formatedDateTimeStamp)
+      val checksum = checsumInstance.Encrypt(inputString, newSalt, ENC_PWD)
+      logger.debug("CHECKSUM >> " + checksum)
+      httpPost.addHeader("Content-type", "application/json")
+      httpPost.addHeader("Authorization", "Bearer " + API_KEY)
+      httpPost.addHeader("Checksum", checksum)
+      httpPost.addHeader("DateTimeStamp", headerDateTimeStamp)
+      httpPost.setEntity(new StringEntity(Json.stringify(jsonObj)))
+
+      var camsTrNo, camsReturnCode, camsReturnMsg, camsResponseTime, entryDate, IMPSReturnMsg, IMPSStatus, returnMsg, tradeDate, udp: Option[String] = None
+      try {
+        val httpResponse = httpClient.execute(targetHost, httpPost, context)
+        if (httpResponse.getStatusLine().getStatusCode() == 200) {
+          val inputStream = httpResponse.getEntity.getContent
+          val res: JsValue = Json.parse(inputStream)
+          logger.debug("OUTPUT >> " + Json.stringify(res))
+          val returnCode = (res \ "ReturnCode").as[JsString]
+          val rcCodeOption = returnCode.asOpt[String]
+          if (rcCodeOption.nonEmpty && rcCodeOption.get.equalsIgnoreCase("1")) {
+            isSuccess = true
+          }
+          camsTrNo = (res \ "CAMSTransactionNo").as[JsValue].asOpt[String]
+          camsReturnCode = (res \ "CAMS_ReturnCode").as[JsValue].asOpt[String]
+          camsReturnMsg = (res \ "CAMS_ReturnMsg").as[JsValue].asOpt[String]
+          camsResponseTime = (res \ "Cams_Response_Time").as[JsValue].asOpt[String]
+          entryDate = (res \ "EntryDate").as[JsValue].asOpt[String]
+          IMPSReturnMsg = (res \ "IMPS_ReturnMsg").as[JsValue].asOpt[String]
+          IMPSStatus = (res \ "IMPS_Status").as[JsValue].asOpt[String]
+          returnMsg = (res \ "ReturnMsg").as[JsValue].asOpt[String]
+          tradeDate = (res \ "TradeDate").as[JsValue].asOpt[String]
+          refno = (res \ "TransactionReferenceNo").as[JsValue].asOpt[String]
+          udp = (res \ "UDP").as[JsValue].asOpt[String]
+
+          val reqParamNameList: ListBuffer[String] = ListBuffer[String]()
+          val reqParamValueList: ListBuffer[String] = ListBuffer[String]()
+          val resParamNameList: ListBuffer[String] = ListBuffer[String]()
+          val resParamValueList: ListBuffer[String] = ListBuffer[String]()
+
+          reqParamNameList.+=("SchemeCode", "Folio No", "UserId", "Password", "Amount", "Bank_Name", "BranchName",
+            "BankCity", "AccNo", "AccType", "IFSCcode", "RedeemPayout", "IRHeaderId", "ClientIpAddress")
+          reqParamValueList.+=(SCHEME_CODE, folioNo, USER_ID, PASSWORD, unitAmtValue.toString, bankName.get,
+            branchName.get, branchCity.get, accountNumber.get, accountType.get, IFSCCode.get, payoutID.get, IRHeaderId.get, ipAddress.get)
+
+          resParamNameList.+=("CAMSTransactionNo", "CAMS_ReturnCode", "CAMS_ReturnMsg", "Cams_Response_Time", "EntryDate", "IMPS_ReturnMsg", "IMPS_Status", "TradeDate", "TransactionReferenceNo", "UDP")
+          resParamValueList.+=(camsTrNo.getOrElse(""), camsReturnCode.getOrElse(""), camsReturnMsg.getOrElse(""), camsResponseTime.getOrElse(""), entryDate.getOrElse(""), IMPSReturnMsg.getOrElse(""), IMPSStatus.getOrElse(""), tradeDate.getOrElse(""), refno.getOrElse("0"), udp.getOrElse(""))
+          integrationRepository.saveRequestParameters(BSL_INTEGRATION_NAME, Some(subOrderId.toString), reqParamNameList, reqParamValueList, userName)
+          integrationRepository.saveResponseParameters(BSL_INTEGRATION_NAME, Some(subOrderId.toString), resParamNameList, resParamValueList, userName)
+        }else{
+          logger.debug(" HTTP  RESPONSE CODE ["+ httpResponse.getStatusLine.getStatusCode+"]")
+        }
+      }
+      catch {
+        case s: SocketTimeoutException => {
+          logger.error("Socket Timeout Exception >> ", s)
+          isSuccess = true; refno = Some("-1")
+        }
+        case c: java.net.ConnectException => { logger.error("Connection Time Out Occurred >> ", c); connectionFail = true}
+        case io: IOException => { logger.error("IO exception >> ", io)}
+      }
+      if (isSuccess) {
+        // Update Transaction Mode in SOT
+        orderRepository.updateTransactionModeForSuborder(subOrderId, BIRLA_TRNSACTION_MODE).map(value => {
+          orderRepository.updateTransactionIdForSubOrder(subOrder.id, order.id, subOrder.sotostmstaterfnum,PLACED_AT_AMC, camsTrNo.getOrElse("-1"), userName).map(updated =>{
+            orderHelper.notifyZendesk(subOrder,order,ORDER_STATUS_SUCCESS,userName,userId)
+          })
+          ProcessedSubOrderModel(subOrderId, ORDER_STATUS_SUCCESS, soptrfNum, investmentMode,orderModel.orderType, buySellTypeName,schemeDisplayName, schemePlan, schemeOption, amount, None, None, None, None)
+        })
+      }else {
+        orderRepository.setFailedStateForSubOrder(subOrder.id, order.id, subOrder.sotostmstaterfnum, userName).map(updated =>{
+          orderHelper.notifyZendesk(subOrder,order,ORDER_STATUS_FAILURE,userName,userId)
+          if (connectionFail) {
+            ProcessedSubOrderModel(subOrderId, ORDER_CONNECTIVITY_FAILURE, soptrfNum, investmentMode,orderModel.orderType, buySellTypeName, schemeDisplayName, schemePlan, schemeOption, amount, None, None, None, None)
+          }
+          else {
+            ProcessedSubOrderModel(subOrderId, ORDER_STATUS_FAILURE, soptrfNum, investmentMode,orderModel.orderType, buySellTypeName, schemeDisplayName, schemePlan, schemeOption, amount, None, None, None, None)
+          }
+        })
+      }
+    }else {
+      orderRepository.setFailedStateForSubOrder(subOrder.id, order.id, subOrder.sotostmstaterfnum, userName).map(updated =>{
+        orderHelper.notifyZendesk(subOrder,order,ORDER_STATUS_FAILURE,userName,userId)
+        ProcessedSubOrderModel(subOrderId, ORDER_STATUS_FAILURE, soptrfNum, investmentMode,orderModel.orderType, buySellTypeName, schemeDisplayName, schemePlan, schemeOption, amount, None, None, None, None)
+      })
+    }
+  }
+
+
+  /**
+    *
+    * @param folioNo
+    * @param ipAddress
+    * @param targetHost
+    * @param context
+    * @param checksumInstance
+    * @return
+    */
+  def getIRDetailsForFolio(folioNo: String, ipAddress : Option[String], targetHost : HttpHost, context : HttpClientContext, checksumInstance: Checksum): JsValue = {
+    val folioresponse = folioDetails(folioNo, ipAddress,targetHost, context, checksumInstance)
+    val taxCodeValid = (folioresponse \ "success").as[Boolean]
+    if(taxCodeValid){
+      val dateTimeStamp = new java.util.Date
+      val headerDateTimeStamp: String = new SimpleDateFormat("dd/MM/yyyy hh:mm:ss a").format(dateTimeStamp)
+      val formatedDateTimeStamp: String = new SimpleDateFormat("ddMMyyHHmmss").format(dateTimeStamp)
+      val folioSchemeRequest = Json.obj(
+        "FolioNo" -> folioNo,
+        "UserId" -> USER_ID,
+        "Password" -> PASSWORD,
+        "UDP" -> "",
+        "UDP1" -> "",
+        "UDP2" -> "",
+        "UDP3" -> "",
+        "UDP4" -> "",
+        "UDP5" -> "",
+        "OS" -> "Test",
+        "IMEI" -> "Test",
+        "ClientIpAddress" -> ipAddress.get
+      )
+      val jsonObj = Json.obj("FolioSchemeRequest" -> folioSchemeRequest)
+      val inputString = folioNo
+      val httpClient = bslPoolingClient.getHttpClient
+      val httpPost = new HttpPost(IR_URL)
+      val newSalt = checksumInstance.GenerateSaltValue(inputString, SALT, formatedDateTimeStamp)
+      logger.debug("inputString >>> " + inputString)
+      logger.debug("NEW SALT >> " + newSalt)
+      logger.debug("TS >> " + formatedDateTimeStamp)
+      val checksum = checksumInstance.Encrypt(inputString, newSalt, ENC_PWD)
+      logger.debug("CHECKSUM >> " + checksum)
+      httpPost.addHeader("Content-type", "application/json")
+      httpPost.addHeader("Authorization", "Bearer " + API_KEY)
+      httpPost.addHeader("Checksum", checksum)
+      httpPost.addHeader("DateTimeStamp", headerDateTimeStamp)
+      httpPost.setEntity(new StringEntity(Json.stringify(jsonObj)))
+      try{
+        val httpResponse = httpClient.execute(targetHost, httpPost, context)
+        if (httpResponse.getStatusLine().getStatusCode() == 200) {
+          val inputStream = httpResponse.getEntity.getContent
+          val res: JsValue = Json.parse(inputStream)
+          logger.debug("OUTPUT >> " + Json.stringify(res))
+          val returnCode = (res \ "ReturnCode").as[JsString]
+          val rcCodeOption = returnCode.asOpt[String]
+          if (rcCodeOption.nonEmpty && rcCodeOption.get.equalsIgnoreCase("1")) {
+            logger.debug("getIRDetailsForFolio success")
+            Json.obj("success" -> true, "response" -> res)
+          }
+          else {
+            Json.obj("success" -> false)
+          }
+        }else {
+          logger.debug(" HTTP  RESPONSE CODE ["+ httpResponse.getStatusLine.getStatusCode+"]")
+          Json.obj("success" -> false)
+        }
+      }catch {
+        case e: Exception => { logger.error("exception >> ", e); Json.obj("success" -> false)}
+      }
+    }else {
+      Json.obj("success" -> false)
+    }
+  }
+
+  /**
+    *
+    * @param folioNo
+    * @param ipAddress
+    * @param targetHost
+    * @param context
+    * @param checksumInstance
+    * @return
+    */
+  def folioDetails(folioNo: String, ipAddress : Option[String], targetHost : HttpHost, context : HttpClientContext, checksumInstance: Checksum): JsValue = {
+    val dateTimeStamp = new java.util.Date
+    val headerDateTimeStamp: String = new SimpleDateFormat("dd/MM/yyyy hh:mm:ss a").format(dateTimeStamp)
+    val formatedDateTimeStamp: String = new SimpleDateFormat("ddMMyyHHmmss").format(dateTimeStamp)
+    val folioDetails = Json.obj(
+      "UserId" -> USER_ID,
+      "Password" -> PASSWORD,
+      "FolioNumber" -> folioNo,
+      "UDP" -> "",
+      "Source" -> "",
+      "ClientIpAddress" -> ipAddress.get,
+      "OS" -> "",
+      "IMEI" -> "",
+      "UDP1" -> "",
+      "UDP2" -> "",
+      "UDP3" -> "",
+      "UDP4" -> "",
+      "UDP5" -> ""
+    )
+    val jsonObj = Json.obj("FolioDetails" -> folioDetails)
+    val inputString = folioNo
+    val newSalt = checksumInstance.GenerateSaltValue(inputString, SALT, formatedDateTimeStamp)
+    val httpClient = bslPoolingClient.getHttpClient
+    val httpPost = new HttpPost(FOLIO_URL)
+    logger.debug("inputstring >>> " + inputString)
+    logger.debug("NEW SALT >> " + newSalt)
+    logger.debug("TS >> " + formatedDateTimeStamp)
+    val checksum = checksumInstance.Encrypt(inputString, newSalt, ENC_PWD)
+    logger.debug("CHECKSUM >> " + checksum)
+    httpPost.addHeader("Content-type", "application/json")
+    httpPost.addHeader("Authorization", "Bearer " + API_KEY)
+    httpPost.addHeader("Checksum", checksum)
+    httpPost.addHeader("DateTimeStamp", headerDateTimeStamp)
+    httpPost.setEntity(new StringEntity(Json.stringify(jsonObj)))
+    try{
+      val httpResponse = httpClient.execute(targetHost, httpPost, context)
+      if (httpResponse.getStatusLine().getStatusCode() == 200) {
+        val inputStream = httpResponse.getEntity.getContent
+        val res: JsValue = Json.parse(inputStream)
+        logger.debug("OUTPUT >> " + Json.stringify(res))
+        val returnCode = (res \ "ReturnCode").as[JsString]
+        val taxStatusCode = (res \ "TaxStatusCode").as[JsValue]
+        val rcCodeOption = returnCode.asOpt[String]
+        val taxStatusCodeOption = taxStatusCode.asOpt[String]
+        if (rcCodeOption.nonEmpty && rcCodeOption.get.equalsIgnoreCase("1") && taxStatusCodeOption.nonEmpty && taxStatusCodeOption.get.equalsIgnoreCase("01")) {
+          logger.debug("folioDetails success")
+          Json.obj("success" -> true, "response" -> res)
+        }
+        else {
+          Json.obj("success" -> false)
+        }
+      }else {
+        logger.debug(" HTTP  RESPONSE CODE ["+ httpResponse.getStatusLine.getStatusCode+"]")
+        Json.obj("success" -> false)
+      }
+    }catch {
+      case e: Exception => {
+        logger.error("exception >> ", e)
+        Json.obj("success" -> false)
+      }
+    }
+  }
+
+  /**
+    *
+    * @return
+    */
+  def getIRDetails = Action(parse.json){ request => {
+    val ipAddress = filterIpAddress(Some(RequestUtils.getIpAddress(request)))
+    val folioNo = (request.body \ "folioNo").as[String]
+    val folioSchemeRequest = Json.obj(
+      "FolioNo" -> folioNo,
+      "UserId" -> USER_ID,
+      "Password" -> PASSWORD,
+      "UDP" -> "",
+      "UDP1" -> "",
+      "UDP2" -> "",
+      "UDP3" -> "",
+      "UDP4" -> "",
+      "UDP5" -> "",
+      "OS" -> "Test",
+      "IMEI" -> "Test",
+      "ClientIpAddress" -> ipAddress.get
+    )
+    val jsonObj = Json.obj("FolioSchemeRequest" -> folioSchemeRequest)
+    val inputString = folioNo
+    val httpClient = bslPoolingClient.getHttpClient
+    val targetHost = new HttpHost(URL_HOST, 443, "https")
+    val authCache = new BasicAuthCache()
+    val basicAuth = new BasicScheme()
+    authCache.put(targetHost, basicAuth)
+    val context = HttpClientContext.create()
+    context.setAuthCache(authCache)
+    val httpPost = new HttpPost(IR_URL)
+    val dateTimeStamp = new java.util.Date
+    val headerDateTimeStamp: String = new SimpleDateFormat("dd/MM/yyyy hh:mm:ss a").format(dateTimeStamp)
+    val formatedDateTimeStamp: String = new SimpleDateFormat("ddMMyyHHmmss").format(dateTimeStamp)
+    val checksumInstance = new Checksum(IV_VALUE)
+    val newSalt = checksumInstance.GenerateSaltValue(inputString, SALT, formatedDateTimeStamp)
+    logger.debug("NEW SALT >> " + newSalt)
+    logger.debug("TS >> " + formatedDateTimeStamp)
+    val checksum = checksumInstance.Encrypt(inputString, newSalt, ENC_PWD)
+    logger.debug("CHECKSUM >> " + checksum)
+    httpPost.addHeader("Content-type", "application/json")
+    httpPost.addHeader("Authorization", "Bearer " + API_KEY)
+    httpPost.addHeader("Checksum", checksum)
+    httpPost.addHeader("DateTimeStamp", headerDateTimeStamp)
+    httpPost.setEntity(new StringEntity(Json.stringify(jsonObj)))
+    val folioresponse = folioDetails(folioNo, ipAddress, targetHost, context,checksumInstance)
+    val taxCodeValid = (folioresponse \ "success").as[Boolean]
+    if (taxCodeValid){
+      try{
+        val httpResponse = httpClient.execute(targetHost, httpPost, context)
+        if (httpResponse.getStatusLine().getStatusCode() == 200) {
+          val inputStream = httpResponse.getEntity.getContent
+          val res: JsValue = Json.parse(inputStream)
+          logger.debug("OUTPUT >> "+Json.stringify(res))
+          val returnCode = (res \ "ReturnCode").as[JsString]
+          val rcCodeOption = returnCode.asOpt[String]
+          if (rcCodeOption.nonEmpty && rcCodeOption.get.equalsIgnoreCase("1")) {
+            val bankDetails = (res \ "BankDetails").as[JsArray]
+            val IRHeaderId = (res \ "IRHeaderId").as[JsString]
+            val IRPerDayAmt = (res \ "IRPerDayAmount").as[JsNumber]
+            val returnMsg = (res \ "ReturnMsg").as[JsString]
+            val schemeDetails = (res \ "SchemeDetails").as[JsValue]
+            val udp = (res \ "UDP").as[JsString]
+            Ok(res)
+          }
+          else {
+            Ok(Json.obj("success" -> false))
+          }
+        }else {
+          logger.debug(" HTTP  RESPONSE CODE ["+ httpResponse.getStatusLine.getStatusCode+"]")
+          Ok(Json.obj("success" -> false))
+        }
+      }catch {
+        case e: Exception => { logger.error("exception >> ", e); Ok(Json.obj("success" -> false))}
+      }
+    }
+    else {
+      Ok(Json.obj("success" -> false, "error" -> "Error while getting folio details"))
+    }
+  }}
+}

@@ -1,0 +1,6 @@
+package constants {
+  
+ trait UserConstants {
+   final val TOKEN_TIMEOUT = 90000; // 15 minutes
+ } 
+}

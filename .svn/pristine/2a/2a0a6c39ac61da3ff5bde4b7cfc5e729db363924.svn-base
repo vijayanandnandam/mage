@@ -1,0 +1,66 @@
+package controllers
+
+import javax.inject.Inject
+
+import org.slf4j.LoggerFactory
+import play.api.i18n.MessagesApi
+import play.api.libs.ws.WSClient
+
+import scala.util._
+
+
+class Application @Inject() (implicit ws: WSClient, messagesApi: MessagesApi){
+  val logger, log = LoggerFactory.getLogger(classOf[Application])
+}
+
+object Parser {
+    val logger = LoggerFactory.getLogger(classOf[Application])
+    def main(args:Array[String]) = {
+      var template: String = "The amount of Rs.234 has been debited from your account XXXX2342. The balance in your account XXXX2342 is INR 43,008.22. The bal in your account no.xxxx2200 is Rs. 1139.29.";
+      
+      var tokens = template.split("\\s|(Rs.)|(INR)+");
+      var acPattern = """[Xx]+[0-9]+(.?)""".r;
+      var numPattern = """\d+""".r;
+      
+      //var amts: Array[Double];
+      
+      var ac = acPattern.findAllIn(template).toArray
+      ac = for (a <- ac) yield a.replace(".", "");
+      ac = for (a <- ac) yield a.replace(" ", "");
+      ac = ac.distinct;
+      logger.debug("Accounts >>> " + ac.toList);
+      
+      var amts = tokens.flatMap(s => Try( s.replaceAll(",", "").split("\\W+").mkString(".").toDouble ).toOption)
+
+      logger.debug("Balances >>> " + amts.toList);
+
+      
+  }
+}
+
+object Tabulator {
+  val logger = LoggerFactory.getLogger(classOf[Application])
+  def format(table: Seq[Seq[Any]]) = table match {
+    case Seq() => ""
+    case _ => 
+      val sizes = for (row <- table) yield (for (cell <- row) yield if (cell == null) 0 else cell.toString.length)
+      val colSizes = for (col <- sizes.transpose) yield col.max
+      val rows = for (row <- table) yield formatRow(row, colSizes)
+      formatRows(rowSeparator(colSizes), rows)
+  }
+
+  def formatRows(rowSeparator: String, rows: Seq[String]): String = (
+    rowSeparator :: 
+    rows.head :: 
+    rowSeparator :: 
+    rows.tail.toList ::: 
+    rowSeparator :: 
+    List()).mkString("\n")
+
+  def formatRow(row: Seq[Any], colSizes: Seq[Int]) = {
+    val cells = (for ((item, size) <- row.zip(colSizes)) yield if (size == 0) "" else ("%" + size + "s").format(item))
+    cells.mkString("|", "|", "|")
+  }
+
+  def rowSeparator(colSizes: Seq[Int]) = colSizes map { "-" * _ } mkString("+", "+", "+")
+}

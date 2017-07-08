@@ -1,0 +1,95 @@
+package helpers
+
+import javax.inject.Inject
+
+import constants._
+import org.zendesk.client.v2.Zendesk
+import org.zendesk.client.v2.model.{CustomFieldValue, _}
+import service.PropertiesLoaderService
+
+import scala.concurrent.{ExecutionContext, Future}
+
+/**
+  * Created by Fincash on 11-05-2017.
+  */
+class ZendeskHelper @Inject()(ticket: Ticket, user: TicketForm, comment: Comment, customFieldValue:CustomFieldValue, implicit val ec: ExecutionContext) extends CNDConstants{
+
+  val zendeskURL = PropertiesLoaderService.getConfig().getString("zendesk.url")
+  val zendeskAuthEmail = PropertiesLoaderService.getConfig().getString("zendesk.auth.email")
+  val zendeskAuthPass = PropertiesLoaderService.getConfig().getString("zendesk.auth.password")
+  val zendeskOauthToken = PropertiesLoaderService.getConfig().getString("zendesk.auth.oauthtoken")
+  private val zendesk = new Zendesk.Builder(zendeskURL).setUsername(zendeskAuthEmail).setToken(zendeskOauthToken).build()
+
+  val onBoardingSubject = PropertiesLoaderService.getConfig().getString("zendesk.onboarding.defaultSubject")
+  val purchaseSubject = PropertiesLoaderService.getConfig().getString("zendesk.purchase.defaultSubject")
+
+  var requester = new Ticket.Requester()
+
+
+  object groupID extends ZendeskGroupConstants {
+  }
+  object tktFieldId extends ZendeskTicketFieldConstant {
+  }
+  object ticketFieldValue extends ZendeskTicketFieldValueConstant {
+  }
+  object userField extends ZendeskUserFieldConstant {
+  }
+  object userFieldValue extends ZendeskUserFieldValueConstant {
+  }
+  object tktSource extends ZendesktktSourceConstants {
+  }
+
+  def getTicketObj():Ticket = {
+  ticket
+  }
+  def getCustomFieldValueObj():CustomFieldValue = {
+  customFieldValue
+  }
+  def getCommentObj():Comment = {
+  comment
+  }
+
+  def getZendeskObj():Zendesk ={
+    zendesk
+  }
+  def createExternalId(userId:Long, purposeId:Long, creator:String): String ={
+    userId.toString+"-"+purposeId.toString+"-"+creator
+  }
+
+  def closeZdConnection(): Unit ={
+    zendesk.close()
+  }
+
+  def getGroupANDPurposeFromOrderType(orderType:String, subOrderType:String):(Long, Long) = {
+    var assigneeGroup:Long = this.groupID.SUPPORT
+    var tktPurpose:Long = 0L
+    if(orderType.toLowerCase()=="p"){
+      assigneeGroup = this.groupID.PURCHASE
+      if(subOrderType.toLowerCase()=="sip"){
+        assigneeGroup = this.groupID.SYSTEMATIC_INVESTMENT
+        tktPurpose = TKT_PURPOSE_SIP
+      }else{
+        assigneeGroup = this.groupID.PURCHASE
+        tktPurpose = TKT_PURPOSE_BUY
+      }
+    } else{
+      assigneeGroup = this.groupID.REDEMPTION
+      tktPurpose = TKT_PURPOSE_SELL
+    }
+    (assigneeGroup, tktPurpose)
+  }
+
+  def getUserIdByEmail(email:String):Long = {
+    var userId:Long = 0L
+    if (email != null && email.length!=0) {
+      var emailId = email.trim()
+      var user = zendesk.lookupUserByEmail(emailId)
+      var userIter = user.iterator()
+      while(userIter.hasNext){
+        userId = userIter.next.getId
+      }
+    }
+    userId
+  }
+
+}

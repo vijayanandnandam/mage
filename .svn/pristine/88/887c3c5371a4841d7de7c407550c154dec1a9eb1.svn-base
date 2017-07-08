@@ -1,0 +1,111 @@
+include "application.conf"
+
+play.http.parser.maxMemoryBuffer=1024K
+play.http.errorHandler = "helpers.ErrorHandler"
+play.evolutions.autoApplyDowns=false
+# Secret key
+play.crypto.secret = "GeUgf^x:/nP0:tnlq;TQkjqfp9pNE]GNabKm:Xnl@AqkYWUkEJSE=]bhO5e=dRqG"
+token.expiry.duration.inmillis=600000
+#database configuration live
+slick.dbs.default.db.url="jdbc:mysql://10.1.0.2:3306/fincash_live"
+slick.dbs.default.db.user=fincash
+slick.dbs.default.db.password="fincash"
+slick.dbs.default.db.numThreads=5
+slick.dbs.default.db.maxConnections=25
+slick.dbs.default.db.minConnections=5
+slick.dbs.default.db.idleTimeout=30000
+slick.dbs.default.hikaricp.connectionTestQuery="SELECT TRUE"
+# JVM Memory Allowed
+jvm.memory = -Xmx1024M -Xms512M
+play.http.forwarded.trustedProxies=["0.0.0.0/0", "::/0"]
+#live solr url
+solr.url = "http://10.1.0.2:8983/solr/"
+#live mongo uri using 2 replicaset of MongoServer SolrServer & BlogServer
+mongodb.uri ="mongodb://10.1.0.2:27017/fincash-user?rm.tcpNoDelay=true&rm.keepAlive=true&maxIdleTimeMS=60000&connectTimeoutMS=15000&rm.failover=remote&readPreference=primaryPreferred&rm.nbChannelsPerNode=3"
+mongo-async-driver {
+  akka {
+    loggers = [ "akka.event.slf4j.Slf4jLogger" ]
+    loglevel = INFO
+  }
+}
+
+
+# mail related
+mail.url.baseurl = "http://uat.fincash.com:81"
+mail.url.staticImagePath = "http://uat.fincash.com:81"
+mail.order-placed.from = "Fincash.com <orders@email.fincash.com>"
+mail.order-placed.reply-to = "orders@email.fincash.com"
+mail.order-placed.bcc = "orders@fincash.com"
+
+mail.eKYC-status.from = "Fincash.com  <support@email.fincash.com>"
+mail.eKYC-status.reply-to = "support@email.fincash.com"
+mail.eKYC-status.bcc = "support@email.fincash.com"
+
+
+mail.default.from = "Fincash.com <support@email.fincash.com>"
+mail.default.bounce.address = "support@email.fincash.com"
+mail.default.reply.to = "support@email.fincash.com"
+
+# twilio message callback
+twilio.callback.url = "http://uat.fincash.com:2930/messageStatus"
+twilio.sender.number = "+13462014490"
+
+# production configuration for netty
+play.server {
+
+  # The server provider class name
+  provider = "play.core.server.NettyServerProvider"
+
+  netty {
+
+    # The number of event loop threads. 0 means let Netty decide, which by default will select 2 times the number of
+    # available processors.
+    eventLoopThreads = 0
+
+    # The maximum length of the initial line. This effectively restricts the maximum length of a URL that the server will
+    # accept, the initial line consists of the method (3-7 characters), the URL, and the HTTP version (8 characters),
+    # including typical whitespace, the maximum URL length will be this number - 18.
+    maxInitialLineLength = 4096
+
+    # The maximum length of the HTTP headers. The most common effect of this is a restriction in cookie length, including
+    # number of cookies and size of cookie values.
+    maxHeaderSize = 8192
+
+    # The maximum length of body bytes that Netty will read into memory at a time.
+    # This is used in many ways.  Note that this setting has no relation to HTTP chunked transfer encoding - Netty will
+    # read "chunks", that is, byte buffers worth of content at a time and pass it to Play, regardless of whether the body
+    # is using HTTP chunked transfer encoding.  A single HTTP chunk could span multiple Netty chunks if it exceeds this.
+    # A body that is not HTTP chunked will span multiple Netty chunks if it exceeds this or if no content length is
+    # specified. This only controls the maximum length of the Netty chunk byte buffers.
+    maxChunkSize = 8192
+
+    # Whether the Netty wire should be logged
+    log.wire = false
+
+    # The transport to use, either jdk or native.
+    # Native socket transport has higher performance and produces less garbage but are only available on linux
+    transport = "native"
+
+    # Netty options. Possible keys here are defined by:
+    #
+    # http://netty.io/4.0/api/io/netty/channel/ChannelOption.html
+    #
+    # Options that pertain to the listening server socket are defined at the top level, options for the sockets associated
+    # with received client connections are prefixed with child.*
+    option {
+
+      # Set the size of the backlog of TCP connections.  The default and exact meaning of this parameter is JDK specific.
+      # SO_BACKLOG = 100
+
+      child {
+        # Set whether connections should use TCP keep alive
+        # SO_KEEPALIVE = false
+
+        # Set whether the TCP no delay flag is set
+        # TCP_NODELAY = false
+      }
+
+    }
+
+  }
+}

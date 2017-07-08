@@ -1,0 +1,88 @@
+package models
+
+import java.util.Date
+
+import scala.collection.mutable.ListBuffer
+import models.enumerations.AssetClassEnum
+import models.enumerations.AssetClassEnum.AssetClassEnum
+import models.integration.enumerations.BuySellEnum.BuySellEnum
+import play.api.libs.json.Json
+
+import scala.collection.mutable
+
+case class ReportModel(fundId: Long, folioNo: String, schemeLegalName: String, schemePlan: String, amcName: String, category: String, categoryId: Long, desc: String, tradeDate: Date,
+                       transType: String, units: BigDecimal, price: BigDecimal, amount: BigDecimal, folioId: Long, modeOfHolding: String, schemeDisplayName: String,
+                       divFreq: String, divOption: String, folioHoldingId: Long)
+
+case class FundTransaction(folioHoldingId: Long,transDesc: String, transDate: Date, transType: BuySellEnum, units: BigDecimal, price: BigDecimal,
+                           amount: Option[BigDecimal] = None, gain: Option[BigDecimal] = None,
+                           folioNo: Option[String] = None, folioId:Option[Long]=None)
+
+case class DashboardTopFund(fundId: Long, fundName: String, plan: String, divFreq: String, divOption: String, fundReturn: BigDecimal)
+
+case class FundBasicDetails(folioNo: String, fundName: String, modeOfHolding: String, plan: String, divFreq: String, divOption: String, fundType: Option[String] = None)
+
+case class FundDetails(fundId: Long, fundBasicDetails: FundBasicDetails, amc: String, assetClass: AssetClassEnum, assetClassId: Long, currNav: BigDecimal,
+                       navDate: Option[Date] = None, transactionList: ListBuffer[FundTransaction],
+                       costValue: Option[BigDecimal] = None, currentValue: Option[BigDecimal] = None, realizedGain: Option[BigDecimal] = None,
+                       unrealizedGain: Option[BigDecimal] = None,
+                       redemptionDetailsList: Option[ListBuffer[RedemptionDetails]] = None, totalRedeemedUnits: Option[BigDecimal] = None,
+                       totalUnitsLeft: Option[BigDecimal] = None,
+                       totalAmount: Option[BigDecimal] = None, totalShortTermGain: Option[BigDecimal] = None, totalLongTermGain: Option[BigDecimal] = None,
+                       pan: Option[String] = None, folioId: Option[Long] = None)
+
+case class DashboardFundDetail(fundId: Long, fundName: String, plan: String, divFreq: String, divOption: String, currentValue: Option[BigDecimal])
+
+case class AssetClassFundDetails(assetClass: AssetClassEnum, fundDetailsList: ListBuffer[DashboardFundDetail])
+
+case class RedemptionDetails(desc: String, redeemDate: Option[Date], units: Option[BigDecimal], price: Option[BigDecimal], amount: Option[BigDecimal],
+                             purchaseDate: Date, purchaseUnits: BigDecimal, purchasePrice: BigDecimal, shortTermGain: Option[BigDecimal] = None,
+                             longTermGain: Option[BigDecimal] = None)
+
+case class TransactionFilter(startDate: Option[String], endDate: Option[String], fundId: Option[Long], transType: Option[String], folioId:Option[Long])
+
+case class FolioFilter(folioId: Long, folioNo: String)
+case class FolioUnits(folioId:Long, folioUnits:BigDecimal, folioAmount:BigDecimal)
+case class FundTransactionReport(folioNo: String, fundId: Long, fundName: String, plan: String, divFreq: String, divOption: String, fundType: String,
+                                 modeOfHolding: String, openingUnits: BigDecimal, openingValue: BigDecimal,
+                                 closingUnits: BigDecimal, closingValue: BigDecimal, transactionList: ListBuffer[FundTransaction],
+                                 folioUnits:Option[ListBuffer[FolioUnits]]=None, folioId: Option[Long]=None
+                                 )
+
+case class TransactionType(typeKey: String, typeValue: String)
+
+case class TransactionReport(mobileNo: String, emailId: String, transactionTypeList: ListBuffer[TransactionType], transactionReportList: List[FundTransactionReport],
+                             fundFilter: Option[List[FundTransactionReport]]=None, folioFilter:Option[List[FolioFilter]]=None)
+
+case class CapitalGainFundModel(status: String, pan: Option[String], fundDetailsList: ListBuffer[FundDetails],
+                                cumulativeShortTermGain: BigDecimal, cumulativeLongTermGain: BigDecimal)
+
+object FundDetailJsonFormats {
+
+  import play.api.libs.json.JsPath
+  import play.api.libs.json.Reads
+  import play.api.libs.functional.syntax._
+/*
+  implicit val transactionFilterReads: Reads[TransactionFilter] = (
+    (JsPath \ "startDate").readNullable[Date] and
+      (JsPath \ "endDate").readNullable[Date] and
+      (JsPath \ "fundId").readNullable[Long] and
+      (JsPath \ "transType").readNullable[String] and
+      (JsPath \ "folioId").readNullable[Long]
+    ) (TransactionFilter.apply _)*/
+
+  implicit val transactionFilterFormat = Json.format[TransactionFilter]
+  implicit val folioUnitsFormat = Json.format[FolioUnits]
+  implicit val folioFilterFormat = Json.format[FolioFilter]
+  implicit val transFormat = Json.format[FundTransaction]
+  implicit val dashboardTopFundFormat = Json.format[DashboardTopFund]
+  implicit val redemptionDetailsFormat = Json.format[RedemptionDetails]
+  implicit val fundBasicDetailsFormat = Json.format[FundBasicDetails]
+  implicit val capitalGainFundsFormat = Json.format[FundDetails]
+  implicit val fundTransactionReportFormat = Json.format[FundTransactionReport]
+  implicit val capitalGainFundModelFormat = Json.format[CapitalGainFundModel]
+  implicit val transactionTypeFormat = Json.format[TransactionType]
+  implicit val transactionReportFormat = Json.format[TransactionReport]
+  implicit val dashboardFundDetailsFormat = Json.format[DashboardFundDetail]
+  implicit val assetClassFundDetailsFormat = Json.format[AssetClassFundDetails]
+}

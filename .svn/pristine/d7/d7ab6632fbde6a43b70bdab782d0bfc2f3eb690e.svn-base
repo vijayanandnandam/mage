@@ -1,0 +1,17 @@
+package constants
+
+/**
+  * Created by Rashmi on 13-03-2017.
+  */
+trait MongoConstants {
+
+  val TOKEN_COLLECTION_NAME = "tokencollection"
+  val CHECKOUT_COLLECTION_NAME = "checkoutMaster"
+
+
+  /*val CART_COLLECTION_NAME = "cartcollection"
+  val WISHLIST_COLLECTION_NAME = "wishlist"
+  val MAIL_COLLECTION_NAME = "MailStatus"
+  val MAIL_ACK_COLLECTION_NAME = "MailAck"*/
+
+}

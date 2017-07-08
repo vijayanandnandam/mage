@@ -1,0 +1,340 @@
+package repository.module
+
+import java.sql.Date
+import javax.inject.Inject
+
+import constants.{DBConstants, OrderConstants}
+import data.model.Tables.{Fcact, Fcholi, Fcoht, FcohtRowWrapper, Fcomt, FcomtRow, FcomtRowWrapper, Fcosht, FcoshtRow, FcoshtRowWrapper, Fcostm, FcostmRow, Fcsoct, FcsoctRow, FcsoctRowWrapper, Fcsot, FcsotRow, FcsotRowWrapper}
+import models.{OrderHistoryDetails, OrderModel, SubOrder, UserLoginObject}
+import play.api.db.slick.{DatabaseConfigProvider, HasDatabaseConfigProvider}
+import repository.tables.{FcbseRepo, FcomtRepo, FcostmRepo, FcsotRepo}
+import slick.jdbc.JdbcProfile
+import utils.DateTimeUtils
+
+import scala.collection.mutable.ListBuffer
+import scala.concurrent.{ExecutionContext, Future}
+
+/**
+  * Created by fincash on 16-02-2017.
+  */
+class OrderRepository @Inject()(implicit ec: ExecutionContext, protected val dbConfigProvider: DatabaseConfigProvider, fcbseRepo: FcbseRepo,
+                                fcsotRepo: FcsotRepo, fcostmRepo: FcostmRepo, fcomtRepo: FcomtRepo, schemeRepository: SchemeRepository,
+                                folioRepository: FolioRepository)
+  extends HasDatabaseConfigProvider[JdbcProfile] with OrderConstants with DBConstants {
+
+  import profile.api._
+
+  def checkSchemeFolioNo(subOrders: List[SubOrder], userLoginObject: UserLoginObject): Future[List[SubOrder]] = {
+
+    val userPk = userLoginObject.userid.get
+    val totalOrders = subOrders.size
+    val subOrderFolioFtr = for (subOrder <- subOrders) yield {
+      val soptrfnum = subOrder.buySchemeOptionRfnum
+      if (subOrder.addPrevFolioNo.isEmpty || subOrder.addPrevFolioNo.get == true) {
+        schemeRepository.getSchemeOptionAmcDetails(soptrfnum).flatMap(amctRowList => {
+          folioRepository.getAMCFolioNo(userPk, amctRowList.head.id).map(folioNo => {
+            folioNo
+          })
+        })
+      } else {
+        Future {
+          None
+        }
+      }
+    }
+    Future.sequence(subOrderFolioFtr).map(subOrderFolioList => {
+      val subOrderList: ListBuffer[SubOrder] = ListBuffer[SubOrder]()
+      for (i <- 0 until totalOrders) {
+        subOrderList.+=(subOrders(i).copy(folioNo = subOrderFolioList(i)))
+      }
+      subOrderList.toList
+    })
+  }
+
+  def placeNewOrder(orderModel: OrderModel, userLoginObject: UserLoginObject): Future[(FcomtRow, List[FcsotRow], List[SubOrder])] = {
+
+    val userPk = userLoginObject.userid.get
+    val userName = userLoginObject.username.get
+    checkSchemeFolioNo(orderModel.subOrders, userLoginObject).flatMap(subOrderList => {
+
+      val fcomtRow = new FcomtRowWrapper(None, orderModel.orderType, orderModel.cdslNdslPhysicalTxnMode.getOrElse(PHYSICAL_MODE), None, None, orderModel.ipAddress,
+        orderModel.orderDevice, MAIN_ORDER_INITIATED, userPk, orderModel.snapshotPath, orderModel.totalAmount).get(userName)
+      val fcohtRow = new FcohtRowWrapper(None, MAIN_ORDER_INITIATED, MAIN_ORDER_INITIATED, None, -1, Some(DateTimeUtils.getCurrentTimeStamp)).get(userName)
+
+      val sotRowList = ListBuffer[FcsotRow]()
+      val oshtRowList = ListBuffer[FcoshtRow]()
+      val soctRowList = ListBuffer[FcsoctRow]()
+
+      for (subOrder <- subOrderList) {
+        var subOrderTotalAmount = subOrder.amount
+        val fcsotRow = new FcsotRowWrapper(None, subOrder.paymentMode,
+          subOrder.dematPhysicalMode.getOrElse(PHYSICAL_MODE), ORDER_CREATED, subOrder.orderSeq, None, None, -1, subOrder.buySchemeOptionRfnum,
+          subOrder.transactionMode.getOrElse(BSE_TRANSACTION_MODE), subOrder.quantity, subOrderTotalAmount, subOrder.investmentMode,
+          subOrder.sipDayOfMonth, subOrder.orderType.getOrElse(FRESH), userPk, subOrder.sipFrequency,
+          subOrder.sipNoOfInstallments).get(userName)
+        val fcoshtRow = new FcoshtRowWrapper(None, ORDER_CREATED, ORDER_CREATED, Some(DateTimeUtils.getCurrentTimeStamp),
+          None, -1).get(userName)
+
+        sotRowList.+=(fcsotRow)
+        oshtRowList.+=(fcoshtRow)
+
+        if (!subOrder.folioNo.isEmpty) {
+          val fcsoctRow = new FcsoctRowWrapper(None, FOLIO_NO_KEY, subOrder.folioNo.getOrElse(""), -1).get(userName)
+          soctRowList.+=(fcsoctRow)
+        }
+      }
+      val query = for {
+        fcOmtUpdatedObj <- Fcomt returning Fcomt.map(_.id) into ((fcOmtObj, id) => fcOmtObj.copy(id = id)) += fcomtRow
+        fcohtUpdatedObj <- Fcoht returning Fcoht.map(_.id) into ((fcohtObj, id) => fcohtObj.copy(id = id)) += fcohtRow.copy(ohtomtrfnum = fcOmtUpdatedObj.id)
+        fcsotObjList <- Fcsot returning Fcsot.map(_.id) into ((fcsotObj, id) => fcsotObj.copy(id = id)) ++= sotRowList.map(sotRow => sotRow.copy(sotomtrfnum = fcOmtUpdatedObj.id))
+        fcoshtObjList <- Fcosht returning Fcosht.map(_.id) into ((fcsotObj, id) => fcsotObj.copy(id = id)) ++= oshtRowList.zipWithIndex.map { case (oshtRow, index) => oshtRow.copy(oshtsotrfnum = fcsotObjList(index).id) }
+        fcsoctObjList <- Fcsoct returning Fcsoct.map(_.id) into ((fcsoctObj, id) => fcsoctObj.copy(id = id)) ++= soctRowList.zipWithIndex.map { case (soctRow, index) => soctRow.copy(soctsotrfnum = fcsotObjList(index).id) }
+      } yield {
+        (fcOmtUpdatedObj, fcsotObjList)
+      }
+
+      db.run(query.transactionally).map(values => {
+
+        (values._1, values._2.toList, subOrderList)
+      })
+    })
+  }
+
+  def updateTransactionIdForSubOrder(sotrfnum: Long, omtrfnum: Long, orderCurrState: Long, transactionId: String, userName: String): Future[Int] = {
+
+    val query = {
+      sql"""SELECT SOTRFNUM FROM FCSOT WHERE SOTRFNUM = ${sotrfnum} FOR UPDATE""".as[Long]
+    } andThen {
+      sqlu"""UPDATE FCSOT SET SOTTRNSCTIONID1 = ${transactionId}, SOTOSTMSTATERFNUM = ${PLACED_AT_EXCHANGE},
+         MODIFYDATE = CURRENT_TIMESTAMP, LASTMODIFIEDBY =${userName} WHERE SOTRFNUM = ${sotrfnum}"""
+    } andThen {
+      val currentTime = DateTimeUtils.getCurrentTimeStamp()
+      Fcosht += new FcoshtRowWrapper(None, orderCurrState, PLACED_AT_EXCHANGE, Some(currentTime), None, sotrfnum).get(userName)
+    } andThen {
+      sql"""SELECT OMTRFNUM FROM FCOMT WHERE OMTRFNUM = ${omtrfnum} FOR UPDATE""".as[Long]
+    } andThen {
+      sqlu"""UPDATE FCOMT SET MODIFYDATE = CURRENT_TIMESTAMP, LASTMODIFIEDBY = ${userName} WHERE OMTRFNUM = ${omtrfnum}"""
+    }
+    db.run(query.transactionally).map(value => value)
+  }
+
+  def setCancelStateForSubOrder(sotrfnum: Long, omtrfnum: Long, orderCurrState: Long, userName: String): Future[Int] = {
+
+    val query = {
+      sql"""SELECT SOTRFNUM FROM FCSOT WHERE SOTRFNUM = ${sotrfnum} FOR UPDATE""".as[Long]
+    } andThen {
+      sqlu"""UPDATE FCSOT SET SOTOSTMSTATERFNUM = ${ORDER_CANCELLED},
+         MODIFYDATE = CURRENT_TIMESTAMP, LASTMODIFIEDBY =${userName} WHERE SOTRFNUM = ${sotrfnum}"""
+    } andThen {
+      val currentTime = DateTimeUtils.getCurrentTimeStamp()
+      Fcosht += new FcoshtRowWrapper(None, orderCurrState, ORDER_CANCELLED, Some(currentTime), None, sotrfnum).get(userName)
+    } andThen {
+      sql"""SELECT OMTRFNUM FROM FCOMT WHERE OMTRFNUM = ${omtrfnum} FOR UPDATE""".as[Long]
+    } andThen {
+      sqlu"""UPDATE FCOMT SET MODIFYDATE = CURRENT_TIMESTAMP, LASTMODIFIEDBY = ${userName} WHERE OMTRFNUM = ${omtrfnum}"""
+    }
+    db.run(query.transactionally).map(value => value)
+  }
+
+  def updateSipSubOrder(sotrfnum: Long, omtrfnum: Long, orderCurrState: Long, transactionId: String, userName: String): Future[Int] = {
+
+    val query = {
+      sql"""SELECT SOTRFNUM FROM FCSOT WHERE SOTRFNUM = ${sotrfnum} FOR UPDATE""".as[Long]
+    } andThen {
+      sqlu"""UPDATE FCSOT SET SOTTRNSCTIONID2 = ${transactionId}, SOTOSTMSTATERFNUM = ${PLACED_AT_EXCHANGE},
+            MODIFYDATE = CURRENT_TIMESTAMP, LASTMODIFIEDBY =${userName}  WHERE SOTRFNUM = ${sotrfnum}"""
+    } andThen {
+      val currentTime = DateTimeUtils.getCurrentTimeStamp()
+      Fcosht += new FcoshtRowWrapper(None, orderCurrState, PLACED_AT_EXCHANGE, Some(currentTime), None, sotrfnum).get(userName)
+    } andThen {
+      sql"""SELECT OMTRFNUM FROM FCOMT WHERE OMTRFNUM = ${omtrfnum} FOR UPDATE""".as[Long]
+    } andThen {
+      sqlu"""UPDATE FCOMT SET MODIFYDATE = CURRENT_TIMESTAMP, LASTMODIFIEDBY = ${userName} WHERE OMTRFNUM = ${omtrfnum}"""
+    }
+    db.run(query.transactionally).map(value => value)
+  }
+
+  def getBSESchemeCode(soptrfnum: Long): Future[String] = {
+    fcbseRepo.filter(_.bsesoptrfnum === soptrfnum).map(bseRowList => {
+      if (bseRowList.isEmpty) {
+        ""
+      } else {
+        bseRowList.head.bseschemecode.get
+      }
+    })
+  }
+
+  def getSubOrders(omtrfnum: Long): Future[List[FcsotRow]] = {
+    fcsotRepo.filter(_.sotomtrfnum === omtrfnum).map(sotRowList => {
+      if (sotRowList.isEmpty) {
+        List[FcsotRow]()
+      } else {
+        sotRowList.toList
+      }
+    })
+  }
+
+  def getOrderDetails(omtrfnum: Long): Future[Seq[(FcomtRow, FcsotRow)]] = {
+
+    val query = for {
+      omtObj <- Fcomt.filter(_.id === omtrfnum)
+      sotObj <- Fcsot.filter(_.sotomtrfnum === omtObj.id)
+    } yield (omtObj, sotObj)
+
+    db.run(query.result).map(orderTuple => {
+      orderTuple
+    })
+  }
+
+  def getCancelledSubOrders(omtrfnum: Long): Future[Seq[FcsotRow]] = {
+
+    fcsotRepo.filter(x => x.sotostmstaterfnum === ORDER_CANCELLED && x.sotomtrfnum === omtrfnum)
+  }
+
+  def getSubOrderDetails(sotrfnum: Long, userPk: Long): Future[Seq[FcsotRow]] = {
+    fcsotRepo.filter(x => {
+      (x.id === sotrfnum) && (x.sotubdrfnum === userPk)
+    })
+  }
+
+  def getSubOrderListDetails(sotrfnumList: ListBuffer[Long], userPk: Long): Future[Seq[FcsotRow]] = {
+    fcsotRepo.filter(x => {
+      (x.id inSetBind(sotrfnumList)) && (x.sotubdrfnum === userPk)
+    })
+  }
+
+  def updateOrderState(omtrfnum: Long, orderCurrState: Long, orderNewState: Long, userName: String): Future[String] = {
+
+    val query = {
+      sql"""SELECT OMTRFNUM FROM FCOMT WHERE OMTRFNUM = ${omtrfnum} FOR UPDATE""".as[Long]
+    } andThen {
+      sqlu"""UPDATE FCOMT SET OMTOSTMSTATERFNUM = ${orderNewState},
+            MODIFYDATE = CURRENT_TIMESTAMP, LASTMODIFIEDBY =${userName}  WHERE OMTRFNUM = ${omtrfnum}"""
+    } andThen {
+      val currentTime = DateTimeUtils.getCurrentTimeStamp()
+      Fcoht += new FcohtRowWrapper(None, orderCurrState, orderNewState, None, omtrfnum, Some(currentTime)).get(userName)
+    } andThen {
+      sql"""SELECT OSTMDISPLAYNAME FROM FCOSTM WHERE OSTMRFNUM = (SELECT OMTOSTMSTATERFNUM FROM FCOMT
+           WHERE OMTRFNUM = ${omtrfnum} )""".as[String]
+    }
+    db.run(query.transactionally).map(value => value.head)
+  }
+
+  def updateSubOrderState(sotrfnum: Long, omtrfnum: Long, orderCurrState: Long, orderNewState: Long, userName: String): Future[String] = {
+
+    val query = {
+      sql"""SELECT SOTRFNUM FROM FCSOT WHERE SOTRFNUM = ${sotrfnum} FOR UPDATE""".as[Long]
+    } andThen {
+      sqlu"""UPDATE FCSOT SET SOTOSTMSTATERFNUM = ${orderNewState},
+            MODIFYDATE = CURRENT_TIMESTAMP, LASTMODIFIEDBY =${userName}  WHERE SOTRFNUM = ${sotrfnum}"""
+    } andThen {
+      val currentTime = DateTimeUtils.getCurrentTimeStamp()
+      Fcosht += new FcoshtRowWrapper(None, orderCurrState, orderNewState, Some(currentTime), None, sotrfnum).get(userName)
+    } andThen {
+      sql"""SELECT OMTRFNUM FROM FCOMT WHERE OMTRFNUM = ${omtrfnum} FOR UPDATE""".as[Long]
+    } andThen {
+      sqlu"""UPDATE FCOMT SET MODIFYDATE = CURRENT_TIMESTAMP, LASTMODIFIEDBY = ${userName} WHERE OMTRFNUM = ${omtrfnum}"""
+    } andThen {
+      sql"""SELECT OSTMDISPLAYNAME FROM FCOSTM WHERE OSTMRFNUM = (SELECT SOTOSTMSTATERFNUM FROM FCSOT
+           WHERE SOTRFNUM = ${sotrfnum} )""".as[String]
+    }
+    db.run(query.transactionally).map(value => value.head)
+  }
+
+  def getSubOrderState(sotrfnum: Long, userName: String): Future[String] = {
+
+    val query = for {
+      sotObj <- Fcsot.filter(x => (x.id === sotrfnum) && (x.sotostmstaterfnum != ORDER_CANCELLED) && (x.createdby === userName))
+      ostmObj <- Fcostm.filter(_.id === sotObj.sotostmstaterfnum)
+    } yield (ostmObj.ostmdisplayname)
+
+    db.run(query.result).map(value => value.head)
+  }
+
+  def getOrderMasterDetails(sotrfnum: Long): Future[Option[FcomtRow]] = {
+    fcomtRepo.getById(sotrfnum)
+  }
+
+  def getStateDetails(ostmrfnum: Long): Future[Option[FcostmRow]] = {
+    fcostmRepo.getById(ostmrfnum)
+  }
+
+  def getSubOrderHistoryDetails(sotrfnum: Long): Future[Seq[OrderHistoryDetails]] = {
+    val query = for {
+      oshtRow <- Fcosht.filter(_.oshtsotrfnum === sotrfnum)
+      ostmRow <- Fcostm.filter(_.id === oshtRow.oshtostmtorfnum)
+    } yield (oshtRow, ostmRow)
+
+    db.run(query.result).map(values => {
+      for (historyTuple <- values) yield {
+        val oshtRow = historyTuple._1
+        val ostmRow = historyTuple._2
+        val stateDate = DateTimeUtils.convertSqlTimestampToString(oshtRow.oshtdatestatechange.get)
+        OrderHistoryDetails(oshtRow.id, ostmRow.ostmdisplayname, stateDate)
+      }
+    })
+  }
+
+  def getOrderHistoryDetails(omtrfnum: Long): Future[Seq[OrderHistoryDetails]] = {
+    val query = for {
+      ohtRow <- Fcoht.filter(_.ohtomtrfnum === omtrfnum)
+      ostmRow <- Fcostm.filter(_.id === ohtRow.ohtostmtostaterfnum)
+    } yield (ohtRow, ostmRow)
+
+    db.run(query.result).map(values => {
+      for (historyTuple <- values) yield {
+        val oshtRow = historyTuple._1
+        val ostmRow = historyTuple._2
+        val stateDate = DateTimeUtils.convertSqlTimestampToString(oshtRow.ohtdateofstatechange.get)
+        OrderHistoryDetails(oshtRow.id, ostmRow.ostmdisplayname, stateDate)
+      }
+    })
+  }
+
+  def isAlreadyInBSE(orderModel:OrderModel,subOrder:SubOrder, userPk:Long):Future[Boolean] = {
+
+    val query = for{
+      omtObj <- Fcomt.filter(x => (x.omtubdrfnum === userPk && x.omtbuysell === orderModel.orderType))
+      sotObj <- Fcsot.filter(x => x.sotsoptrfnum === subOrder.buySchemeOptionRfnum &&
+        x.sotinvestmentmode === subOrder.investmentMode && x.sotubdrfnum === userPk &&
+        x.sotomtrfnum === omtObj.id && (x.sotostmstaterfnum === PLACED_AT_EXCHANGE || x.sotostmstaterfnum === ORDER_AWAITING_PAYMENT))
+    }yield()
+
+    db.run(query.result).map(orders =>{
+      orders.nonEmpty
+    })
+  }
+
+  def isHolidayExists(date:Date, category:String, amctrfnum:Long):Future[Boolean] = {
+
+    val query = for{
+      bankHoliday <- Fcholi.filter(x => x.holidate === date && x.holimarketsegment.toLowerCase === BANK_MARKET_SEGMENT.toLowerCase).result
+      marketTypeHoliday <- Fcholi.filter(x => x.holidate === date && x.holimarketsegment.toLowerCase === category.toLowerCase).result
+    }yield(bankHoliday, marketTypeHoliday)
+
+    db.run(query).map(holidayTuple =>{
+      var bankHoliday = false
+      if(holidayTuple._1.nonEmpty){
+        bankHoliday = true
+      }
+      var marketHoliday = false
+      if(holidayTuple._2.nonEmpty){
+        marketHoliday = true
+      }
+      if(bankHoliday || marketHoliday){
+        true
+      } else false
+    })
+  }
+
+  def getBSECutOff():Future[String] = {
+    val query = Fcact.filter(_.actconstantname === BSE_STD_CUTOFF_KEY).result
+    db.run(query).map(actRowList =>{
+      if(actRowList.isEmpty){
+        ""
+      } else{
+        actRowList.head.actconstantvalue
+      }
+    })
+  }
+}

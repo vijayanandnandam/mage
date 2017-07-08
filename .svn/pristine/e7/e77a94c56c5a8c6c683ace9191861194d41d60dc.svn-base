@@ -1,0 +1,161 @@
+package controllers
+import com.google.inject.Inject
+import constants.MongoConstants
+import helpers.AuthenticatedAction
+import models.Cart
+import models.CartJsonFormats._
+import org.slf4j.LoggerFactory
+import play.api.libs.json.Json.toJsFieldJsValueWrapper
+import play.api.libs.json.{JsObject, Json}
+import play.api.mvc.Controller
+import play.modules.reactivemongo.json.ImplicitBSONHandlers._
+import reactivemongo.api.commands.{UpdateWriteResult, WriteResult}
+import reactivemongo.bson.DefaultBSONHandlers._
+import reactivemongo.bson.{BSONDocument, BSONObjectID}
+import reactivemongo.core.errors.DatabaseException
+import reactivemongo.play.json.BSONFormats
+import service._
+
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
+import scala.util.{Failure, Success}
+
+class CartController @Inject()(schemeService: SchemeService, auth: AuthenticatedAction, userService: UserService,
+                               mongoDbService: MongoDbService, productService: ProductService, cartService: CartService,
+                               orderService: OrderService) extends Controller with MongoConstants {
+
+  val logger , log = LoggerFactory.getLogger(classOf[CartController])
+
+  def collection(name: String) =  mongoDbService.collection(name)
+  /**
+    * This is dummy method used to add funds to solr index
+    *
+    * @return
+    */
+
+
+  def saveCart = auth.Action.async(parse.json) { request =>
+    val requestData = request.body
+    var id = (requestData \ "id").as[String];
+    var funds = (requestData \ "funds").as[List[JsObject]]
+    var cartId: BSONObjectID = BSONObjectID.generate();
+    if (!(id.length == 0)) {
+      cartId = BSONObjectID.parse(id).get;
+    }
+
+    userService.getUsernameFromRequest(request).flatMap { username => {
+      logger.debug("Username " + username)
+      var findQuery = BSONDocument("username" -> username, "_id" -> cartId);
+      /*var findQuery = BSONDocument("_id" -> cartId)*/
+      var modifier = BSONDocument(
+        "_id" -> cartId,
+        "username" -> username,
+        "funds" -> funds
+      )
+
+      collection(CHECKOUT_COLLECTION_NAME).flatMap { coll =>
+        coll.find(findQuery)
+          .one[BSONDocument].flatMap(doc => {
+          if (doc.isEmpty) {
+            val writeRes : Future[WriteResult] = mongoDbService.insertDoc(coll, modifier)
+            writeRes.onComplete{
+              case Failure(e) => {
+                logger.error("Mongo Error :: " + e.getMessage)
+                InternalServerError(Json.obj("success" -> false, "error" -> e.getMessage, "message" -> e.getMessage))
+              }
+              case Success(writeResult) =>{
+                logger.debug("successfully inserted document with result: $writeResult")
+              }
+            }
+            writeRes.map(_ => {Ok(Json.obj("cartId" -> cartId.stringify, "success"-> true))})
+          }
+          else {
+            val writeRes : Future[UpdateWriteResult] = mongoDbService.updateDoc(coll, findQuery, modifier)
+            writeRes.onComplete{
+              case Failure(e) => {
+                logger.error("Mongo Error :: " + e.getMessage)
+                InternalServerError(Json.obj("success" -> false, "error" -> e.getMessage, "message" -> e.getMessage))
+              }
+              case Success(writeResult) =>{
+                logger.debug("successfully inserted document with result: $writeResult")
+              }
+            }
+            writeRes.map(_ => {Ok(Json.obj("cartId" -> cartId.stringify, "success"-> true))
+          })
+          }
+        })
+      }
+    }
+    }
+  }
+
+  def getCartData = auth.Action.async(parse.json) { request =>
+    val cartId = request.body.\("id").as[String];
+    userService.getUsernameFromRequest(request).flatMap { username => {
+     var findQuery = BSONDocument("username" -> username, "_id" -> BSONObjectID.parse(cartId).get)
+      /*var findQuery = BSONDocument("_id" -> BSONObjectID.parse(cartId).get)*/
+      /*val fundIdList = List.empty[Int]
+      var investmentModeList = List[String]();*/
+      collection(CHECKOUT_COLLECTION_NAME).flatMap { coll =>
+        coll.find(findQuery).one[BSONDocument].map(doc => {
+          if (doc.isEmpty) {
+            Ok(Json.toJson(new Cart("", None)));
+          } else {
+            val fundsList: List[JsObject] = (BSONFormats.BSONDocumentFormat.writes(doc.get).as[JsObject] \ "funds").as[List[JsObject]]
+            val cart = new Cart(cartId, Some(fundsList));
+            Ok(Json.toJson(cart));
+          }
+
+        })
+      }
+    }.recover {
+      case dex: DatabaseException => {
+        InternalServerError(Json.obj("error" -> dex.message, "success"-> false))
+      }
+      case e: Throwable => {
+        InternalServerError(Json.obj("error" -> e.getMessage, "success"-> false))
+      }
+    }
+    }
+
+  }
+
+  def mergeCart = auth.Action.async(parse.json) { request =>
+    val requestData = request.body;
+    logger.debug(request.body.toString());
+    val recievedId = requestData.\("cartId").toOption;
+    var cartId: Option[String] = None;
+    logger.debug(recievedId.toString);
+    if (recievedId.nonEmpty) {
+      cartId = Some(recievedId.get.as[String]);
+    } else {
+      cartId = None;
+    }
+
+    userService.getUsernameFromRequest(request).flatMap(username => {
+      collection(CHECKOUT_COLLECTION_NAME).flatMap(coll => {
+        cartService.mergeCart(coll, username.get, cartId).map(data => {
+          val cart = new Cart(data._1, Some(data._2));
+          Ok(Json.toJson(cart));
+        })
+      });
+    });
+
+  }
+
+  def removeFundById = auth.Action.async(parse.json) { request =>
+    var requestData = request.body;
+    logger.debug(request.body.toString());
+    val soptRfnum = requestData.\("id").get.as[String];
+    val cartid = requestData.\("cartid").get.as[String]
+
+    userService.getUsernameFromRequest(request).flatMap(username => {
+      collection(CHECKOUT_COLLECTION_NAME).flatMap(coll => {
+        cartService.removeFund(coll, username.get, soptRfnum, cartid).map(data => {
+          Ok(Json.toJson(data));
+        })
+      });
+    })
+
+  }
+}

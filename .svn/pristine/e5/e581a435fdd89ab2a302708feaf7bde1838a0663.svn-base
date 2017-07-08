@@ -1,0 +1,237 @@
+package utils
+
+import java.sql.Timestamp
+import java.text.{DateFormat, DecimalFormat, SimpleDateFormat}
+
+import org.joda.time.DateTime
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
+
+import constants.DateConstants
+import org.slf4j.LoggerFactory
+
+object DateTimeUtils extends DateConstants {
+
+  val logger, log = LoggerFactory.getLogger(getClass)
+
+
+  /**
+    * Returns the current date
+    * in yyyymmdd format
+    */
+  def getDateInYYYYMMDD(): String = {
+
+    val dF = new DecimalFormat("00")
+    val dateTime = new DateTime
+    val dateValue: StringBuilder = new StringBuilder
+
+    dateValue.append(dateTime.getYear)
+    dateValue.append(dF.format(dateTime.getMonthOfYear))
+    dateValue.append(dF.format(dateTime.getDayOfMonth))
+
+    dateValue.toString
+
+  }
+
+  /**
+    * Returns number of years between two dates
+    *
+    * @param first
+    * @param last
+    * @return
+    */
+  def getDiffYears(first: Date, last: Date): Int = {
+    val a = getCalendar(first);
+    val b = getCalendar(last);
+    var diff = b.get(Calendar.YEAR) - a.get(Calendar.YEAR);
+    if (a.get(Calendar.MONTH) > b.get(Calendar.MONTH) ||
+      (a.get(Calendar.MONTH) == b.get(Calendar.MONTH) && a.get(Calendar.DATE) > b.get(Calendar.DATE) + 1)) {
+      diff = diff - 1
+    }
+    diff
+  }
+
+  /**
+    * takes date input in format yyyy-MM-dd and returns java.sql.date
+    *
+    * @param dateString
+    * @return
+    */
+  def yyyyMMddToSQLDate(dateString: String): java.sql.Date = {
+    val simpleDateFormat: SimpleDateFormat = new SimpleDateFormat(YYYYMMDD);
+    val date: Date = simpleDateFormat.parse(dateString);
+    new java.sql.Date(date.getTime());
+  }
+
+  def getCurrentTimeStamp() = {
+    new java.sql.Timestamp(Calendar.getInstance.getTimeInMillis)
+  }
+
+  def getCurrentTimeStampString(format: Option[String]): String = {
+    val outputFormat = format.getOrElse(YYYYMMDDHHMMSS);
+    val dateFormat: DateFormat = new SimpleDateFormat(outputFormat);
+    val cal: Calendar = Calendar.getInstance();
+    dateFormat.format(cal.getTime());
+
+  }
+
+  def getTimestampAfterInterval(mins: Int) = {
+    val calendar = Calendar.getInstance()
+    calendar.add(Calendar.MINUTE, mins)
+    new java.sql.Timestamp(calendar.getTimeInMillis)
+  }
+
+  def getTimestampAfterDays(days: Int) = {
+    val calendar = Calendar.getInstance()
+    calendar.add(Calendar.DAY_OF_MONTH, days)
+    new java.sql.Timestamp(calendar.getTimeInMillis)
+  }
+
+  private def getCalendar(date: Date): Calendar = {
+    val cal = Calendar.getInstance(Locale.US);
+    cal.setTime(date);
+    return cal
+  }
+
+  def convertStringDateToDDMMYY(date: String): Date = {
+    new SimpleDateFormat(DDMMYY).parse(date)
+  }
+
+  def convertStringYYYYMMDDDateToDDMMYYYY(date: String): String = {
+    val retval = convertStringDateWithFormats(date, YYYYMMDD, BSE_CLIENT_DOB_FORMAT)
+    if (retval.isDefined) {
+      retval.get
+    } else {
+      throw new Exception("Date Parsing Error > cant parse " + date + " from " + YYYYMMDD + " to " + BSE_CLIENT_DOB_FORMAT);
+    }
+  }
+
+  def convertDateToYYYYMMDD(date: Date): String = {
+    new SimpleDateFormat(YYYYMMDD).format(date)
+  }
+
+  def convertDateToFormat(date: Date, format: String): String = {
+    new SimpleDateFormat(format).format(date)
+  }
+
+  def convertDateToFormat(date: String, format: String): Option[Date] = {
+    try {
+      Some(new SimpleDateFormat(format).parse(date))
+    } catch {
+      case e: Exception => logger.debug(e.getMessage)
+        None
+    }
+  }
+
+  def convertStringDateWithFormats(date: String, fromformat: String, toformat: String): Option[String] = {
+    try {
+      Some(new SimpleDateFormat(toformat).format(new SimpleDateFormat(fromformat).parse(date)))
+    } catch {
+      case e: Exception => logger.debug(e.getMessage)
+        None
+    }
+  }
+
+  def getCurrentDate(): Date = {
+    convertStringDateToDDMMYY(new SimpleDateFormat(YYYYMMDD).format(new Date()))
+  }
+
+  def getFinancialYear(offset: Int): (Date, Date) = {
+
+    val calendar = Calendar.getInstance()
+    calendar.set(Calendar.MONTH, 2)
+    calendar.set(Calendar.DATE, calendar.getActualMaximum(Calendar.DAY_OF_MONTH))
+    calendar.add(Calendar.YEAR, -offset)
+    val endDate = calendar.getTime
+
+    calendar.set(Calendar.MONTH, 3)
+    calendar.set(Calendar.DATE, calendar.getActualMinimum(Calendar.DAY_OF_MONTH))
+    calendar.add(Calendar.YEAR, -1)
+    val startDate = calendar.getTime
+
+    (startDate, endDate)
+  }
+
+
+  def getEstimatedSIPDate(dayOfMonth: Int): String = {
+
+    val calendar = Calendar.getInstance()
+    while (calendar.getActualMaximum(Calendar.DAY_OF_MONTH) < dayOfMonth) {
+      calendar.set(Calendar.MONTH, calendar.get(Calendar.MONTH) + 1)
+    }
+    calendar.set(Calendar.DATE, dayOfMonth)
+    val currentDate = Calendar.getInstance()
+    var daysDiff = (calendar.getTime.getTime - currentDate.getTime.getTime) / (1000 * 60 * 60 * 24) + 1
+
+    while (daysDiff < 15) {
+      calendar.set(Calendar.MONTH, calendar.get(Calendar.MONTH) + 1)
+      daysDiff = (calendar.getTime.getTime - currentDate.getTime.getTime) / (1000 * 60 * 60 * 24) + 1
+    }
+    new SimpleDateFormat(BSE_SIP_DATE_FORMAT).format(calendar.getTime)
+  }
+
+  def checkBsePassTimeValidity(time: java.sql.Timestamp): Boolean = {
+
+    val expiryTime = (time.getTime) / 1000
+    val currTime = Calendar.getInstance().getTimeInMillis / 1000
+
+    if (expiryTime - currTime > 60) {
+      true
+    } else {
+      false
+    }
+  }
+
+  def convertSqlTimestampToString(time: java.sql.Timestamp) = {
+
+    val date = new Date()
+    val timeInMillis = time.getTime
+    date.setTime(timeInMillis)
+    val dateFormat: DateFormat = new SimpleDateFormat(YYYYMMDDHHMMSS);
+    dateFormat.format(date);
+  }
+
+  def isOrderCancelAllowed(orderTime: java.sql.Timestamp): Boolean = {
+
+    val cutOffTime = getOrderCancelCutoff(orderTime)
+    !new Date().after(cutOffTime)
+  }
+
+  /**
+    * Returns order Cancellation time
+    *
+    * @param orderTime
+    * @return
+    */
+  def getOrderCancelCutoff(orderTime: java.sql.Timestamp): Date = {
+
+    val orderPlacedTime = Calendar.getInstance()
+    orderPlacedTime.setTime(new Date(orderTime.getTime))
+
+    val dayCutOffTime = Calendar.getInstance()
+    dayCutOffTime.setTimeInMillis(orderTime.getTime)
+    dayCutOffTime.set(Calendar.HOUR_OF_DAY, 14)
+    dayCutOffTime.set(Calendar.MINUTE, 25)
+    dayCutOffTime.set(Calendar.SECOND, 0)
+
+    var day = dayCutOffTime.get(Calendar.DAY_OF_WEEK)
+    while(day == 1 || day == 7){
+      dayCutOffTime.add(Calendar.DAY_OF_MONTH,1)
+      day = dayCutOffTime.get(Calendar.DAY_OF_WEEK)
+    }
+
+    if(orderPlacedTime.getTime.after(dayCutOffTime.getTime)){
+      dayCutOffTime.add(Calendar.DAY_OF_MONTH,1)
+      var day = dayCutOffTime.get(Calendar.DAY_OF_WEEK)
+      while(day < 2 || day > 6){
+        dayCutOffTime.add(Calendar.DAY_OF_MONTH,1)
+        day = dayCutOffTime.get(Calendar.DAY_OF_WEEK)
+      }
+    }
+
+    dayCutOffTime.getTime
+
+  }
+
+}

@@ -1,0 +1,68 @@
+package service
+
+import java.util.Calendar
+import javax.inject.Inject
+
+import constants.{DBConstants, OrderConstants}
+import data.model.Tables.FcsotRow
+import org.slf4j.LoggerFactory
+import repository.module.OrderRepository
+import utils.DateTimeUtils
+
+import scala.collection.mutable
+import scala.concurrent.{ExecutionContext, Future}
+
+/**
+  * Created by fincash on 26-04-2017.
+  */
+class PaymentService @Inject()(implicit ec: ExecutionContext, orderRepository: OrderRepository, marketService: MarketService) extends DBConstants with OrderConstants {
+
+  val logger, log = LoggerFactory.getLogger(classOf[PaymentService])
+
+  def getPaymentAllowedSubOrders(userPk: Long, sipFlag:Boolean): Future[List[FcsotRow]] = {
+
+    orderRepository.getBSECutOff(BSE_PAY_START_CUTOFF_KEY).flatMap(lastOrderCutOffTime => {
+      orderRepository.getBSECutOff(BSE_PAY_CUTOFF_KEY).flatMap(lastPayCutOffTime => {
+
+        for {
+          equityMarketSubOrders <- getPaymentAllowedSegmentSubOrders(userPk, EQUITY_MARKET_SEGMENT, lastOrderCutOffTime, lastPayCutOffTime, sipFlag)
+          debtMarketSubOrders <- getPaymentAllowedSegmentSubOrders(userPk, DEBT_MARKET_SEGMENT, lastOrderCutOffTime, lastPayCutOffTime, sipFlag)
+        } yield {
+          equityMarketSubOrders ++ debtMarketSubOrders
+        }
+      })
+    })
+  }
+
+  def getPaymentAllowedSegmentSubOrders(userPk: Long, marketSegment: String, lastOrderCutOffTime: String, lastPayCutOffTime: String, sipFlag:Boolean): Future[List[FcsotRow]] = {
+
+    val todayTime = Calendar.getInstance()
+    val currTime = todayTime.clone.asInstanceOf[Calendar]
+    marketService.getPrevWorkingDay(currTime, marketSegment).flatMap(prevWorkingDay => {
+      val prevDay = prevWorkingDay.clone.asInstanceOf[Calendar]
+      marketService.getPrevWorkingDay(prevDay, marketSegment).flatMap(prevToPrevWorkingDay => {
+
+        val prevToPrevWorkingDayCutOff = marketService.addCuttOffTimeToWorkingDay(prevToPrevWorkingDay, lastOrderCutOffTime)
+        val prevWorkingDayCutOff = marketService.addCuttOffTimeToWorkingDay(prevWorkingDay, lastOrderCutOffTime)
+        val currWorkingTime = todayTime.clone.asInstanceOf[Calendar]
+        val currWorkingDayCutOff = marketService.addCuttOffTimeToWorkingDay(currWorkingTime, lastPayCutOffTime)
+        var prevWorkingDaySqlTime = DateTimeUtils.convertCalendarToSqlTimestamp(prevToPrevWorkingDayCutOff)
+
+        marketService.isWorkingHoliday(todayTime, marketSegment).flatMap(isHolidayToday => {
+          if (!isHolidayToday && todayTime.getTime.after(currWorkingDayCutOff.getTime)) {
+            prevWorkingDaySqlTime = DateTimeUtils.convertCalendarToSqlTimestamp(prevWorkingDayCutOff)
+          }
+          orderRepository.getSegmentPaymentAllowedSubOrders(userPk, prevWorkingDaySqlTime, marketSegment,sipFlag)
+        })
+      })
+    })
+  }
+
+  def getSubOrdersMap(subOrderList: List[FcsotRow]): mutable.HashMap[Long, Boolean] = {
+    val subOrderMap: mutable.HashMap[Long, Boolean] = new mutable.HashMap[Long, Boolean]()
+    for (subOrder <- subOrderList) {
+      subOrderMap.+=(subOrder.id -> true)
+    }
+    subOrderMap
+  }
+}

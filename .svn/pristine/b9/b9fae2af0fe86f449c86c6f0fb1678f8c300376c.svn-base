@@ -1,0 +1,252 @@
+package controllers
+
+import com.google.inject.Inject
+import constants.{DBConstants, MongoConstants, OrderConstants}
+import helpers.{AuthenticatedAction, MailHelper, SchemeHelper}
+import models.enumerations.{InvestmentModeEnum, RedemptionModeEnum}
+import models._
+import models.RedemptionJsonFormats._
+import models.OrderJsonFormats._
+import org.slf4j.LoggerFactory
+import play.api.libs.json.{JsObject, Json}
+import play.api.mvc.Controller
+import reactivemongo.api.commands.{UpdateWriteResult, WriteResult}
+import reactivemongo.bson.{BSONDocument, BSONObjectID}
+import reactivemongo.play.json.BSONFormats
+import repository.module.UserRepository
+import repository.tables.FcubdRepo
+import service._
+import play.modules.reactivemongo.json.ImplicitBSONHandlers._
+import utils.{DBConstantsUtil, RequestUtils}
+
+import scala.collection.mutable.ListBuffer
+import scala.concurrent.{ExecutionContext, Future}
+import scala.util.{Failure, Success}
+
+/**
+  * Created by Fincash on 27-04-2017.
+  */
+class RedemptionController @Inject()(implicit ec: ExecutionContext, auth: AuthenticatedAction, mongoDbService: MongoDbService, checkoutService: CheckoutService, userRepository: UserRepository, fcubdRepo: FcubdRepo, userService: UserService,
+                                     orderService: OrderService, schemeHelper: SchemeHelper, mailService: MailService, mailHelper: MailHelper, configuration: play.api.Configuration)
+  extends Controller with OrderConstants with DBConstants with MongoConstants {
+
+  val logger, log = LoggerFactory.getLogger(classOf[RedemptionController])
+
+  def collection(name: String) = mongoDbService.collection(name)
+
+  /*def getRedemptionData = auth.Action.async(parse.json) { request =>
+
+    val cartId = (request.body \"cartId").as[String]
+
+    userService.getUserObjectFromReq(request).flatMap(userObject => {
+      for {
+        fundsList <- checkoutService.getCheckoutFunds(collection(CHECKOUT_COLLECTION_NAME) , userObject.get.username.get, cartId)
+        nominee <- checkoutService.getCheckoutNominee(userObject.get.userid.get)
+        bank <- checkoutService.getCheckoutBanks(userObject.get.userid.get)
+      } yield {
+
+        if (nominee.isDefined) {
+          val checkout: Checkout = new Checkout(
+            cartId,
+            fundsData = fundsList.toList,
+            nomineeList = Some(List.apply(nominee.get)),
+            bankList = List.apply(bank));
+          Ok(Json.toJson(checkout));
+        } else {
+          val checkout: Checkout = new Checkout(cartId,
+            fundsData = fundsList.toList,
+            nomineeList = None,
+            bankList = List.apply(bank));
+          Ok(Json.toJson(checkout));
+        }
+
+      }
+    })
+  }*/
+
+  def getRedemptionDataSummary = auth.Action.async(parse.json) { request =>
+    val cartId = (request.body \ "cartId").as[String]
+    var findQuery = BSONDocument("_id" -> BSONObjectID.parse(cartId).get)
+    collection(CHECKOUT_COLLECTION_NAME).flatMap { coll =>
+      coll.find(findQuery).one[BSONDocument].flatMap(doc => {
+        if (doc.isEmpty) {
+          userService.getUserObjectFromReq(request).flatMap(userObject => {
+            for {
+            //              fundsList <- checkoutService.getCheckoutFunds(collection(CHECKOUT_COLLECTION_NAME), userObject.get.username.get, cartId)
+              nominee <- checkoutService.getCheckoutNominee(userObject.get.userid.get)
+              bank <- checkoutService.getCheckoutBanks(userObject.get.userid.get)
+            } yield {
+
+              if (nominee.isDefined) {
+                val redemption: Redemption = new Redemption(
+                  "",
+                  fundsData = List[RedemptionFund](), //fundsList.toList,
+                  nomineeList = Some(List.apply(nominee.get)),
+                  bankList = List.apply(bank))
+                Ok(Json.toJson(redemption))
+              } else {
+                val redemption: Redemption = new Redemption(
+                  "",
+                  fundsData = List[RedemptionFund](), //fundsList.toList,
+                  nomineeList = None,
+                  bankList = List.apply(bank))
+                Ok(Json.toJson(redemption))
+              }
+            }
+          })
+          //          Ok(Json.toJson(new Redemption("", List[RedemptionFund](), None, List[CheckoutBank](), None, None, None)))
+        } else {
+          if (doc.get.contains("redemption")) {
+            val redemption = (BSONFormats.BSONDocumentFormat.writes(doc.get).as[JsObject] \ "redemption").as[JsObject]
+            logger.debug("redemption >> " + redemption)
+            Future {
+              Ok(Json.toJson(redemption))
+            }
+          }
+          else {
+            userService.getUserObjectFromReq(request).flatMap(userObject => {
+              for {
+              //              fundsList <- checkoutService.getCheckoutFunds(collection(CHECKOUT_COLLECTION_NAME), userObject.get.username.get, cartId)
+                nominee <- checkoutService.getCheckoutNominee(userObject.get.userid.get)
+                bank <- checkoutService.getCheckoutBanks(userObject.get.userid.get)
+              } yield {
+                if (nominee.isDefined) {
+                  val redemption: Redemption = new Redemption(
+                    cartId,
+                    fundsData = List[RedemptionFund](), //fundsList.toList,
+                    nomineeList = Some(List.apply(nominee.get)),
+                    bankList = List.apply(bank))
+                  Ok(Json.toJson(redemption))
+                } else {
+                  val redemption: Redemption = new Redemption(
+                    cartId,
+                    fundsData = List[RedemptionFund](), //fundsList.toList,
+                    nomineeList = None,
+                    bankList = List.apply(bank))
+                  Ok(Json.toJson(redemption))
+                }
+              }
+            })
+            //            Future{Ok(Json.toJson(new Redemption("", List[RedemptionFund](), None, List[CheckoutBank](), None, None, None)))}
+          }
+        }
+      })
+    }
+  }
+
+  def saveRedemptionData = auth.Action.async(parse.json) { request => {
+    val id = (request.body \ "cartId").as[String]
+    val redemption = (request.body \ "redemption").as[JsObject]
+    var cartId: Option[BSONObjectID] = None
+    if (id.length > 0) {
+      cartId = Some(BSONObjectID.parse(id).get)
+    } else {
+      cartId = Some(BSONObjectID.generate())
+    }
+
+    userService.getUsernameFromRequest(request).flatMap { usernameOpt => {
+      val username = usernameOpt.getOrElse("Anonymous")
+      /*var findQuery = BSONDocument("username" -> username, "_id" -> cartId);*/
+      val findQuery = BSONDocument("_id" -> cartId.get)
+      val modifier = BSONDocument(
+        "_id" -> cartId.get,
+        "username" -> username,
+        "redemption" -> redemption
+      )
+
+      collection(CHECKOUT_COLLECTION_NAME).flatMap { coll =>
+        coll.find(findQuery).one[BSONDocument].flatMap(doc => {
+          if (doc.isEmpty) {
+            logger.debug("cart not found creating new one with id  >>> " + cartId.get.stringify)
+            val writeRes: Future[WriteResult] = mongoDbService.insertDoc(coll, modifier)
+            writeRes.onComplete {
+              case Failure(e) => {
+                logger.error("Mongo Error :: " + e.getMessage + " in saving >>> " + cartId.get.stringify)
+                Ok(Json.obj("success" -> false, "error" -> e.getMessage, "message" -> e.getMessage))
+              }
+              case Success(writeResult) => {
+                logger.debug("successfully inserted document with result " + cartId.get.stringify)
+              }
+            }
+            writeRes.map(_ => {
+              Ok(Json.obj("cartId" -> cartId.get.stringify, "success" -> true))
+            })
+          }
+          else {
+            logger.debug("cart id " + cartId.get.stringify)
+            val writeRes: Future[UpdateWriteResult] = mongoDbService.updateDoc(coll, findQuery, BSONDocument("username" -> username, "redemption" -> redemption))
+            writeRes.onComplete {
+              case Failure(e) => {
+                logger.error("Mongo Error :: " + e.getMessage + " in saving >>> " + cartId.get.stringify)
+                Ok(Json.obj("success" -> false, "error" -> e.getMessage, "message" -> e.getMessage))
+              }
+              case Success(writeResult) => {
+                logger.debug("successfully inserted document with result " + cartId.get.stringify)
+              }
+            }
+            writeRes.map(_ => {
+              Ok(Json.obj("cartId" -> cartId.get.stringify, "success" -> true))
+            })
+          }
+        })
+      }
+    }
+    }
+  }
+  }
+
+  def redeem = auth.Action.async(parse.json) { request =>
+    userService.getUserObjectFromReq(request).flatMap(userObject => {
+      val summaryData = request.body.as[RedemptionSummary]
+
+      val subOrderList: ListBuffer[SubOrder] = ListBuffer[SubOrder]()
+      summaryData.fundList.zipWithIndex.foreach(data => {
+
+        val fund = data._1
+        val index = data._2
+        var amount = 0.0
+        var quantity: Option[Double] = None
+        if (fund.amountUnitFlag){
+          amount = fund.amount
+        }
+        else {
+          quantity = Some(fund.amount)
+        }
+
+//        if (fund.selectedRedemptionMode == RedemptionModeEnum.LUMPSUM.toString) {
+          val redMode = LUMPSUM_REDEMPTION_MODE
+          subOrderList.+=(SubOrder(index, None, redMode, fund.option.soptRfnum, None, N_FLAG,
+            quantity = quantity,
+            folioNo = Some(fund.folioNo)))
+        /*} else {
+          val redMode = SWP_REDEMPTION_MODE
+          val frequency = schemeHelper.getSipFrequencyShortForm(fund.selectedAWPFrequency.get)
+          subOrderList.+=(SubOrder(index, None, redMode, fund.option.soptRfnum, None, N_FLAG,
+            sipDayOfMonth = Some(fund.selectedAWPDate.get.toInt),
+            sipFrequency = Some(frequency),
+            sipNoOfInstallments = Some(fund.noOfInstallment.get.toInt),
+            orderType = Some(BUYSELL_SWP),
+            quantity = quantity,
+            transactionMode = Some(RELIANCE_TRANSACTION_MODE),
+            folioNo = Some(fund.folioNo)))
+        }*/
+      })
+      val orderModel = OrderModel(BUYSELL_SELL, None, Some(RequestUtils.getIpAddress(request)), subOrderList.toList, None, Some(summaryData.bankRfnum),
+        Some(summaryData.imagePath))
+
+      orderService.placeNewOrder(orderModel, userObject.get).map(processedOrderModel => {
+
+        val modifiedSubOrderList: ListBuffer[ProcessedSubOrderModel] = ListBuffer[ProcessedSubOrderModel]()
+        processedOrderModel.subOrderList.foreach(subOrder => {
+          modifiedSubOrderList.+=(subOrder.copy(investmentMode = DBConstantsUtil.getInvestmentModeFullForm(subOrder.investmentMode)))
+        })
+
+        logger.debug(Json.toJson(processedOrderModel.copy(subOrderList = modifiedSubOrderList.toList)).toString())
+        Ok(Json.toJson(processedOrderModel.copy(subOrderList = modifiedSubOrderList.toList)))
+      })
+
+    });
+
+  }
+
+}

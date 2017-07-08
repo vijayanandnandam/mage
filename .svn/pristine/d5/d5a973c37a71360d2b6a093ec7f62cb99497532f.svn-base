@@ -1,0 +1,5 @@
+@(supPhone: String = "7700954611", supEmail:String = "support@fincash.com")
+
+For any queries, you can contact us at:
+Phone: @supPhone
+Email: @supEmail

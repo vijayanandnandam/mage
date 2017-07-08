@@ -1,0 +1,329 @@
+package service.integration
+
+import java.io.{BufferedReader, IOException, InputStreamReader}
+import java.net.{SocketTimeoutException, URLEncoder}
+import javax.inject.{Inject, Named}
+
+import constants.{DBConstants, IntegrationConstants, OrderConstants}
+import data.model.Tables.{FcomtRow, FcsotRow}
+import helpers.{OrderHelper, PoolingClientConnectionManager}
+import models.{OrderModel, ProcessedSubOrderModel, SubOrder, UserLoginObject}
+import org.apache.http.NameValuePair
+import org.apache.http.client.entity.UrlEncodedFormEntity
+import org.apache.http.client.methods.{HttpGet, HttpPost, HttpUriRequest}
+import org.apache.http.conn.ConnectionPoolTimeoutException
+import org.apache.http.message.BasicNameValuePair
+import org.slf4j.LoggerFactory
+import play.api.libs.json.{JsArray, JsValue, Json}
+import play.api.libs.ws.WSClient
+import play.api.mvc.Action
+import play.api.mvc.BodyParsers.parse
+import repository.module.{BankRepository, IntegrationRepository, OrderRepository}
+import service.{AMCService, BankService, PropertiesLoaderService, SchemeService}
+import utils.DateTimeUtils
+
+import scala.collection.mutable.ListBuffer
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.io.Source
+import scala.sys.process.ProcessBuilder.URLBuilder
+
+/**
+  * Created by Fincash on 26-04-2017.
+  */
+class RelianceIntegrationServiceImpl @Inject()(implicit ec: ExecutionContext, configuration: play.api.Configuration, ws: WSClient,
+                                               bseStarOrderEntryService: BSEStarOrderEntryServiceImpl,
+                                               bseUploadService: BSEStarUploadServiceImpl,orderHelper: OrderHelper,
+                                               @Named("relPoolingClientConnectionManager") relPoolingClient: PoolingClientConnectionManager,
+                                               orderRepository: OrderRepository, integrationRepository: IntegrationRepository,
+                                               schemeService: SchemeService, aMCService: AMCService,
+                                               bankRepository: BankRepository, bankService: BankService) extends IntegrationService with DBConstants with IntegrationConstants with OrderConstants {
+
+  val logger, log = LoggerFactory.getLogger(classOf[RelianceIntegrationServiceImpl])
+
+  val ARNCODE = configuration.underlying.getString("fincash.arncode")
+  val URL = PropertiesLoaderService.getConfig().getString("reliance.redemption.url")
+  val API_KEY = PropertiesLoaderService.getConfig().getString("reliance.redemption.apikey")
+  val DEVICE_ID = PropertiesLoaderService.getConfig().getString("reliance.account.deviceid")
+  val APP_NAME = PropertiesLoaderService.getConfig().getString("reliance.account.appName")
+  val APP_VERSION = PropertiesLoaderService.getConfig().getString("reliance.account.appVersion")
+  val IP = PropertiesLoaderService.getConfig().getString("reliance.account.ip")
+  val OLDIHNO = PropertiesLoaderService.getConfig().getString("reliance.account.oldihno")
+  val BRANCH = PropertiesLoaderService.getConfig().getString("reliance.account.branch")
+
+  val USER_ID = PropertiesLoaderService.getConfig().getString("reliance.moneymanager.Userid")
+  val FUND = PropertiesLoaderService.getConfig().getString("reliance.moneymanager.Fund")
+  val SCHEME = PropertiesLoaderService.getConfig().getString("reliance.moneymanager.scheme")
+  val PLAN = PropertiesLoaderService.getConfig().getString("reliance.moneymanager.plan")
+  val OPTIONS = PropertiesLoaderService.getConfig().getString("reliance.moneymanager.options")
+  val T_PIN = PropertiesLoaderService.getConfig().getString("reliance.moneymanager.Tpin")
+  val M_STATUS = PropertiesLoaderService.getConfig().getString("reliance.moneymanager.Mstatus")
+
+  override def placeSubOrders(orderModel: OrderModel, order: FcomtRow, subOrder: FcsotRow, subOrderModel: SubOrder, userLoginObject: UserLoginObject): Future[ProcessedSubOrderModel] = {
+    val trDate = DateTimeUtils.convertDateToFormat(DateTimeUtils.getCurrentDate(), "MM/dd/yyyy")
+    val entDate = DateTimeUtils.convertDateToFormat(DateTimeUtils.getCurrentDate(), "MM/dd/yyyy")
+
+    val userName = userLoginObject.username.getOrElse("")
+    val subOrderId = subOrder.id
+    val soptrfNum = subOrder.sotsoptrfnum
+    val investmentMode = subOrderModel.investmentMode
+    val schemeDisplayName = None
+    val schemePlan = None
+    val schemeOption = None
+
+    var folioNo = subOrderModel.folioNo.getOrElse("")
+    var amount = subOrderModel.amount
+    var units = subOrderModel.quantity.getOrElse(0.0)
+    var bank = URLEncoder.encode(getRedInvbankDetails_V1(folioNo), "UTF-8")
+
+    val redFlag = REDEMPTION_PARTIAL
+    var unitAmtFlag = AMOUNTUNIT_AMOUNT
+    var unitAmtValue = 100.00
+
+    if (amount.nonEmpty) {
+      unitAmtFlag = AMOUNTUNIT_AMOUNT
+      unitAmtValue = amount.get
+    }
+    if (amount.isEmpty && units > 0.0) {
+      unitAmtFlag = AMOUNTUNIT_UNIT
+      unitAmtValue = units
+    }
+
+    val redemptionUrl: String = URL
+    val parameterUrl = "fund=" + FUND + "&acno=" + folioNo + "&arncode=" + ARNCODE + "&scheme=" +
+      SCHEME + "&plan=" + PLAN + "&options=" + OPTIONS + "&RedFlag=" + redFlag + "&UnitamtFlag=" + unitAmtFlag +
+      "&UnitAmtValue=" + unitAmtValue + "&userid=" + USER_ID + "&Tpin=" + T_PIN + "&Mstatus=" + M_STATUS +
+      "&Fname=&Mname=&Lname=&Cuttime=&pangno=&bank=" + bank +
+      "&ip=" + IP + "&oldihno=" + OLDIHNO + "&trdate=" + trDate + "&entdate=" + entDate + "&branch=" + BRANCH +
+      "&proxybranch=&deviceid=" + DEVICE_ID + "&appVersion=" + APP_VERSION + "&appName=" + APP_NAME + "&apikey=" + API_KEY
+
+    /*var nvps: ListBuffer[NameValuePair] = ListBuffer[NameValuePair]()
+    nvps.+:(new BasicNameValuePair("fund", FUND))
+    nvps.+:(new BasicNameValuePair("acno", folioNo))
+    nvps.+:(new BasicNameValuePair("arncode", ARNCODE))
+    nvps.+:(new BasicNameValuePair("scheme", SCHEME))
+    nvps.+:(new BasicNameValuePair("plan", PLAN))
+    nvps.+:(new BasicNameValuePair("options", OPTIONS))
+    nvps.+:(new BasicNameValuePair("RedFlag", redFlag))
+    nvps.+:(new BasicNameValuePair("UnitamtFlag", unitAmtFlag))
+    nvps.+:(new BasicNameValuePair("UnitAmtValue", String.valueOf(unitAmtValue)))
+
+    redemptionUrl.setEntity(new UrlEncodedFormEntity(nvps.toList))*/
+
+    var isSuccess = false
+    var connectionFail = false
+    var refno = "0"
+    var returnCode = "-100"
+//    val encodedParamUrl = URLEncoder.encode(parameterUrl,"UTF-8")
+//    logger.debug("encodedUrl >>> " , encodedParamUrl)
+    val finalUrl = redemptionUrl + "Redemptionsave?" + parameterUrl
+    logger.debug("url >>> " , finalUrl)
+
+    val httpGet = new HttpGet(finalUrl)
+    //httpGet.setURI(finalUrl)
+    val httpClient = relPoolingClient.getHttpClient
+    try {
+      val httpResponse = httpClient.execute(httpGet)
+      if (httpResponse.getStatusLine().getStatusCode() == 200) {
+        val inputStream = httpResponse.getEntity.getContent
+        /*val lines = Source.fromInputStream(inputStream).getLines*/
+
+        val res: JsValue = Json.parse(inputStream)
+        println("OUTPUT >> ", res)
+        refno = (res \ "REFNO").as[String]
+        val msg = (res \ "Return_Msg").as[String]
+        returnCode = (res \ "Return_code").as[String]
+        val amt = (res \ "Amount").as[String]
+        val units = (res \ "UNITS").as[String]
+        val date_time = (res \ "Date_Time").as[String]
+        val optionCode = (res \ "OptionCode").as[String]
+        val planCode = (res \ "PlanCode").as[String]
+        val schemCode = (res \ "SchemeCode").as[String]
+
+        if (returnCode != "-100") {
+          isSuccess = true
+        }
+        // Log request and response
+        val reqParamNameList: ListBuffer[String] = ListBuffer[String]()
+        val reqParamValueList: ListBuffer[String] = ListBuffer[String]()
+        reqParamNameList.+=("Url", "Fund", "Folio No", "ARN code", "Schem", "Plan", "Options", "Red Flag", "UnitAmt Flag", "UnitAmt Value",
+          "User id", "T Pin", "M Status", "Bank", "IP", "oldihno", "Transaction Date", "Entry Date", "Branch", "Device Id", "App Version", "App Name", "API key")
+        reqParamValueList.+=(URL, FUND, folioNo, ARNCODE, SCHEME, PLAN, OPTIONS, redFlag, unitAmtFlag, unitAmtValue.toString,
+          USER_ID, T_PIN, M_STATUS, bank, IP, OLDIHNO, trDate, entDate, BRANCH, DEVICE_ID, APP_VERSION, APP_NAME, API_KEY)
+
+        val resParamNameList: ListBuffer[String] = ListBuffer[String]()
+        val resParamValueList: ListBuffer[String] = ListBuffer[String]()
+        resParamNameList.+=("REF NO", "Return_Msg", "Return_Code", "Amount", "Units", "Date_Time", "OptionCode", "PlanCode", "SchemeCode")
+        resParamValueList.+=(refno, msg, returnCode, amt, units, date_time, optionCode, planCode, schemCode)
+        integrationRepository.saveRequestParameters(RELIANCE_INTEGRATION_NAME, Some(subOrderId.toString), reqParamNameList, reqParamValueList, userName)
+        integrationRepository.saveResponseParameters(RELIANCE_INTEGRATION_NAME, Some(subOrderId.toString), resParamNameList, resParamValueList, userName)
+      }
+    }
+    catch {
+      case s: SocketTimeoutException => {
+//        s.printStackTrace()
+        logger.debug("Socket Timep out Exception >> ", s)
+        isSuccess = true; refno = "-1"
+      }
+      case c: java.net.ConnectException => { logger.debug("Connection Time Out Occurred >> ", c); connectionFail = true}
+      case io: IOException => { logger.debug("IO exception >> ", io)}
+    }
+    finally {
+//      httpClient.close()
+    }
+    val buySellTypeName = orderHelper.getBuySellTypeName(order.omtbuysell, subOrder.sotbuyselltype)
+    if (isSuccess) {
+      // Update Transaction Mode in SOT
+      orderRepository.updateTransactionModeForSuborder(subOrderId)
+
+      orderRepository.updateTransactionIdForSubOrder(subOrder.id, order.id, subOrder.sotostmstaterfnum,PLACED_AT_AMC, refno, userName)
+      Future{ProcessedSubOrderModel(subOrderId, ORDER_STATUS_SUCCESS, soptrfNum, investmentMode,orderModel.orderType, buySellTypeName,schemeDisplayName, schemePlan, schemeOption, amount, None, None, None, None)}
+    }
+    else {
+      orderRepository.setFailedStateForSubOrder(subOrder.id, order.id, subOrder.sotostmstaterfnum, userName)
+      if (connectionFail) {
+        Future{ProcessedSubOrderModel(subOrderId, ORDER_CONNECTIVITY_FAILURE, soptrfNum, investmentMode,orderModel.orderType, buySellTypeName,schemeDisplayName, schemePlan, schemeOption, amount, None, None, None, None)}
+      }
+      else {
+        Future{ProcessedSubOrderModel(subOrderId, ORDER_STATUS_FAILURE, soptrfNum, investmentMode,orderModel.orderType, buySellTypeName,schemeDisplayName, schemePlan, schemeOption, amount, None, None, None, None)}
+      }
+    }
+
+    /*ws.url(redemptionUrl)
+      .withRequestTimeout(Duration(30000, "millis")).get()
+      .map { res => {
+        val refno = (res.json \ "REFNO").as[String]
+        val msg = (res.json \ "Return_Msg").as[String]
+        val returnCode = (res.json \ "Return_code").as[String]
+        val amt = (res.json \ "Amount").as[String]
+        val units = (res.json \ "UNITS").as[String]
+        val date_time = (res.json \ "Date_Time").as[String]
+        val optionCode = (res.json \ "OptionCode").as[String]
+        val planCode = (res.json \ "PlanCode").as[String]
+        val schemCode = (res.json \ "SchemeCode").as[String]
+        logger.debug("Result " + res.json)
+        //        Ok(Json.obj("Result" -> res.json))]
+
+        // Update Transaction Mode in SOT
+        orderRepository.updateTransactionModeForSuborder(subOrderId)
+
+        // Log request and response
+        val reqParamNameList: ListBuffer[String] = ListBuffer[String]()
+        val reqParamValueList: ListBuffer[String] = ListBuffer[String]()
+        reqParamNameList.+=("Url", "Fund", "Folio No", "ARN code", "Schem", "Plan", "Options", "Red Flag", "UnitAmt Flag", "UnitAmt Value",
+          "User id", "T Pin", "M Status", "Bank", "IP", "oldihno", "Transaction Date", "Entry Date", "Branch", "Device Id", "App Version", "App Name", "API key")
+        reqParamValueList.+=(URL, FUND, folioNo, ARNCODE, SCHEME, PLAN, OPTIONS, redFlag, unitAmtFlag, unitAmtValue.toString,
+          USER_ID, T_PIN, M_STATUS, bank, IP, OLDIHNO, trDate, entDate, BRANCH, DEVICE_ID, APP_VERSION, APP_NAME, API_KEY)
+
+        val resParamNameList: ListBuffer[String] = ListBuffer[String]()
+        val resParamValueList: ListBuffer[String] = ListBuffer[String]()
+        resParamNameList.+=("REF NO", "Return_Msg", "Return_Code", "Amount", "Units", "Date_Time", "OptionCode", "PlanCode", "SchemeCode")
+        resParamValueList.+=(refno, msg, returnCode, amt, units, date_time, optionCode, planCode, schemCode)
+
+        integrationRepository.saveRequestParameters(RELIANCE_INTEGRATION_NAME, Some(subOrderId.toString), reqParamNameList, reqParamValueList, userName)
+        integrationRepository.saveResponseParameters(RELIANCE_INTEGRATION_NAME, Some(subOrderId.toString), resParamNameList, resParamValueList, userName)
+
+        if (returnCode == "-100") {
+          orderRepository.setFailedStateForSubOrder(subOrder.id, order.id, subOrder.sotostmstaterfnum, userName)
+          ProcessedSubOrderModel(subOrderId, ORDER_STATUS_FAILURE, soptrfNum, investmentMode, schemeDisplayName, schemePlan, schemeOption, amount, None, None, None, None)
+        }
+        else {
+          orderRepository.updateTransactionIdForSubOrder(subOrder.id, order.id, subOrder.sotostmstaterfnum, refno, userName)
+          ProcessedSubOrderModel(subOrderId, ORDER_STATUS_SUCCESS, soptrfNum, investmentMode, schemeDisplayName, schemePlan, schemeOption, amount, None, None, None, None)
+        }
+      }
+      }*/
+  }
+
+  def getRedInvbankDetails_V1(folioNo: String): String = {
+    var bankName = ""
+    val getBankUrl = URL + "RedInvbankDetails_V1?" + "&arncode=" + ARNCODE + "&acno=" + folioNo + "&scheme=" + SCHEME + "&plan=" + PLAN +
+      "&deviceid=" + DEVICE_ID + "&appVersion=" + APP_VERSION + "&appName=" + APP_NAME + "&apikey=" + API_KEY
+
+    val a = ws.url(getBankUrl).withHeaders("Accept" -> "multipart/form-data")
+      .get()
+      .map { res => {
+        bankName = (res.json.asInstanceOf[JsArray].value(0) \ "BankName").as[String]
+      }
+      }
+      .recover({
+        case e: Exception => "Error while retrieving Bank"
+      })
+    Await.result(a, Duration.Inf)
+    bankName
+  }
+
+  def testHttpClient = {
+
+    var folioNo = "477170815771"
+    var unitAmtValue = "100"
+
+    val trDate = DateTimeUtils.convertDateToFormat(DateTimeUtils.getCurrentDate(), "MM/dd/yyyy")
+    val entDate = DateTimeUtils.convertDateToFormat(DateTimeUtils.getCurrentDate(), "MM/dd/yyyy")
+
+    val redemptionUrl = URL + "Redemptionsave?" + "fund=" + FUND + "&acno=" + folioNo + "&arncode=" + ARNCODE + "&scheme=" +
+      SCHEME + "&plan=" + PLAN + "&options=" + OPTIONS + "&RedFlag=" + "P" + "&UnitamtFlag=" + "A" +
+      "&UnitAmtValue=" + unitAmtValue + "&userid=" + USER_ID + "&Tpin=" + T_PIN + "&Mstatus=" + M_STATUS +
+      "&Fname=&Mname=&Lname=&Cuttime=&pangno=&bank=" + getRedInvbankDetails_V1(folioNo) +
+      "&ip=" + IP + "&oldihno=" + OLDIHNO + "&trdate=" + trDate + "&entdate=" + entDate + "&branch=" + BRANCH +
+      "&proxybranch=&deviceid=" + DEVICE_ID + "&appVersion=" + APP_VERSION + "&appName=" + APP_NAME + "&apikey=" + API_KEY
+
+    var isSuccess = false
+    val httpGet = new HttpGet(redemptionUrl)
+    val httpClient = relPoolingClient.getHttpClient
+    try {
+      val httpResponse = httpClient.execute(httpGet)
+      if (httpResponse.getStatusLine().getStatusCode() == 200) {
+        val inputStream = httpResponse.getEntity.getContent
+        /*val lines = Source.fromInputStream(inputStream).getLines*/
+
+        val jsRes: JsValue = Json.parse(inputStream)
+        println("OUTPUT >> ", jsRes)
+      }
+    }
+    catch {
+      case s: SocketTimeoutException => {
+        isSuccess = true
+      }
+      case c: org.apache.http.conn.ConnectTimeoutException => logger.debug("Connection Time Out Occurred >> ", c.getMessage)
+      case io: IOException => logger.debug("IO exception >> ", io.getMessage)
+    }
+    finally {
+      httpClient.close()
+    }
+    //catch socketexception, connectionexception, ioException
+  }
+
+  def getRelianceStatus(transactionId: String): Boolean = {
+    val redemptionUrl: String = URL
+    val parameterUrl = "fund=" + FUND + "&refno=" + transactionId + "&deviceid=" + DEVICE_ID  +  "&appVersion=" + APP_VERSION + "&appName=" + APP_NAME + "&apikey=" + API_KEY
+    val finalUrl = redemptionUrl + "Getrefnostatus?" + parameterUrl
+
+    val httpGet = new HttpGet(finalUrl)
+    //httpGet.setURI(finalUrl)
+    val httpClient = relPoolingClient.getHttpClient
+    try {
+      val httpResponse = httpClient.execute(httpGet)
+      if (httpResponse.getStatusLine().getStatusCode() == 200) {
+        val inputStream = httpResponse.getEntity.getContent
+        val res: JsValue = Json.parse(inputStream)
+        println("OUTPUT >> ", res)
+        val returnMsg = (res \ "ReturnMsg").as[String]
+        val returnCode = (res \ "ReturnCode").as[String]
+        val instaStatus = (res \ "InstaStatus").as[String]
+        val status = (res \ "Status").as[String]
+        val instaRemarks = (res \ "InstaRemarks").as[String]
+
+        return returnMsg.toLowerCase() == "success"
+//        returnMsg.compareToIgnoreCase("success")
+      }
+      else {
+        false
+      }
+    }
+    catch {
+      case io: IOException => { logger.debug("IO exception >> ", io); false}
+    }
+  }
+
+}

@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:jaxws="http://cxf.apache.org/jaxws"
+	xmlns:util="http://www.springframework.org/schema/util"
+	xmlns:oxm="http://www.springframework.org/schema/oxm"
+	xmlns:http-conf="http://cxf.apache.org/transports/http/configuration"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-4.2.xsd
+            http://cxf.apache.org/jaxws http://cxf.apache.org/schemas/jaxws.xsd
+            http://cxf.apache.org/transports/http/configuration http://cxf.apache.org/schemas/configuration/http-conf.xsd
+            http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util.xsd
+            http://www.springframework.org/schema/oxm http://www.springframework.org/schema/oxm/spring-oxm.xsd">
+
+    <bean id="isLive" class="java.lang.Boolean">
+        <constructor-arg value="false"/>
+    </bean>
+    <bean id="messageFactory" class="org.springframework.ws.soap.saaj.SaajSoapMessageFactory">
+    	<property name="soapVersion">
+            <util:constant static-field="org.springframework.ws.soap.SoapVersion.SOAP_12"/>
+        </property>
+    </bean> 
+	
+	<bean id="closeableHttpClient" class="helpers.PoolingClientConnectionManager">
+		<!-- max total connections = 200 -->
+		<constructor-arg type="int" index="0" value="200"/>
+		<!-- max connection per route = 20 -->
+		<constructor-arg type="int" index="1" value="20"/>
+		<!-- connection timeout = 30 seconds -->
+		<constructor-arg type="int" index="2" value="30000"/>
+		<!-- socket timeout = 180 seconds -->
+		<constructor-arg type="int" index="3" value="180000"/>
+	</bean>
+
+    <bean id="solrCloseableHttpClient" class="helpers.PoolingClientConnectionManager">
+        <!-- max total connections = 200 -->
+        <constructor-arg type="int" index="0" value="50"/>
+        <!-- max connection per route = 20 -->
+        <constructor-arg type="int" index="1" value="100"/>
+        <!-- connection timeout = 30 seconds -->
+        <constructor-arg type="int" index="2" value="5000"/>
+        <!-- socket timeout = 180 seconds -->
+        <constructor-arg type="int" index="3" value="60000"/>
+    </bean>
+
+	
+	<bean id="httpComponentsMessageSender" class="org.springframework.ws.transport.http.HttpComponentsMessageSender">
+         <constructor-arg type="org.apache.http.client.HttpClient" value="#{closeableHttpClient.getHttpClient()}"/>
+    </bean>
+
+
+    <!--Demo Order Service Config-->
+    <bean id="bseOrderTemplate" class="org.springframework.ws.client.core.WebServiceTemplate">
+        <constructor-arg ref="messageFactory"/>
+        <property name="marshaller" ref="bseOrderjaxb2Marshaller"/>
+        <property name="unmarshaller" ref="bseOrderjaxb2Marshaller"/>
+        <property name="messageSender" ref="httpComponentsMessageSender"/>
+        <property name="defaultUri" value="http://bsestarmfdemo.bseindia.com/MFOrderEntry/MFOrder.svc" />
+    </bean>
+
+    <!--Live Order Service Config-->
+    <bean id="liveBseOrderTemplate" class="org.springframework.ws.client.core.WebServiceTemplate">
+        <constructor-arg ref="messageFactory"/>
+        <property name="marshaller" ref="bseOrderjaxb2Marshaller"/>
+        <property name="unmarshaller" ref="bseOrderjaxb2Marshaller"/>
+        <property name="messageSender" ref="httpComponentsMessageSender"/>
+        <property name="defaultUri" value="http://www.bsestarmf.in/MFOrderEntry/MFOrder.svc" />
+    </bean>
+    
+    <bean id="bseOrderjaxb2Marshaller" class="org.springframework.oxm.jaxb.Jaxb2Marshaller">
+        <property name="contextPath" value="com.fincash.integration.ws.client.bsestar" />
+    </bean>
+    
+    <bean id="bseStarObjectFactory" class="com.fincash.integration.ws.client.bsestar.ObjectFactory"/>
+
+    <!--Demo Upload Service Config-->
+    <bean id="bseUploadTemplate" class="org.springframework.ws.client.core.WebServiceTemplate">
+        <constructor-arg ref="messageFactory"/>
+        <property name="marshaller" ref="bseUploadjaxb2Marshaller"/>
+        <property name="unmarshaller" ref="bseUploadjaxb2Marshaller"/>
+        <property name="messageSender" ref="httpComponentsMessageSender"/>
+        <property name="defaultUri" value="http://bsestarmfdemo.bseindia.com/MFUploadService/MFUploadService.svc/Basic" />
+    </bean>
+
+    <!--Live Upload Service Config-->
+    <bean id="liveBseUploadTemplate" class="org.springframework.ws.client.core.WebServiceTemplate">
+        <constructor-arg ref="messageFactory"/>
+        <property name="marshaller" ref="bseUploadjaxb2Marshaller"/>
+        <property name="unmarshaller" ref="bseUploadjaxb2Marshaller"/>
+        <property name="messageSender" ref="httpComponentsMessageSender"/>
+        <property name="defaultUri" value="http://www.bsestarmf.in/StarMFWebService/StarMFWebService.svc/Basic" />
+    </bean>
+    
+    <bean id="bseUploadjaxb2Marshaller" class="org.springframework.oxm.jaxb.Jaxb2Marshaller">
+        <property name="contextPath" value="com.fincash.integration.ws.client.bsestar.upload" />
+    </bean>
+    
+    <bean id="bseStarUploadObjectFactory" class="com.fincash.integration.ws.client.bsestar.upload.ObjectFactory"/>
+</beans>

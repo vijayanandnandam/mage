@@ -1,0 +1,26 @@
+@import _root_.data.model.Tables._
+@(user: FcubdRow, typeISIP:Boolean, orders :List[SubOrderDetails], urnMap:Map[Long, String], utils: MailTemplateHelper)
+
+Dear @if(user.ubdfirstname){@user.ubdfirstname} else{Investor},
+Your first SIP purchase in the following scheme has been reversed.
+@for(order <- orders) {
+@if(typeISIP){Unique Registration Number (URN) - @urnMap(order.subOrderId)}
+Id - @order.subOrderId
+Order Date - @order.createDate
+Scheme - @order.schemeName (Plan- @order.schemePlan, Option- @order.schemeOption)
+Amount(in Rs.) - @utils.parse(order.amount.get)
+Date & Frequency - @order.sipDayOfMonth - @order.sipFrequency
+No. of Installments - @order.sipNoOfInstallments
+}
+
+You can still complete the online registration of your SIP for future debits by registering the above URN in your bank’s website. If you have already done that, your future SIPs would be automatically debited from your account.
+
+In case you wish to cancel the SIP for any future debits, please reply to this email at least 15 days prior to your SIP deduction date.
+}
+@contactTxt()
+
+Please visit our RESOURCE CENTRE (@utils.getBaseUrl()/b/) to know about Mutual Fund Investments and other investment products.
+
+With Warm Regards,
+Team Fincash
+@products(utils.getBaseUrl(), utils.getImagePath())

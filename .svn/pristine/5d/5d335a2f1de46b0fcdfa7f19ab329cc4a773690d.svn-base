@@ -1,0 +1,76 @@
+@import _root_.data.model.Tables._
+
+@(user: FcubdRow, typeISIP:Boolean, orders :List[SubOrderDetails], urnMap:Map[Long, String], utils: MailTemplateHelper)
+
+<div style="padding:4% 5%;background-color:white; position:relative; background-color:white; border-left:solid 1px #c1bdbd;border-right:solid 1px #c1bdbd;">
+    Dear <span style="text-transform: capitalize;">
+    @if(user.ubdfirstname){@user.ubdfirstname} else{Investor}</span>,<br>
+
+    <p>Thank you for the request for Online SIP in in the below mentioned scheme/schemes.</p>
+
+    <table style="border-collapse: collapse;width:95%; font-size:0.9em; letter-spacing:0; text-align:center;">
+        <thead>
+        <th  style="border: 1px solid black;">Id</th>
+        <th  style="border: 1px solid black;">Scheme</th>
+        <th  style="border: 1px solid black;">Plan</th>
+        <th  style="border: 1px solid black;">Option</th>
+        <th  style="border: 1px solid black;">Amount<br/>(in Rs.)</th>
+        <th  style="border: 1px solid black;">Frequency</th>
+        @if(typeISIP){
+        <th  style="border: 1px solid black;">URN</th>
+        }
+        </thead>
+        <tbody>
+        @for(order <- orders) {
+        <tr>
+            <td  style="border: 1px solid black;">@order.subOrderId</td>
+            <td  style="border: 1px solid black;">@order.schemeName </td>
+            <td  style="border: 1px solid black;">@order.schemePlan</td>
+            <td  style="border: 1px solid black;">@order.schemeOption</td>
+            <td  style="border: 1px solid black;">@utils.parse(order.amount.get)</td>
+            <td  style="border: 1px solid black;">@order.sipFrequency</td>
+            @if(typeISIP){
+            <td  style="border: 1px solid black;">@urnMap(order.subOrderId)</td>
+            }
+
+        </tr>
+        }
+        </tbody>
+
+    </table>
+
+    @if(!typeISIP){
+    <p>In order to automate the deduction of the invested amount from your bank account you need
+        to submit a signed one-time mandate.</p>
+    <p>Soon we will get in touch with you to pick-up the mandate form from you.</p>
+    }
+
+    @if(typeISIP){
+    <p>Please complete the online registration of your ISIP by registering the above URN in your registered
+        bank website within 20 days (follow the below steps):</p>
+    <ul>
+        <li>Login to your bank website</li>
+        <li>Select the Bill Pay or Biller Registration section</li>
+        <li>Select BSE Limited from the Biller list</li>
+        <li>Enter the URN number as above</li>
+    </ul>
+
+    <em>Note</em>:
+    <i>While registering the URN on your bank website, please select Auto Pay option (if available) to avoid
+        authorization for each SIP debit. On successful registration of URN on your registered bank website, your ISIP
+        would be registered in our records subject to the confirmation received from your bank.</i>
+
+    <p><b>Kindly note that the transaction is liable to be rejected in case information provided is incomplete/incorrect.</b></p>
+
+    }
+
+    @contact()
+    <p>For further information please visit our website<a href="@utils.getBaseUrl()" style="color:#53ADD0">@utils.getBaseUrl()</a>.</p>
+
+    <p style="position:absolute; bottom:2%;">
+        With Warm Regards,<br>
+        Team Fincash</p>
+
+</div>
+
+@products(utils.getBaseUrl(), utils.getImagePath())

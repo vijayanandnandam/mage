@@ -1,0 +1,52 @@
+<!-- ~ Copyright (C) 2009-2016 Lightbend Inc. <https://www.lightbend.com> -->
+<!-- The default logback configuration that Play uses in dev mode if no other 
+	configuration is provided -->
+<configuration>
+	<conversionRule conversionWord="coloredLevel" converterClass="play.api.libs.logback.ColoredLevel" />
+	<appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+		<encoder>
+			<pattern>%d{yyyy-MM-dd HH:mm:ss} %coloredLevel %logger{36}.%line - %msg%n
+			</pattern>
+		</encoder>
+	</appender>
+	 <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+		<file>logs/application.log</file>
+		<rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+			daily rollover. Make sure the path matches the one in the file element 
+				or else the rollover logs are placed in the working directory.
+			<fileNamePattern>logs/application_%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+			<timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+				<maxFileSize>20MB</maxFileSize>
+			</timeBasedFileNamingAndTriggeringPolicy>
+			keep 30 days' worth of history
+			<maxHistory>30</maxHistory>
+		</rollingPolicy>
+		<encoder>
+			<charset>UTF-8</charset>
+			<pattern>%d %-4relative [%thread] %-5level %logger{35} - %msg%n
+			</pattern>
+		</encoder>
+	</appender>
+	<logger name="play" level="INFO" />
+	<logger name="org.asynchttpclient.netty" level="INFO"/>
+	<logger name="application" level="INFO" />
+	<logger name="controllers" level="DEBUG" />
+	<logger name="slick" level="INFO" />
+	<logger name="com.zaxxer.hikari" level="INFO" />
+	<logger name="repository" level="DEBUG" />
+	<logger name="reactivemongo" level="INFO" />
+    <logger name="org.springframework.ws.client.MessageTracing.sent" level="INFO"/>
+    <logger name="org.springframework.ws.client.MessageTracing.received" level="INFO"/>
+    <logger name="org.springframework.ws.server.MessageTracing" level="INFO"/>
+	<logger name="httpclient.wire" level="INFO"/>
+  	<logger name="org.apache.http" level="INFO"/>
+  	<logger name="org.apache.http.wire" level="INFO"/>
+  	<logger name="service" level="DEBUG"/>
+    <logger name="helpers" level="DEBUG"/>
+    <logger name="validator" level="DEBUG"/>
+  	<!-- <logger name="com.gargoylesoftware.htmlunit.javascript" level="OFF" /> -->
+	<root level="DEBUG">
+		<appender-ref ref="STDOUT"/>
+		<appender-ref ref="FILE"/>
+	</root>
+</configuration>

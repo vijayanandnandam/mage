@@ -1,0 +1,123 @@
+package service.integration
+
+import java.sql.Time
+import java.util.{Calendar, Date}
+import javax.inject.Inject
+
+import constants.{DBConstants, OrderConstants}
+import data.model.Tables.FcbsufRow
+import models.SubOrder
+import org.slf4j.LoggerFactory
+import repository.module.OrderRepository
+
+import scala.concurrent.{ExecutionContext, Future}
+
+/**
+  * Created by fincash on 05-05-2017.
+  */
+class BSEHelper @Inject()(implicit ec: ExecutionContext,
+                          orderRepository: OrderRepository) extends DBConstants with OrderConstants{
+
+  val logger, log = LoggerFactory.getLogger(classOf[BSEHelper])
+
+  def getSchemeSuffix(subOrder: SubOrder, orderType:String):Future[(String,Option[FcbsufRow])] = {
+
+    orderRepository.getBSESchemeSuffix(subOrder.buySchemeOptionRfnum).flatMap(bsufRow =>{
+      orderRepository.getSchemeBSECutOff(subOrder.buySchemeOptionRfnum).map(schemeBseCutOff =>{
+        if(bsufRow.isEmpty ){
+          ("",bsufRow)
+        } else if(isSuffixFinalCodeValid(bsufRow.get.bsuffinalcode)){
+          (bsufRow.get.bsuffinalcode.get,bsufRow)
+        }
+        else {
+          if(!isSuffixValid(subOrder,bsufRow.get,schemeBseCutOff, orderType)){
+            ("",bsufRow)
+          } else{
+            (bsufRow.get.bsufsuffixcode,bsufRow)
+          }
+        }
+      })
+    })
+  }
+
+  def checkLZeroLOne(soptrfnum:Long, amount:Double, orderType:String):Future[(String,Option[FcbsufRow])] = {
+
+    orderRepository.getBSESchemeSuffix(soptrfnum).flatMap(bsufRow =>{
+      orderRepository.getSchemeBSECutOff(soptrfnum).map(schemeBseCutOff =>{
+
+        if(bsufRow.isEmpty ){
+          ("",bsufRow)
+        } else if(isSuffixFinalCodeValid(bsufRow.get.bsuffinalcode)){
+          (bsufRow.get.bsuffinalcode.get,bsufRow)
+        }
+        else {
+          if(!isSuffixValid(amount,bsufRow.get,schemeBseCutOff, orderType)){
+            ("",bsufRow)
+          } else{
+            (bsufRow.get.bsufsuffixcode,bsufRow)
+          }
+        }
+      })
+    })
+  }
+
+  def isSuffixFinalCodeValid(bsufFinalCode:Option[String]) : Boolean = {
+
+    bsufFinalCode.nonEmpty && bsufFinalCode.get.length > 0
+  }
+
+  def isSuffixValid(subOrder: SubOrder, bsufRow: FcbsufRow,schemeBseCutOff:String, orderType:String):Boolean = {
+
+    isSuffixValid(subOrder.amount.get, bsufRow,schemeBseCutOff, orderType)
+    /*if(orderType != BUYSELL_BUY){
+      false
+    } else{
+      if(bsufRow.bsufisamountbased == Y_FLAG && bsufRow.bsufistimebased == Y_FLAG){
+        isThresholdAmountReached(subOrder.amount.get, bsufRow.bsufthresoldamount.get) &&
+          isBeforeCutOffTime(bsufRow.bsufbsecutofftime.get)
+      } else if(bsufRow.bsufisamountbased == Y_FLAG ){
+        isThresholdAmountReached(subOrder.amount.get, bsufRow.bsufthresoldamount.get)
+      } else{
+        isBeforeCutOffTime(bsufRow.bsufbsecutofftime.get)
+      }
+    }*/
+  }
+
+  def isSuffixValid(subOrderAmount: Double, bsufRow: FcbsufRow,schemeBseCutOff:String, orderType:String) = {
+    if(orderType != BUYSELL_BUY){
+      false
+    } else{
+      if(bsufRow.bsufisamountbased == Y_FLAG && bsufRow.bsufistimebased == Y_FLAG){
+        isThresholdAmountReached(subOrderAmount, bsufRow.bsufthresoldamount.get) &&
+          isBeforeCutOffTime(bsufRow.bsufbsecutofftime.get,schemeBseCutOff)
+      } else if(bsufRow.bsufisamountbased == Y_FLAG ){
+        isThresholdAmountReached(subOrderAmount, bsufRow.bsufthresoldamount.get)
+      } else{
+        isBeforeCutOffTime(bsufRow.bsufbsecutofftime.get,schemeBseCutOff)
+      }
+    }
+  }
+
+  def isThresholdAmountReached(orderAmt:Double, thresholdAmt:Double):Boolean = {
+    orderAmt >= thresholdAmt
+  }
+
+  def isBeforeCutOffTime(cutOffTime:Time,schemeBseCutOffTime:String):Boolean = {
+
+    val currTimeCal = Calendar.getInstance()
+    val schemeCutffCal = Calendar.getInstance()
+    val cutOffTimeCal = Calendar.getInstance()
+    cutOffTimeCal.setTimeInMillis(cutOffTime.getTime)
+    cutOffTimeCal.set(Calendar.DAY_OF_MONTH, currTimeCal.get(Calendar.DAY_OF_MONTH))
+    cutOffTimeCal.set(Calendar.MONTH, currTimeCal.get(Calendar.MONTH))
+    cutOffTimeCal.set(Calendar.YEAR, currTimeCal.get(Calendar.YEAR))
+
+    val schemeCutOffTime = schemeBseCutOffTime.split(':')
+    schemeCutffCal.set(Calendar.HOUR_OF_DAY,schemeCutOffTime(0).toInt)
+    schemeCutffCal.set(Calendar.MINUTE,schemeCutOffTime(0).toInt)
+    schemeCutffCal.set(Calendar.SECOND,schemeCutOffTime(0).toInt)
+    schemeCutffCal.set(Calendar.MILLISECOND,0)
+
+    cutOffTimeCal.after(currTimeCal) || schemeCutffCal.before(currTimeCal)
+  }
+}

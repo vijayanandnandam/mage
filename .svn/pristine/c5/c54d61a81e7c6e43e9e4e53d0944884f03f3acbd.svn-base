@@ -1,0 +1,32 @@
+
+mail.signup.welcome.subject = "Welcome to Fincash"
+mail.signup.welcome.heading = "Welcome to Fincash"
+
+mail.registration.subject = "Registration Verification"
+mail.registration.heading = "Registration Verification"
+
+mail.registrationStatus.subject = "Fincash Account Activation"
+mail.registrationStatus.heading = "Fincash Account Activation"
+
+mail.password-reset.default.subject = "Account Password Reset"
+
+mail.order-placed.heading = "Order Summary"
+mail.order-placed.subject = "Your order details"
+
+mail.eKYC-status.heading = "eKYC Status"
+mail.eKYC-status.subject = "Your eKYC Status"
+
+
+mail.disclaimer.promtional = """The information provided herein is intended only as an indicative guide and a generic description of the
+                products/schemes/services and no representation is given as to the accuracy or completeness of the whole or
+                any part of this information. The details provided herein are tentative and subject to change by the service
+                provider/product manufacturer without any prior information. Potential investors/buyers are advised to make their
+                own enquiries, do their own due diligence and satisfy themselves on all aspects of the products/schemes/services and
+                other term including but not limited to pricing, features, benefits both financial and otherwise before making an
+                investment/buying decision. Since the product and related services are owned and operated by third party,
+                Shepard Technologies Pvt. Ltd. make no warranties or representations express or implied on such product and related services."""
+
+mail.disclaimer.transactional = """Mutual fund investments are subject to market risks. Please read the scheme
+                information and other related documents carefully before investing. Past performance is not indicative
+                of future returns. Please consider your specific investment requirements before choosing a fund, or designing a portfolio
+                that suits your needs."""

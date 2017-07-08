@@ -1,0 +1,25 @@
+#SIP Routes
+#This file defines all application routes (Higher priority routes first)
+
+POST        /searchFund                  controllers.FundsController.searchFunds
+POST        /getBasicFactsheet           controllers.FundsController.getBasicFactSheet
+POST        /getAdvancedFactsheet        controllers.FundsController.getAdvancedFactSheet
+POST        /autoComplete                controllers.FundsController.getAutoCompleteData
+POST        /getFacets                   controllers.FundsController.getFacets
+#tax
+GET         /getTaxSaverFunds            controllers.TaxController.getTaxSaverFunds
+
+#Comparison
+POST        /getComparisonData           controllers.FundsController.getComparisonData
+
+#Wishlist
+#POST   /addToWishlist          controllers.WishlistController.addToWishlist
+#GET    /getWishlistData        controllers.WishlistController.getWishlistData
+#POST   /removeFromWishlist     controllers.WishlistController.removeFromWishlist(id: Int)
+#POST  /addToWishlist      controllers.WishlistController.addToWishlist
+#GET    /getWishlistData    controllers.WishlistController.getWishlistData
+#POST  /removeFromWishlist    controllers.WishlistController.removeFromWishlist(id: Int)
+
+#Report
+GET         /getIrr                      controllers.IRRController.getIRR
+#GET         /getTrnsactions              controllers.IRRController.getTransactions

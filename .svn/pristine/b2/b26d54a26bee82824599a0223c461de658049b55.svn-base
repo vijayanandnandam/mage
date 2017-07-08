@@ -1,0 +1,8 @@
+#Routes
+
+
+POST     /byGroup                     controllers.LookupController.postCNDgroup
+GET      /byGroup/:group              controllers.LookupController.getCNDgroup(group)
+
+GET      /bankNames                     controllers.LookupController.getBankNames
+POST      /getBankSuggestions            controllers.LookupController.getBankSuggestion

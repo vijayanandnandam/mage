@@ -1,0 +1,25 @@
+# Checkout Routes
+# This file defines all application routes (Higher priority routes first)
+
+#cart
+#POST        /addFundToCart               controllers.CartController.addFundToCart
+#POST        /updateCart                  controllers.CartController.updateCartData
+#POST        /removeFund                  controllers.CartController.removeFund
+POST        /saveCart                     controllers.CartController.saveCart
+POST        /mergeCart                    controllers.CartController.mergeCart
+
+#checkout
+POST         /getCheckoutData             controllers.CheckoutController.getCheckoutData
+GET         /getSummaryInfo               controllers.CheckoutController.getSummaryInfo
+
+#POST        /getSchemePlanOptions        controllers.CheckoutController.getSchemePlanOptions
+#POST        /getPlanOptionFreq           controllers.CheckoutController.getPlanOptionFreq
+
+
+#invest
+POST        /invest                            controllers.CheckoutController.invest
+POST        /generatePaymentUrl                controllers.CheckoutController.generatePaymentUrl
+GET         /orderStatus/:orderId              controllers.CheckoutController.getOrderStatus(orderId)
+GET         /subOrderStatus/:subOrderId        controllers.CheckoutController.getSubOrderStatus(subOrderId)
+GET         /cancelOrder/:orderId              controllers.CheckoutController.cancelOrders(orderId)
+POST        /removeFundById                    controllers.CartController.removeFundById

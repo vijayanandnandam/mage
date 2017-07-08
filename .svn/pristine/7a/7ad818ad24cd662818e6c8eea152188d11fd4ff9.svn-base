@@ -1,0 +1,217 @@
+package controllers
+
+import com.google.inject.Inject
+import constants.{DBConstants, MongoConstants, OrderConstants}
+import helpers.{AuthenticatedAction, MailHelper, SchemeHelper}
+import models.CheckoutJsonFormats._
+import models.OrderJsonFormats._
+import models._
+import models.enumerations.InvestmentModeEnum
+import org.slf4j.LoggerFactory
+import play.api.libs.json.Json
+import play.api.mvc.Controller
+import repository.module.UserRepository
+import repository.tables.FcubdRepo
+import service._
+import utils.{DBConstantsUtil, DateTimeUtils, RequestUtils}
+
+import scala.collection.mutable
+import scala.collection.mutable.ListBuffer
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
+
+class CheckoutController @Inject()(auth: AuthenticatedAction, mongoDbService: MongoDbService, checkoutService: CheckoutService, userRepository: UserRepository, fcubdRepo: FcubdRepo, userService: UserService,
+                                   orderService: OrderService, schemeHelper: SchemeHelper, mailService: MailService, mailHelper: MailHelper)
+  extends Controller with OrderConstants with DBConstants with MongoConstants {
+
+  val logger, log = LoggerFactory.getLogger(classOf[CheckoutController])
+  def collection(name: String) =  mongoDbService.collection(name)
+
+  def getCheckoutData = auth.Action.async { request =>
+
+    userService.getUserObjectFromReq(request).flatMap(userObject => {
+      for {
+        fundsList <- checkoutService.getCheckoutFunds(collection(CHECKOUT_COLLECTION_NAME) , userObject.userName.get)
+        nominee <- checkoutService.getCheckoutNominee(userObject.userId.get)
+        bank <- checkoutService.getCheckoutBanks(userObject.userId.get)
+      } yield {
+
+        if (nominee.isDefined) {
+          val checkout: Checkout = new Checkout("",
+            fundsData = fundsList.toList,
+            nomineeList = Some(List.apply(nominee.get)),
+            bankList = List.apply(bank));
+          Ok(Json.toJson(checkout));
+        } else {
+          val checkout: Checkout = new Checkout("",
+            fundsData = fundsList.toList,
+            nomineeList = None,
+            bankList = List.apply(bank));
+          Ok(Json.toJson(checkout));
+        }
+
+      }
+    })
+
+  }
+
+
+  def getSummaryInfo = auth.Action.async { request =>
+    val ipAddress = RequestUtils.getIpAddress(request);
+    val time = DateTimeUtils.getCurrentTimeStampString(None);
+
+    userService.getUserObjectFromReq(request).flatMap(userObject => {
+      userRepository.getUserByPk(userObject.userId.get).map(userBasicDetails => {
+        val summaryUserInfo = new SummaryUserInfo(userBasicDetails.get.ubdfirstname.get + " " + userBasicDetails.get.ubdlastname.get,
+          userBasicDetails.get.ubdpan.get, ip = ipAddress, time = time);
+        Ok(Json.toJson(summaryUserInfo));
+      })
+
+    });
+
+  }
+
+
+  def invest = auth.Action.async(parse.json) { request =>
+    userService.getUserObjectFromReq(request).flatMap(userObject => {
+      val summaryData = request.body.as[Summary];
+
+      logger.debug("data " + summaryData.totalAmount);
+
+      val subOrderList: ListBuffer[SubOrder] = ListBuffer[SubOrder]();
+      summaryData.fundList.zipWithIndex.foreach(data => {
+
+        val fund = data._1;
+        val index = data._2;
+
+        if (fund.investmentMode == InvestmentModeEnum.LUMPSUM.toString) {
+          val invMode = LUMPSUM_INVESTMENT_MODE
+          subOrderList.+=(SubOrder(index, fund.amount, invMode, fund.soptRfnum, None, "N"))
+        } else {
+          val invMode = SIP_INVESTMENT_MODE
+          val frequency = schemeHelper.getSipFrequencyShortForm(fund.aIPFrequency.get);
+          subOrderList.+=(SubOrder(index, fund.amount, invMode, fund.soptRfnum, None, "N",
+            sipDayOfMonth = Some(fund.deductionDate.get.toInt),
+            sipFrequency = Some(frequency),
+            sipNoOfInstallments = Some(fund.noOfInstallment.get.toInt)));
+        }
+      })
+      val orderModel = OrderModel(BUYSELL_BUY, summaryData.totalAmount, Some(RequestUtils.getIpAddress(request)), subOrderList.toList, None, Some(summaryData.bankRfnum),
+        Some(summaryData.imagePath))
+
+      orderService.placeNewOrder(orderModel, userObject).map(processedOrderModel => {
+
+        val modifiedSubOrderList: ListBuffer[ProcessedSubOrderModel] = ListBuffer[ProcessedSubOrderModel]();
+        processedOrderModel.subOrderList.foreach(subOrder => {
+          modifiedSubOrderList.+=(subOrder.copy(investmentMode = DBConstantsUtil.getInvestmentModeFullForm(subOrder.investmentMode)))
+        })
+
+        logger.debug(Json.toJson(processedOrderModel.copy(subOrderList = modifiedSubOrderList.toList)).toString());
+        Ok(Json.toJson(processedOrderModel.copy(subOrderList = modifiedSubOrderList.toList)));
+      });
+
+    });
+
+  }
+
+  def generatePaymentUrl = auth.Action.async(parse.json) { request =>
+    val paymentObj: PaymentObject = request.body.as[PaymentObject];
+    userService.getUserObjectFromReq(request).flatMap(userObject => {
+      val paymentReturnUrl = paymentObj.paymentUrl + "/" + paymentObj.orderId
+      orderService.generatePaymentGatewayLink(1, paymentReturnUrl, userObject).map(paymentLink => {
+        Ok(Json.toJson(paymentObj.copy(bseUrl = Some(paymentLink))));
+      })
+    });
+  }
+
+  def getOrderStatus(orderId: String) = auth.Action.async { request =>
+    userService.getUserObjectFromReq(request).flatMap { userLoginObject =>
+      orderService.getOrderAcknowledgeDetails(orderId.toLong, userLoginObject).map(processedOrderModel => {
+        val modifiedSubOrderList: ListBuffer[ProcessedSubOrderModel] = ListBuffer[ProcessedSubOrderModel]();
+        processedOrderModel.subOrderList.foreach(subOrder => {
+          modifiedSubOrderList.+=(subOrder.copy(investmentMode = DBConstantsUtil.getInvestmentModeFullForm(subOrder.investmentMode),
+            sipFrequency = Some(schemeHelper.getSipFrequencyFullForm(subOrder.sipFrequency.getOrElse("")))));
+        })
+
+        Ok(Json.toJson(processedOrderModel.copy(subOrderList = modifiedSubOrderList.toList)));
+      })
+    }
+  }
+
+  def getSubOrderStatus(subOrderId: String) = auth.Action.async { request =>
+    userService.getUserObjectFromReq(request).flatMap { userLoginObject =>
+
+      orderService.checkOrderPaymentStatus(subOrderId.toLong, userLoginObject).map(paymentStatus => {
+        Ok(Json.toJson(paymentStatus))
+      })
+    }
+  }
+
+
+  def cancelOrders(orderId: String) = auth.Action.async { request =>
+    userService.getUserObjectFromReq(request).flatMap {
+      userLoginObject =>
+
+        orderService.prepareOrderDetails(orderId.toLong, userLoginObject).map(orderModel => {
+          Ok(Json.toJson(orderModel))
+        })
+    }
+  }
+
+  def sendOrderMail = auth.Action.async(parse.json) { request =>
+
+    val heading = PropertiesLoaderService.getConfig().getString("mail.order-placed.heading")
+    val fromOrderMail = PropertiesLoaderService.getConfig().getString("mail.order-placed.from")
+    val replytoOrderMail = PropertiesLoaderService.getConfig().getString("mail.order-placed.from")
+    val bccOrder = PropertiesLoaderService.getConfig().getString("mail.order-placed.bcc")
+    val requestData = request.body
+    val orderId = (requestData \ "orderId").as[Long]
+    userService.getUserObjectFromReq(request).flatMap(userLoginObject => {
+      val userName: String = userLoginObject.userName.getOrElse("")
+      var userId: Long = userLoginObject.userId.getOrElse(0L)
+      fcubdRepo.getById(userId).flatMap(ubdRowOpion => {
+        if (ubdRowOpion.nonEmpty) {
+          val ubdRow = ubdRowOpion.get
+          orderService.populateOrderDetails(orderId.toLong, userLoginObject).flatMap(subOrderDetail => {
+            val mailHeaderTemplate = views.html.mailHeader(heading,mailHelper.staticPath)
+            val mailBodyTemplate = views.html.orderProcessed(ubdRow, subOrderDetail, mailHelper.getMth, mailHelper.baseUrl)
+            val mailTemplate = views.html.mail(mailHeaderTemplate, mailBodyTemplate, mailHelper.getMth)
+            val subj = "Summary of your Order [ID# " + orderId + " " + subOrderDetail.stateName.getOrElse("") + "] as on " + DateTimeUtils.convertStringDateWithFormats(subOrderDetail.createDate, "yyyy/MM/dd HH:mm:ss", "dd MMM yy hh:mm a").get
+            val bodyText = views.html.orderProcessedTxt(ubdRow, subOrderDetail, mailHelper.getMth).toString()
+            val bodyHTML = mailTemplate.toString()
+            var attachmentFiles = new mutable.HashMap[String, String]();
+
+            if (subOrderDetail.snapshotPath.nonEmpty) {
+              val url = mailHelper.filepath + "/" + subOrderDetail.snapshotPath.get
+              mailHelper.downLoadFile(url, "png").map(_file => {
+                attachmentFiles += ("orderSummarySnapshot" -> _file.getAbsolutePath)
+                mailService.sendMail("priyabrata.behera@fincash.com", subj, bodyText, bodyHTML, Some(replytoOrderMail), Some(fromOrderMail), None, Some(attachmentFiles),
+                  Some(ListBuffer("priyabrata.behera@fincash.com")), Some(ListBuffer(bccOrder))).map(mailId => {
+                  logger.info("Message ID >>> " + mailId)
+                  logger.debug("Deleting file >>> " + _file.getAbsolutePath)
+                  if (_file.exists) {
+                    _file.delete
+                  }
+                })
+              })
+
+              Future.apply(Ok(Json.obj("Success" -> true, "message" -> "mail request queued")))
+
+            } else {
+
+              mailService.sendMail("priyabrata.behera@fincash.com", subj, bodyText, bodyHTML, Some(replytoOrderMail), Some(fromOrderMail), None, Some(attachmentFiles),
+                Some(ListBuffer("priyabrat1993@gmail.com", "priyabrata.behera@fincash.com")), Some(ListBuffer(bccOrder))).map(_messageid => {
+                logger.info("Message id >>> " + _messageid)
+              })
+              Future.apply(Ok(Json.obj("Success" -> true)))
+            }
+          })
+        } else {
+          Future.apply(Ok(Json.obj("Success" -> false, "Message" -> "given user doesn't exist in database")))
+        }
+
+      })
+    })
+  }
+
+}

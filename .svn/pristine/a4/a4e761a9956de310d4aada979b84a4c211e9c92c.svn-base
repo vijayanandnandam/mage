@@ -1,0 +1,81 @@
+package constants
+
+import scala.collection.mutable
+
+/**
+  * Created by fincash on 16-02-2017.
+  */
+trait OrderConstants {
+
+  final val BUYSELL_BUY_FRESH = "BF"
+  final val BUYSELL_BUY_ADDITIONAL = "BA"
+  final val BUYSELL_SELL = "R"
+  final val BUYSELL_SWP = "SW"
+  final val BUYSELL_STP = "ST"
+  final val BUYSELL_SWITCH_IN = "SI"
+  final val BUYSELL_SWITCH_OUT = "SO"
+  final val DP_TRANSACTION = "P"
+  final val NET_BANKING_PAYMENT_MODE = "N"
+
+  final val PHYSICAL_MODE = "P"
+  final val DEMAT_MODE = "D"
+
+  final val BSE_TRANSACTION_MODE = "BSE"
+
+  final val BUYSELL_BUY = "P"
+  final val FRESH = "F"
+  final val FRESH_VALUE = "FRESH"
+  final val ADDITIONAL = "A"
+  final val ADDITIONAL_VALUE = "ADDITIONAL"
+
+  // Order Transaction Modes
+  final val BSE = "BSE"
+  final val RTA = "RTA"
+
+  //SIP Rolling Frequency
+  final val ROLLING_FREQUENCY = 1
+
+  //order state constants
+  final val ORDER_CREATED = 1L
+  final val PLACED_AT_EXCHANGE = 2L
+  final val ORDER_AWAITING_PAYMENT = 3L
+  final val PAYMENT_APPROVED = 4L
+  final val ORDER_REJECTED = 5L
+  final val ORDER_COMPLETED = 6L
+  final val ORDER_CANCELLED = 7L
+  final val MAIN_ORDER_INITIATED = 8L
+  final val MAIN_ORDER_IN_PROCESS = 9L
+  final val PLACED_AT_EXCHANGE_PG = 10L
+
+  final val ORDER_STATUS_FAILURE = 1L
+  final val ORDER_STATUS_SUCCESS = 0L
+  final val ORDER_PAYMENT_NOT_FOUND = 1L
+
+  final val BSE_PAYMENT_NOT_INITIATED = "PAYMENT NOT INITIATED FOR GIVEN ORDER"
+  final val BSE_AWAITING_FUNDS_CONFIRMATION = "AWAITING FOR FUNDS CONFIRMATION"
+  final val BSE_PAYMENT_APPROVED = "APPROVED"
+  final val BSE_PAYMENT_REJECTED = "REJECTED"
+
+  final val FOLIO_NO_KEY = "FOLIO_NO"
+}
+
+object OrderConstants extends OrderConstants with DBConstants {
+
+  val FREQUENCY_MAP = mutable.HashMap[String, String]()
+  FREQUENCY_MAP.+=(MONTHLY_FREQUENCY -> MONTHLY_FREQUENCY_VALUE)
+  FREQUENCY_MAP.+=(QUATERLY_FREQUENCY -> QUATERLY_FREQUENCY_VALUE)
+  FREQUENCY_MAP.+=(ANNUALLY_FREQUENCY -> ANNUALLY_FREQUENCY_VALUE)
+  FREQUENCY_MAP.+=(SEMI_ANNUALLY_FREQUENCY -> SEMI_ANNUALLY_FREQUENCY_VALUE)
+
+  val BUY_SELL_TYPEMAP = mutable.HashMap[String, String]()
+  BUY_SELL_TYPEMAP.+=(FRESH -> FRESH_VALUE)
+  BUY_SELL_TYPEMAP.+=(ADDITIONAL -> ADDITIONAL_VALUE)
+
+  val ORDER_STATE_MAP = mutable.HashMap[String, Long]()
+  ORDER_STATE_MAP.+=(BSE_PAYMENT_NOT_INITIATED -> PLACED_AT_EXCHANGE)
+  ORDER_STATE_MAP.+=(BSE_AWAITING_FUNDS_CONFIRMATION -> ORDER_AWAITING_PAYMENT)
+  ORDER_STATE_MAP.+=(BSE_PAYMENT_APPROVED -> PAYMENT_APPROVED)
+  ORDER_STATE_MAP.+=(BSE_PAYMENT_REJECTED -> ORDER_CANCELLED)
+
+
+}

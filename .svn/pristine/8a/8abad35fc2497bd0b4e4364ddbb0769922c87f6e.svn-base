@@ -1,0 +1,4 @@
+
+/* Added by Paresh for adding IP in document master table */
+ALTER TABLE `FCDMT`
+ADD COLUMN `DMTUPLOADIP` VARCHAR(32) NULL DEFAULT NULL AFTER `DMTDOCVALIDITY`;

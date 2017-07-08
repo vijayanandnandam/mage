@@ -1,0 +1,71 @@
+package controllers
+
+import javax.inject.Inject
+
+import data.model.Tables.{FcactRow, FcactRowWrapper}
+import org.slf4j.LoggerFactory
+import play.api.mvc.{Action, Controller}
+import repository.tables.FcactRepo
+import service.{ApplicationConstantService, ReportService}
+import slick.jdbc.MySQLProfile.api._
+import utils.DateTimeUtils
+
+import scala.concurrent.ExecutionContext.Implicits.global
+
+class TestController @Inject()(repositoryIml:FcactRepo,applicationService:ApplicationConstantService,reportService:ReportService) extends Controller{
+
+  val logger , log = LoggerFactory.getLogger(classOf[TestController])
+
+  def test() = Action.async{
+
+    reportService.getFundDetails(1L).map{x =>
+      x.foreach(value => logger.debug(value.toString))
+      Ok}
+    //testSave
+    //testSaveWithKey
+    //testFilter
+    //Ok
+  }
+
+  private def testUpdate() = {
+    repositoryIml.getById(44).map(x=> {
+
+      if(!x.isEmpty){
+        val fcactRow = x.get
+        val row:FcactRow = fcactRow.copy(modifydate = DateTimeUtils.getCurrentTimeStamp())
+        repositoryIml.updateById(44,row)
+      }
+
+    })
+  }
+
+  private def testSave() = {
+    val fcactRowWrapper = new FcactRowWrapper(None,"XYZ","XYZ1","N")
+    repositoryIml.save(fcactRowWrapper.get("anonymous")) map { u =>
+      log.debug("Successfully Saved")
+    } recover {
+      case ex => logger.debug("save failed. Check stacktrace for more details.")
+        ex.printStackTrace();
+        throw new Exception("Save operation failed")
+    }
+  }
+
+  private def testSaveWithKey() = {
+    val fcactRowWrapper = new FcactRowWrapper(None,"XYZ","XYZ1","N")
+    repositoryIml.saveWithKey(fcactRowWrapper.get("anonymous")) map { u =>
+      logger.debug("Successfully Saved")
+    } recover {
+      case ex => logger.debug("save failed. Check stacktrace for more details.")
+        ex.printStackTrace();
+        throw new Exception("Save operation failed")
+    }
+  }
+
+  private def testFilter() = {
+
+    repositoryIml.filter(x => x.id inSet(Set(2L,1L))).map{
+      x => x.foreach(row=>
+        logger.debug(row.toString))
+    }
+  }
+}

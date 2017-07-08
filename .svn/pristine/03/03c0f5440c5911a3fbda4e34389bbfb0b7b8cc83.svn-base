@@ -1,0 +1,80 @@
+package utils.mail
+
+import java.text.DecimalFormat
+import java.util.Calendar
+import javax.inject.Inject
+
+import org.slf4j.LoggerFactory
+import repository.tables.FcubdRepo
+import utils.DateTimeUtils
+
+import scala.concurrent.ExecutionContext
+
+/**
+  * Created by Fincash on 10-03-2017.
+  */
+class MailTemplateHelper @Inject()(implicit ec: ExecutionContext, fcubdRepo: FcubdRepo) {
+
+  val logger, log = LoggerFactory.getLogger(classOf[MailTemplateHelper])
+
+
+  def parseDate(date: String, from: String, to: String): String = {
+    return DateTimeUtils.convertStringDateWithFormats(date, from, to).getOrElse("")
+  }
+
+  def parse(input: Double): String = {
+    val myFormatter = new DecimalFormat("##,##,##,###.##");
+    var retval: Option[String] = None
+    try {
+      retval = Some(myFormatter.format(input))
+    } catch {
+      case e: Exception => logger.debug(e.getMessage)
+    }
+    return retval.getOrElse(input.toLong.toString)
+  }
+
+  def parse(input: Option[Object]): String = {
+    if(input.nonEmpty){
+      val obj = input.get
+      if(obj.isInstanceOf[Double])
+       return parse(obj.asInstanceOf[Double])
+      else if(obj.isInstanceOf[Long])
+        return parse(obj.asInstanceOf[Long])
+      else if(obj.isInstanceOf[Integer])
+        return parse(obj.asInstanceOf[Integer])
+      else
+        ""
+    }else{
+       ""
+    }
+  }
+
+  def parse(input: Long): String = {
+    val myFormatter = new DecimalFormat("##,##,##,###");
+    var retval: Option[String] = None
+    try {
+      retval = Some(myFormatter.format(input))
+    } catch {
+      case e: Exception => logger.debug(e.getMessage)
+    }
+    return retval.getOrElse(input.toString)
+  }
+
+
+  def parse(input: Integer): String = {
+    val myFormatter = new DecimalFormat("##,##,##,###");
+    var retval: Option[String] = None
+    try {
+      retval = Some(myFormatter.format(input))
+    } catch {
+      case e: Exception => logger.debug(e.getMessage)
+    }
+    return retval.getOrElse(input.toString)
+  }
+
+  def getCurrentYearString(): Int ={
+      Calendar.getInstance().get(Calendar.YEAR)
+  }
+
+
+}

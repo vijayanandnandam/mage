@@ -1,0 +1,105 @@
+package service
+
+import javax.inject.Inject
+
+import constants.DBConstants
+import helpers.SchemeHelper
+import models._
+import models.FundsJsonFormats._
+import play.api.Logger
+import play.api.libs.json.JsObject
+import reactivemongo.api.collections.bson.BSONCollection
+import reactivemongo.bson.{BSONDocument, BSONObjectID}
+import reactivemongo.play.json.BSONFormats
+import repository.module.{SchemeRepository, UserRepository}
+
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.collection.mutable.ListBuffer
+import scala.concurrent.Future
+
+/**
+  * Created by Fincash on 04-02-2017.
+  */
+class CheckoutService @Inject()(mongoDbService: MongoDbService, schemeRepository: SchemeRepository, schemeService: SchemeService,
+                                userService: UserService, userRepository: UserRepository, schemeHelper: SchemeHelper) extends DBConstants {
+
+  /**
+    * This method is used to fetch information about funds with which the checkout process should pe initiated
+    *
+    * @param checkoutMaster
+    * @param userName
+    * @return
+    */
+  def getCheckoutFunds(checkoutMaster: Future[BSONCollection], userName: String, cartId: String): Future[List[CheckoutFund]] = {
+
+    var findQuery = BSONDocument("_id" -> BSONObjectID.parse(cartId).get)
+
+    checkoutMaster.flatMap(coll => {
+
+      coll.find(findQuery).one[BSONDocument].flatMap(doc => {
+
+        if (doc.isEmpty) {
+          //cart is empty
+          Future.apply(List[CheckoutFund]());
+        } else {
+          val fundsList = (BSONFormats.BSONDocumentFormat.writes(doc.get).as[JsObject] \ "funds").as[List[FundDoc]]
+          val checkoutFunds = for (fund <- fundsList) yield {
+            for {
+              schemeOptionsList <- schemeRepository.getAllOptionsBySchemeId(fund.id)
+              schemeAIPDataList <- schemeService.getSchemeAIPDataByOptionsList(schemeOptionsList.toList)
+            //deductionDatesList <- schemeService.getSchemeDates(fundsJsonList)
+            //minTenureList <- schemeService.getMinTenure(fundsJsonList)
+            } yield {
+              val optionsList = for (option <- schemeOptionsList) yield {
+                val isDefault = if (option.soptisdefault == Y_FLAG) true else false
+                val aipData = schemeAIPDataList.filter(aip => aip.aiptsoptrfnum == option.id).sortBy(aip => aip.aiptminamount).map(aiptRow => {
+                  new AIPData(option.id, schemeHelper.getSipFrequencyFullForm(aiptRow.aiptfrequency), aiptRow.aiptsipday, aiptRow.aiptminamount, aiptRow.aiptmaxamount, aiptRow.aiptmintenure,
+                    aiptRow.aiptmaxtenure, aiptRow.aiptmultiplier)
+                })
+
+                new FundOption(option.id, option.soptlegalname,
+                  schemeHelper.getSchemePlan(option.soptschemeplan),
+                  schemeHelper.getDivFrequency(option.soptdividendfrqn),
+                  schemeHelper.getDivOption(option.soptdivioptiontype),
+                  true, isDefault, Some(aipData))
+              }
+              new CheckoutFund(fund, optionsList.toList);
+            }
+          }
+          Future.sequence(checkoutFunds);
+          //new ListBuffer[CheckoutFund]();
+        }
+      })
+    })
+  }
+
+  /**
+    * This method is used to fetch bank information for provided userPk when checkout process is initiated
+    *
+    * @param userPk
+    * @return
+    */
+  def getCheckoutBanks(userPk: Long): Future[CheckoutBank] = {
+    userRepository.getUserBank(userPk).map(userBank => {
+      new CheckoutBank(Some(userBank.buaid.get.toLong), userBank.bank.get.bankName, userBank.bank.get.branch, userBank.accountNumber, userBank.bank.get.IFSC)
+    })
+  }
+
+  /**
+    * This method is used to fetch nominee information when checkout process is initiated
+    *
+    * @param userPk
+    * @return
+    */
+  def getCheckoutNominee(userPk: Long): Future[Option[CheckoutNominee]] = {
+    userRepository.getUserNominee(userPk).map(userNominee => {
+      if (userNominee.ndtid.isDefined && userNominee.ndtid.get.length > 0 && userNominee.nomineeName.isDefined && userNominee.nomineeRelation.isDefined) {
+        Some(new CheckoutNominee(Some(userNominee.ndtid.get.toLong), userNominee.nomineeName, userNominee.nomineeRelation))
+      } else {
+        None
+      }
+    })
+  }
+
+
+}

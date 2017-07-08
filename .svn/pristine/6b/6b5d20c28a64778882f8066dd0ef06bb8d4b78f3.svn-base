@@ -1,0 +1,383 @@
+package controllers
+
+import javax.inject.Named
+
+import com.google.inject.Inject
+import constants.{DBConstants, MongoConstants, OrderConstants}
+import helpers.{AuthenticatedAction, MailHelper, PoolingClientConnectionManager, SchemeHelper}
+import models.enumerations.{InvestmentModeEnum, RedemptionModeEnum}
+import models._
+import models.RedemptionJsonFormats._
+import models.CheckoutJsonFormats._
+import models.OrderJsonFormats._
+import org.apache.http.client.methods.HttpGet
+import org.slf4j.LoggerFactory
+import play.api.libs.json.{JsArray, JsObject, Json}
+import play.api.mvc.{Action, Controller}
+import reactivemongo.api.commands.{UpdateWriteResult, WriteResult}
+import reactivemongo.bson.{BSONDocument, BSONObjectID}
+import reactivemongo.play.json.BSONFormats
+import repository.module.UserRepository
+import repository.tables.FcubdRepo
+import service._
+import play.modules.reactivemongo.json.ImplicitBSONHandlers._
+import service.integration.RelianceIntegrationServiceImpl
+import utils.{DBConstantsUtil, RequestUtils}
+
+import scala.collection.mutable.ListBuffer
+import scala.concurrent.{ExecutionContext, Future}
+import scala.io.Source
+import scala.util.{Failure, Success}
+
+/**
+  * Created by Fincash on 27-04-2017.
+  */
+class RedemptionController @Inject()(implicit ec: ExecutionContext, @Named("relPoolingClientConnectionManager") relPoolingClient: PoolingClientConnectionManager, auth: AuthenticatedAction, mongoDbService: MongoDbService, checkoutService: CheckoutService, userRepository: UserRepository, fcubdRepo: FcubdRepo, userService: UserService,
+                                     orderService: OrderService, schemeHelper: SchemeHelper, mailService: MailService, mailHelper: MailHelper, configuration: play.api.Configuration, relianceIntegrationServiceImpl: RelianceIntegrationServiceImpl)
+  extends Controller with OrderConstants with DBConstants with MongoConstants {
+
+  val logger, log = LoggerFactory.getLogger(classOf[RedemptionController])
+
+  def collection(name: String) = mongoDbService.collection(name)
+
+  /*def getRedemptionData = auth.Action.async(parse.json) { request =>
+
+    val cartId = (request.body \"cartId").as[String]
+
+    userService.getUserObjectFromReq(request).flatMap(userObject => {
+      for {
+        fundsList <- checkoutService.getCheckoutFunds(collection(CHECKOUT_COLLECTION_NAME) , userObject.get.username.get, cartId)
+        nominee <- checkoutService.getCheckoutNominee(userObject.get.userid.get)
+        bank <- checkoutService.getCheckoutBanks(userObject.get.userid.get)
+      } yield {
+
+        if (nominee.isDefined) {
+          val checkout: Checkout = new Checkout(
+            cartId,
+            fundsData = fundsList.toList,
+            nomineeList = Some(List.apply(nominee.get)),
+            bankList = List.apply(bank));
+          Ok(Json.toJson(checkout));
+        } else {
+          val checkout: Checkout = new Checkout(cartId,
+            fundsData = fundsList.toList,
+            nomineeList = None,
+            bankList = List.apply(bank));
+          Ok(Json.toJson(checkout));
+        }
+
+      }
+    })
+  }*/
+
+  def getRedemptionDataSummary = auth.Action.async(parse.json) { request =>
+    val redemptionId = (request.body \ "redemptionId").as[String]
+    var redObjId = BSONObjectID.generate()
+    if (redemptionId.length > 0){
+      redObjId = BSONObjectID.parse(redemptionId).get
+    }
+
+    var findQuery = BSONDocument("_id" -> redObjId)
+
+    userService.getUserObjectFromReq(request).flatMap(userObject => {
+      if (userObject.nonEmpty){
+        var username = userObject.get.username.getOrElse("")
+//        var findQuery = BSONDocument("username" -> username)
+        collection(REDEMPTION_COLLECTION_NAME).flatMap{ coll => {
+          coll.find(findQuery).one[BSONDocument].flatMap(doc => {
+            if (doc.isEmpty){
+              for {
+                nominee <- checkoutService.getCheckoutNominee(userObject.get.userid.get)
+                bank <- checkoutService.getCheckoutBanks(userObject.get.userid.get)
+              } yield {
+                if (nominee.isDefined) {
+                  val redemption: Redemption = new Redemption(redObjId.stringify, fundsData = List[RedemptionFund](), nomineeList = Some(List.apply(nominee.get)), bankList = List.apply(bank))
+                  Ok(Json.toJson(redemption))
+                } else {
+                  val redemption: Redemption = new Redemption(redObjId.stringify, fundsData = List[RedemptionFund](), nomineeList = None, bankList = List.apply(bank))
+                  Ok(Json.toJson(redemption))
+                }
+              }
+            }
+            else {
+              if (doc.get.contains("redemption")) {
+                val redemption = (BSONFormats.BSONDocumentFormat.writes(doc.get).as[JsObject] \ "redemption").as[JsObject]
+                logger.debug("redemption >> " + redemption)
+                Future {
+                  Ok(Json.toJson(redemption))
+                }
+              }
+              else {
+                for {
+                  nominee <- checkoutService.getCheckoutNominee(userObject.get.userid.get)
+                  bank <- checkoutService.getCheckoutBanks(userObject.get.userid.get)
+                } yield {
+                  if (nominee.isDefined) {
+                    val redemption: Redemption = new Redemption(redemptionId, fundsData = List[RedemptionFund](), nomineeList = Some(List.apply(nominee.get)), bankList = List.apply(bank))
+                    Ok(Json.toJson(redemption))
+                  } else {
+                    val redemption: Redemption = new Redemption(redemptionId, fundsData = List[RedemptionFund](), nomineeList = None, bankList = List.apply(bank))
+                    Ok(Json.toJson(redemption))
+                  }
+                }
+              }
+            }
+          })
+        }}
+      }
+      else {
+        logger.error("Error :: User doesn't exist" )
+        Future{Ok(Json.obj("success" -> false))}
+      }
+    })
+
+    /*collection(REDEMPTION_COLLECTION_NAME).flatMap { coll =>
+      coll.find(findQuery).one[BSONDocument].flatMap(doc => {
+        if (doc.isEmpty) {
+          userService.getUserObjectFromReq(request).flatMap(userObject => {
+            for {
+            //              fundsList <- checkoutService.getCheckoutFunds(collection(CHECKOUT_COLLECTION_NAME), userObject.get.username.get, cartId)
+              nominee <- checkoutService.getCheckoutNominee(userObject.get.userid.get)
+              bank <- checkoutService.getCheckoutBanks(userObject.get.userid.get)
+            } yield {
+
+              if (nominee.isDefined) {
+                val redemption: Redemption = new Redemption(
+                  "",
+                  fundsData = List[RedemptionFund](), //fundsList.toList,
+                  nomineeList = Some(List.apply(nominee.get)),
+                  bankList = List.apply(bank))
+                Ok(Json.toJson(redemption))
+              } else {
+                val redemption: Redemption = new Redemption(
+                  "",
+                  fundsData = List[RedemptionFund](), //fundsList.toList,
+                  nomineeList = None,
+                  bankList = List.apply(bank))
+                Ok(Json.toJson(redemption))
+              }
+            }
+          })
+          //          Ok(Json.toJson(new Redemption("", List[RedemptionFund](), None, List[CheckoutBank](), None, None, None)))
+        } else {
+          if (doc.get.contains("redemption")) {
+            val redemption = (BSONFormats.BSONDocumentFormat.writes(doc.get).as[JsObject] \ "redemption").as[JsObject]
+            logger.debug("redemption >> " + redemption)
+            Future {
+              Ok(Json.toJson(redemption))
+            }
+          }
+          else {
+            userService.getUserObjectFromReq(request).flatMap(userObject => {
+              for {
+              //              fundsList <- checkoutService.getCheckoutFunds(collection(CHECKOUT_COLLECTION_NAME), userObject.get.username.get, cartId)
+                nominee <- checkoutService.getCheckoutNominee(userObject.get.userid.get)
+                bank <- checkoutService.getCheckoutBanks(userObject.get.userid.get)
+              } yield {
+                if (nominee.isDefined) {
+                  val redemption: Redemption = new Redemption(
+                    redemptionId,
+                    fundsData = List[RedemptionFund](), //fundsList.toList,
+                    nomineeList = Some(List.apply(nominee.get)),
+                    bankList = List.apply(bank))
+                  Ok(Json.toJson(redemption))
+                } else {
+                  val redemption: Redemption = new Redemption(
+                    redemptionId,
+                    fundsData = List[RedemptionFund](), //fundsList.toList,
+                    nomineeList = None,
+                    bankList = List.apply(bank))
+                  Ok(Json.toJson(redemption))
+                }
+              }
+            })
+            //            Future{Ok(Json.toJson(new Redemption("", List[RedemptionFund](), None, List[CheckoutBank](), None, None, None)))}
+          }
+        }
+      })
+    }*/
+  }
+
+  def saveRedemptionData = auth.Action.async(parse.json) { request => {
+    val id = (request.body \ "redemptionId").as[String]
+    val redemption = (request.body \ "redemption").as[JsObject]
+    var redemptionId: Option[BSONObjectID] = None
+    if (id.length > 0) {
+      redemptionId = Some(BSONObjectID.parse(id).get)
+    } else {
+      redemptionId = Some(BSONObjectID.generate())
+    }
+
+    userService.getUsernameFromRequest(request).flatMap { usernameOpt => {
+      val username = usernameOpt.getOrElse("Anonymous")
+      /*var findQuery = BSONDocument("username" -> username, "_id" -> redemptionId);*/
+      val findQuery = BSONDocument("_id" -> redemptionId.get)
+      val modifier = BSONDocument(
+        "_id" -> redemptionId.get,
+        "username" -> username,
+        "redemption" -> redemption
+      )
+
+      collection(REDEMPTION_COLLECTION_NAME).flatMap { coll =>
+        coll.find(findQuery).one[BSONDocument].flatMap(doc => {
+          if (doc.isEmpty) {
+            logger.debug("Redemption cart not found, creating new one with id  >>> " + redemptionId.get.stringify)
+            val writeRes: Future[WriteResult] = mongoDbService.insertDoc(coll, modifier)
+            writeRes.onComplete {
+              case Failure(e) => {
+                logger.error("Mongo Error :: " + e.getMessage + " in saving >>> " + redemptionId.get.stringify)
+                Ok(Json.obj("success" -> false, "error" -> e.getMessage, "message" -> e.getMessage))
+              }
+              case Success(writeResult) => {
+                logger.debug("successfully inserted document with result " + redemptionId.get.stringify)
+              }
+            }
+            writeRes.map(_ => {
+              Ok(Json.obj("redemptionId" -> redemptionId.get.stringify, "success" -> true))
+            })
+          }
+          else {
+            logger.debug("redemption id " + redemptionId.get.stringify)
+            val writeRes: Future[UpdateWriteResult] = mongoDbService.updateDoc(coll, findQuery, BSONDocument("username" -> username, "redemption" -> redemption))
+            writeRes.onComplete {
+              case Failure(e) => {
+                logger.error("Mongo Error :: " + e.getMessage + " in saving >>> " + redemptionId.get.stringify)
+                Ok(Json.obj("success" -> false, "error" -> e.getMessage, "message" -> e.getMessage))
+              }
+              case Success(writeResult) => {
+                logger.debug("successfully inserted document with result " + redemptionId.get.stringify)
+              }
+            }
+            writeRes.map(_ => {
+              Ok(Json.obj("redemptionId" -> redemptionId.get.stringify, "success" -> true))
+            })
+          }
+        })
+      }
+    }
+    }
+  }
+  }
+
+  def redeem = auth.Action.async(parse.json) { request =>
+    userService.getUserObjectFromReq(request).flatMap(userObject => {
+      val summaryData = request.body.as[RedemptionSummary]
+      logger.debug("summaryData >>>>>  ",summaryData)
+      val subOrderList: ListBuffer[SubOrder] = ListBuffer[SubOrder]()
+      summaryData.fundList.zipWithIndex.foreach(data => {
+
+        val fund = data._1
+        val index = data._2
+        var amount: Option[Double] = None
+        var quantity: Option[Double] = None
+        if (fund.amountUnitFlag){
+          amount = Some(fund.amount)
+        }
+        else {
+          quantity = Some(fund.amount)
+        }
+        var allRedeem: Option[Boolean] = Some(fund.fullPartialFlag)
+
+//        if (fund.selectedRedemptionMode == RedemptionModeEnum.LUMPSUM.toString) {
+          val redMode = LUMPSUM_REDEMPTION_MODE
+          subOrderList.+=(SubOrder(index, amount, redMode, fund.option.soptRfnum, None, N_FLAG,
+            quantity = quantity,
+            folioNo = Some(fund.folioNo),
+            allRedeem = allRedeem))
+        /*} else {
+          val redMode = SWP_REDEMPTION_MODE
+          val frequency = schemeHelper.getSipFrequencyShortForm(fund.selectedAWPFrequency.get)
+          subOrderList.+=(SubOrder(index, None, redMode, fund.option.soptRfnum, None, N_FLAG,
+            sipDayOfMonth = Some(fund.selectedAWPDate.get.toInt),
+            sipFrequency = Some(frequency),
+            sipNoOfInstallments = Some(fund.noOfInstallment.get.toInt),
+            orderType = Some(BUYSELL_SWP),
+            quantity = quantity,
+            transactionMode = Some(RELIANCE_TRANSACTION_MODE),
+            folioNo = Some(fund.folioNo)))
+        }*/
+      })
+
+      val orderModel = OrderModel(BUYSELL_SELL, None, Some(RequestUtils.getIpAddress(request)), subOrderList.toList, None, Some(summaryData.bankRfnum),
+        Some(summaryData.imagePath))
+
+      orderService.placeNewOrder(orderModel, userObject.get).map(processedOrderModel => {
+
+        val modifiedSubOrderList: ListBuffer[ProcessedSubOrderModel] = ListBuffer[ProcessedSubOrderModel]()
+        processedOrderModel.subOrderList.foreach(subOrder => {
+          modifiedSubOrderList.+=(subOrder.copy(investmentMode = DBConstantsUtil.getInvestmentModeFullForm(subOrder.investmentMode)))
+        })
+
+        logger.debug(Json.toJson(processedOrderModel.copy(subOrderList = modifiedSubOrderList.toList)).toString())
+        Ok(Json.toJson(processedOrderModel.copy(subOrderList = modifiedSubOrderList.toList)))
+      })
+
+    });
+
+  }
+
+  def removeFundFromCart = auth.Action.async(parse.json) {request => {
+    var requestData = request.body
+    logger.debug(request.body.toString())
+    val soptRfnum = requestData.\("id").get.as[String]
+    val redemptionId = requestData.\("redemptionId").get.as[String]
+    val folioNo = (requestData.\("folioNo")).get.as[String]
+
+    var username: Option[String] = None
+    userService.getUserObjectFromReq(request).flatMap(user => {
+      if (user.nonEmpty) {
+        username = user.get.username
+        collection(REDEMPTION_COLLECTION_NAME).flatMap(coll => {
+          if(redemptionId.length==0 && soptRfnum.length==0){
+            logger.debug("redemptionId OR soptRfnum not provided cartid [" + redemptionId+"] sopt ["+soptRfnum+"]");
+            Future.apply(None)
+          }
+          val findQuery = BSONDocument("_id" -> BSONObjectID.parse(redemptionId).get)
+          coll.find(findQuery).one[BSONDocument].map(doc => {
+            if (doc.nonEmpty){
+              if (doc.get.contains("redemption")){
+                var redemption = (BSONFormats.BSONDocumentFormat.writes(doc.get).as[JsObject] \ "redemption").as[JsObject]
+                if (redemption.keys.contains("fundsData")){
+                  var nomineeList = (redemption \ "nomineeList").as[List[CheckoutNominee]]
+                  var bankList = (redemption \ "bankList").as[List[CheckoutBank]]
+                  var selectedBank = (redemption \ "selectedBank").as[CheckoutBank]
+                  var selectedNominee = (redemption \ "selectedNominee").as[CheckoutNominee]
+                  var fundsData = (redemption \ "fundsData").as[List[RedemptionFund]]
+                  fundsData = fundsData.filterNot(x => x.option.soptRfnum.toString==soptRfnum && x.folioNo==folioNo)
+                  redemption = (new Redemption(redemptionId, fundsData, Some(nomineeList), bankList, Some(selectedBank), Some(selectedNominee))).asInstanceOf[JsObject]
+                  val writeRes: Future[UpdateWriteResult] = mongoDbService.updateDoc(coll, findQuery, BSONDocument("username" -> username, "redemption" -> redemption))
+                  writeRes.onComplete {
+                    case Failure(e) => {
+                      logger.error("Mongo Error :: " + e.getMessage + " in saving >>> " + redemptionId)
+                      Ok(Json.obj("success" -> false, "error" -> e.getMessage, "message" -> e.getMessage))
+                    }
+                    case Success(writeResult) => {
+                      logger.debug("successfully inserted document with result " + redemptionId)
+                    }
+                  }
+                  writeRes.map(_ => {
+                    Ok(Json.obj("redemptionId" -> redemptionId, "success" -> true))
+                  })
+                }
+                Ok(Json.obj("success" -> false, "message" -> "'redemption' does not have key 'fundsData'"))
+              }
+              Ok(Json.obj("success" -> false, "message" -> "Doc does not have key 'redemption'"))
+            }
+            // Document is empty
+            else {
+              Ok(Json.obj("success" -> false, "message" -> "Redemption document empty"))
+            }
+          })
+        })
+      }
+      else {
+        Future{Ok(Json.obj("message" -> "User not found", "error" -> "User not found", "success"-> false))}
+      }
+    })
+  }}
+
+  def callTestMethod = Action {
+    relianceIntegrationServiceImpl.testHttpClient
+    Ok
+  }
+}

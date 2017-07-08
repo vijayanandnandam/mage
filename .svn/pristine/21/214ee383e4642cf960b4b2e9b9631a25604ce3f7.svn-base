@@ -1,0 +1,24 @@
+package service.integration
+
+import javax.inject.Inject
+
+import data.model.Tables.{FcomtRow, FcsotRow}
+import models.{OrderModel, UserLoginObject}
+
+import scala.collection.mutable
+
+
+/**
+  * Created by fincash on 19-04-2017.
+  */
+class IntegrationServiceImpl @Inject()(bSEIntegrationServiceImpl: BSEIntegrationServiceImpl) {
+
+  val integrationMap: mutable.HashMap[String, IntegrationService] = new mutable.HashMap[String, IntegrationService]()
+  integrationMap.+=("B" -> bSEIntegrationServiceImpl)
+
+  def placeSubOrders(orderModel: OrderModel, order: FcomtRow, subOrderList: List[FcsotRow], userLoginObject: UserLoginObject) = {
+
+    val integrationType = "B"
+    integrationMap.getOrElse(integrationType, bSEIntegrationServiceImpl).placeSubOrders(orderModel, order, subOrderList, userLoginObject)
+  }
+}

@@ -1,0 +1,5 @@
+
+
+POST         /eKYCStatus                                      controllers.KYCController.sendeKYCMail
+POST        /orderMail                                        controllers.CheckoutController.sendOrderMail
+

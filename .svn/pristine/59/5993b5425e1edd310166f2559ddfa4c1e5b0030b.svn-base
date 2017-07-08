@@ -1,0 +1,13 @@
+@(supPhone: String = "+91-7700954611", supEmail:String = "support@fincash.com")
+
+
+<p>For any queries, you can contact us at:</p>
+
+<ul style="padding:2% 0%; list-style:none; margin:0; min-width:30%;display:inline-block;">
+    <li style="margin:0 1% 2% 0;min-width:20%; font-weight:bold;">Phone</li>
+    <li style="margin:0 1% 0 0;min-width:20%;color:#53ADD0;">@supPhone</li>
+</ul>
+<ul style="padding:0%; list-style:none;min-width:50%;  margin-top:0;display:inline-block;">
+    <li style="margin:0 1% 2% 0; font-weight:bold;">Email</li>
+    <li style="margin:0 1% 0 0;color:#53ADD0;">@supEmail</li>
+</ul>

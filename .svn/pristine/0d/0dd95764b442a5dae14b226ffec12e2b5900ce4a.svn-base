@@ -1,0 +1,125 @@
+package service.integration
+
+import javax.inject.Inject
+
+import constants.DBConstants
+import data.model.Tables.FceubdRowWrapper
+import models.{UserAddress, UserBank, UserBasic, UserFatca}
+import play.api.db.slick.{DatabaseConfigProvider, HasDatabaseConfigProvider}
+import repository.tables.FceubdRepo
+import slick.jdbc.JdbcProfile
+import slick.jdbc.MySQLProfile.api._
+
+import scala.concurrent.{ExecutionContext, Future}
+
+/**
+  * Created by fincash on 22-02-2017.
+  */
+class BSEClientService @Inject()(protected val dbConfigProvider: DatabaseConfigProvider, implicit val ec: ExecutionContext, bSEClientHelper: BSEClientHelper,
+                                 bseUploadService: BSEStarUploadServiceImpl, fceubdRepo: FceubdRepo) extends DBConstants with HasDatabaseConfigProvider[JdbcProfile] {
+
+
+  def registerClient(clientCode: Long, userName: String, userBasic: UserBasic, userAddress: UserAddress, userBank: UserBank, userFatca: UserFatca): Future[Boolean] = {
+
+    var clientRegistered = N_FLAG
+    var fceubdRowWrapper = new FceubdRowWrapper(clientCode, None, clientRegistered, Option(clientCode.toString))
+    bSEClientHelper.populateClientModel(clientCode, userBasic, userAddress, userBank, userFatca).flatMap(bSEClientDetailsModel => {
+
+      if (bSEClientDetailsModel.isEmpty) {
+        Future {
+          false
+        }
+      } else {
+
+        bseUploadService.updateApiPassword().flatMap(updated => {
+
+          bseUploadService.getUCCResponse(bSEClientDetailsModel.get, clientCode.toString, userName).flatMap(bseUploadMfApiResponseValidateWrapper => {
+            val errorList = bseUploadMfApiResponseValidateWrapper.errorList.get
+            if (errorList.isEmpty) {
+              clientRegistered = Y_FLAG
+              fceubdRepo.filter(x => x.id === clientCode).flatMap(value => {
+                if (!value.headOption.isEmpty) {
+                  val updateValue = value.head.copy(eubdisexternallyreg = clientRegistered, eubdexternalid = Option(clientCode.toString))
+                  fceubdRepo.updateById(updateValue.id, updateValue).map(rtvalue => {
+                    true
+                  })
+                } else {
+                  val updatedValue = fceubdRowWrapper.get(userName).copy(eubdisexternallyreg = clientRegistered, eubdexternalid = Option(clientCode.toString));
+                  fceubdRepo.saveWithKey(updatedValue).map(rtval => {
+                    true
+                  })
+                }
+              })
+            } else {
+              Future.apply(false)
+            }
+          })
+        })
+      }
+    })
+  }
+
+  def uploadFatca(ipAddress: String, isUpdate: Boolean, clientCode: Long, userName: String, userBasic: UserBasic, userAddress: UserAddress, userFatca: UserFatca): Future[Boolean] = {
+
+    var clientFatcaRegistered = N_FLAG
+    var fceubdRowWrapper = new FceubdRowWrapper(clientCode, None, Y_FLAG, Option(clientCode.toString), clientFatcaRegistered)
+    bSEClientHelper.populateClientFatcaModel(ipAddress, isUpdate, userBasic, userAddress, userFatca).flatMap(clientFatcaUploadModel => {
+
+      if(clientFatcaUploadModel.isEmpty){
+        Future{
+          false
+        }
+      } else{
+
+        bseUploadService.updateApiPassword().flatMap(updated => {
+
+          bseUploadService.getFatcaUploadResponse(clientFatcaUploadModel.get, clientCode.toString, userName).flatMap(bseUploadMfApiResponseValidateWrapper => {
+
+            val errorList = bseUploadMfApiResponseValidateWrapper.errorList.get
+
+            if (errorList.isEmpty) {
+              clientFatcaRegistered = Y_FLAG
+              fceubdRepo.filter(x => x.id === clientCode).flatMap(value => {
+                if (!value.headOption.isEmpty) {
+                  val updateValue = value.head.copy(eubdisexternallyfatca = clientFatcaRegistered)
+                  fceubdRepo.updateById(updateValue.id, updateValue).map(value =>{
+                    true
+                  })
+                } else {
+                  val updatedValue = fceubdRowWrapper.get(userName).copy(eubdisexternallyfatca = clientFatcaRegistered);
+                  fceubdRepo.saveWithKey(updatedValue).map(value =>{
+                    true
+                  })
+                }
+              })
+            } else {
+              Future{false}
+            }
+
+          })
+        })
+      }
+    })
+  }
+
+  def getBSERegistrationStatus(userid: Long): Future[Boolean] = {
+    //    var query = Fceubd.filter(x => x.id === userid && x.eubdisexternallyreg === Y_FLAG)
+    var status = false
+    fceubdRepo.filter(x => x.id === userid).map(row => {
+      if (row.headOption.nonEmpty && row.headOption.get.eubdisexternallyreg.toString == Y_FLAG) {
+        status = true
+      }
+      status
+    })
+  }
+
+  def getBSEFatcaStatus(userid: Long): Future[Boolean] = {
+    var fatcaStatus = false
+    fceubdRepo.filter(_.id === userid).map(row => {
+      if (row.headOption.nonEmpty && row.headOption.get.eubdisexternallyfatca.toString == Y_FLAG) {
+        fatcaStatus = true
+      }
+      fatcaStatus
+    })
+  }
+}

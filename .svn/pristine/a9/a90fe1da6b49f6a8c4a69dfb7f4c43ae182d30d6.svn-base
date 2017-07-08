@@ -1,0 +1,9 @@
+->         /lookup                                         lookup.Routes
+->         /fund                                           fund.Routes
+->         /sip                                            sip.Routes
+
+
+# other unsecure routes
+
+GET        /getSavingsPlusFunds                           controllers.CashController.getSavingsPlusFunds
+POST       /checkmail                                     controllers.MailGunController.checkmail

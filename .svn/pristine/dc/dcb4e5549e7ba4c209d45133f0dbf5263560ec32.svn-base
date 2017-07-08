@@ -1,0 +1,680 @@
+package repository.module
+
+import java.sql.{Date, Timestamp}
+import java.util.Calendar
+import javax.inject.Inject
+
+import constants._
+import data.model.Tables.{Fcact, Fcbse, Fcbsuf, FcbsufRow, Fcebse, Fcholi, Fcoht, FcohtRowWrapper, Fcomt, FcomtRow, FcomtRowWrapper, Fcooa, FcooaRowWrapper, Fcosht, FcoshtRow, FcoshtRowWrapper, Fcostm, FcostmRow, Fcotpt, FcotptRow, FcotptRowWrapper, Fcsmt, Fcsoct, FcsoctRow, FcsoctRowWrapper, Fcsopt, Fcsot, FcsotRow, FcsotRowWrapper, Fcuoa}
+import models.integration.enumerations.AllRedeemEnum
+import models.{OrderHistoryDetails, OrderModel, SubOrder, UserLoginObject}
+import org.slf4j.LoggerFactory
+import play.api.db.slick.{DatabaseConfigProvider, HasDatabaseConfigProvider}
+import repository.tables._
+import slick.jdbc.JdbcProfile
+import utils.DateTimeUtils
+
+import scala.collection.mutable
+import scala.collection.mutable.ListBuffer
+import scala.concurrent.{ExecutionContext, Future}
+
+/**
+  * Created by fincash on 16-02-2017.
+  */
+class OrderRepository @Inject()(implicit ec: ExecutionContext, protected val dbConfigProvider: DatabaseConfigProvider, fcbseRepo: FcbseRepo,
+                                fcsotRepo: FcsotRepo, fcostmRepo: FcostmRepo, fcomtRepo: FcomtRepo, schemeRepository: SchemeRepository,
+                                folioRepository: FolioRepository, fcsoctRepo: FcsoctRepo, fcubdRepo: FcubdRepo)
+  extends HasDatabaseConfigProvider[JdbcProfile] with OrderConstants with DBConstants with CategoryConstants with DateConstants with BaseConstants {
+
+  val logger, log = LoggerFactory.getLogger(classOf[OrderRepository])
+
+  import profile.api._
+
+  def placeNewOrder(orderModel: OrderModel, soptCategoryMap: mutable.HashMap[Long, String], allotmentDateMap: mutable.HashMap[Int, String],
+                    paymentCutOffMap: mutable.HashMap[Int, String], userLoginObject: UserLoginObject): Future[(FcomtRow, List[FcsotRow], List[SubOrder])] = {
+
+    val userPk = userLoginObject.userid.get
+    val userName = userLoginObject.username.get
+    checkSchemeFolioNo(orderModel.subOrders, userLoginObject).flatMap(subOrderList => {
+
+      val fcomtRow = new FcomtRowWrapper(None, orderModel.orderType, orderModel.cdslNdslPhysicalTxnMode.getOrElse(PHYSICAL_MODE), None, None, orderModel.ipAddress,
+        orderModel.orderDevice, MAIN_ORDER_INITIATED, userPk, orderModel.snapshotPath, orderModel.totalAmount.getOrElse(-1)).get(userName)
+      val fcohtRow = new FcohtRowWrapper(None, MAIN_ORDER_INITIATED, MAIN_ORDER_INITIATED, orderModel.remarks, -1, Some(DateTimeUtils.getCurrentTimeStamp)).get(userName)
+
+      val sotRowList = ListBuffer[FcsotRow]()
+      val oshtRowList = ListBuffer[FcoshtRow]()
+      val soctRowList = ListBuffer[(FcsoctRow, Int)]()
+
+      val subOrderZipList = subOrderList.zipWithIndex
+      for (subOrderTuple <- subOrderZipList) {
+
+        val subOrder = subOrderTuple._1
+        val index = subOrderTuple._2
+        var subOrderTotalAmount = subOrder.amount
+        val allredeem = if (subOrder.allRedeem.nonEmpty) {
+          if (subOrder.allRedeem.get) AllRedeemEnum.Y else AllRedeemEnum.N
+        } else AllRedeemEnum.N
+        val subOrderQuantity:Option[Double] = if(allredeem == AllRedeemEnum.Y) None else subOrder.quantity
+
+        val orderType = if(orderModel.orderType == BUYSELL_SELL){
+          if(allredeem == AllRedeemEnum.Y){
+            REDEMPTION_FULL
+          } else{
+            REDEMPTION_PARTIAL
+          }
+        } else{
+          subOrder.orderType.getOrElse(FRESH)
+        }
+        val fcsotRow = new FcsotRowWrapper(None, subOrder.paymentMode,
+          subOrder.dematPhysicalMode.getOrElse(PHYSICAL_MODE), ORDER_CREATED, subOrder.orderSeq, None, None, -1, subOrder.buySchemeOptionRfnum,
+          subOrder.transactionMode.getOrElse(BSE_TRANSACTION_MODE), subOrderQuantity, subOrderTotalAmount.getOrElse(-1), subOrder.investmentMode,
+          subOrder.sipDayOfMonth, orderType, userPk, subOrder.sipFrequency,
+          subOrder.sipNoOfInstallments).get(userName)
+        val fcoshtRow = new FcoshtRowWrapper(None, ORDER_CREATED, ORDER_CREATED, Some(DateTimeUtils.getCurrentTimeStamp),
+          subOrder.remarks, -1).get(userName)
+
+        sotRowList.+=(fcsotRow)
+        oshtRowList.+=(fcoshtRow)
+
+        if (!subOrder.folioNo.isEmpty) {
+          val fcsoctFolioData = new FcsoctRowWrapper(None, FOLIO_NO_KEY, subOrder.folioNo.getOrElse(""), -1).get(userName)
+          soctRowList.+=((fcsoctFolioData, index))
+        }
+        val fcsoctBSESchemeCode = new FcsoctRowWrapper(None, BSE_SCHEME_CODE_KEY, subOrder.bseSchemeCode.getOrElse(""), -1).get(userName)
+        soctRowList.+=((fcsoctBSESchemeCode, index))
+        val additionalDetails = subOrder.additionalDetails
+
+        if(additionalDetails.nonEmpty && additionalDetails.get.prodSolnId.nonEmpty){
+          val fcsoctProdSolnId = new FcsoctRowWrapper(None, ORDER_PROD_SOLN_ID_KEY, additionalDetails.get.prodSolnId.get.toString, -1).get(userName)
+          soctRowList.+=((fcsoctProdSolnId, index))
+        }
+        if(additionalDetails.nonEmpty && additionalDetails.get.prodSolnId.nonEmpty){
+          val fcsoctProdSolnId = new FcsoctRowWrapper(None, ORDER_PROD_SOLN_NAME_KEY, additionalDetails.get.prodSolnName.get.toString, -1).get(userName)
+          soctRowList.+=((fcsoctProdSolnId, index))
+        }
+
+        val _allotExprectedDate = DateTimeUtils.convertDateToFormat(allotmentDateMap.get(index).get, YYYYMMDD)
+        if (_allotExprectedDate.nonEmpty) {
+          val allotCalendar = Calendar.getInstance()
+          allotCalendar.setTime(_allotExprectedDate.get)
+          allotCalendar.set(Calendar.HOUR_OF_DAY, 23)
+          allotCalendar.set(Calendar.MINUTE, 59)
+          allotCalendar.set(Calendar.SECOND, 59)
+          allotCalendar.set(Calendar.MILLISECOND, 0)
+          val allotmentDate = new Timestamp(allotCalendar.getTimeInMillis)
+          val fcsoctApproxAllotmentRow = new FcsoctRowWrapper(None, ORDER_APPROX_ALLOT_KEY, allotmentDateMap.getOrElse(index, ""), -1, Some(allotmentDate)).get(userName)
+          soctRowList.+=((fcsoctApproxAllotmentRow, index))
+        }
+
+        if (orderModel.orderType != BUYSELL_SELL) {
+          val _payCuttOff = DateTimeUtils.convertDateToFormat(paymentCutOffMap.get(index).get, ORDER_CUT_OFF_DATE_FORMAT)
+          if(_payCuttOff.nonEmpty){
+            val payCutOffCal = Calendar.getInstance();
+            payCutOffCal.setTime(_payCuttOff.get);
+            payCutOffCal.set(Calendar.MILLISECOND, 0);
+            val payCutOffDate = new Timestamp(payCutOffCal.getTimeInMillis)
+            val fcsoctPayCutOffRow = new FcsoctRowWrapper(None, ORDER_PAY_CUT_OFF_KEY, paymentCutOffMap.getOrElse(index, ""), -1,Some(payCutOffDate)).get(userName)
+            soctRowList.+=((fcsoctPayCutOffRow, index))
+          }
+        }
+      }
+
+      addSubOrderCutOffDetails(sotRowList, soptCategoryMap, userName).flatMap(soctCutOffList => {
+        soctRowList.++=(soctCutOffList)
+        val query = for {
+          fcOmtUpdatedObj <- Fcomt returning Fcomt.map(_.id) into ((fcOmtObj, id) => fcOmtObj.copy(id = id)) += fcomtRow
+          fcohtUpdatedObj <- Fcoht returning Fcoht.map(_.id) into ((fcohtObj, id) => fcohtObj.copy(id = id)) += fcohtRow.copy(ohtomtrfnum = fcOmtUpdatedObj.id)
+          fcsotObjList <- Fcsot returning Fcsot.map(_.id) into ((fcsotObj, id) => fcsotObj.copy(id = id)) ++= sotRowList.map(sotRow => sotRow.copy(sotomtrfnum = fcOmtUpdatedObj.id))
+          fcoshtObjList <- Fcosht returning Fcosht.map(_.id) into ((fcsotObj, id) => fcsotObj.copy(id = id)) ++= oshtRowList.zipWithIndex.map { case (oshtRow, index) => oshtRow.copy(oshtsotrfnum = fcsotObjList(index).id) }
+          fcsoctObjList <- Fcsoct returning Fcsoct.map(_.id) into ((fcsoctObj, id) => fcsoctObj.copy(id = id)) ++= (for (soctTuple <- soctRowList) yield {
+            soctTuple._1.copy(soctsotrfnum = fcsotObjList(soctTuple._2).id)
+          })
+        } yield {
+          (fcOmtUpdatedObj, fcsotObjList)
+        }
+
+        db.run(query.transactionally).map(values => {
+
+          (values._1, values._2.toList, subOrderList)
+        })
+      })
+    })
+  }
+
+  def addSubOrderCutOffDetails(sotRowList: ListBuffer[FcsotRow], soptCategoryMap: mutable.HashMap[Long, String],
+                               userName: String): Future[ListBuffer[(FcsoctRow, Int)]] = {
+
+    //getBSECutOff(BSE_STD_CUTOFF_KEY).flatMap(bseCutOff => {
+
+      Future.sequence(for (sotTuple <- sotRowList.zipWithIndex) yield {
+
+        val sotRow = sotTuple._1
+        val index = sotTuple._2
+        val category = soptCategoryMap.get(sotRow.sotsoptrfnum).get
+        getSchemeBSECutOff(sotRow.sotsoptrfnum).flatMap(bseCutOff =>{
+
+          getOrderCancelCutOffTime(sotRow.createdate.get, category, bseCutOff).map(orderCancelCutOffDate => {
+            val orderCutOffDate = DateTimeUtils.convertDateToFormat(orderCancelCutOffDate, ORDER_CUT_OFF_DATE_FORMAT)
+            val orderCutOffTimeStamp = new Timestamp(orderCancelCutOffDate.getTime)
+            val soctCutOffRow = new FcsoctRowWrapper(None, ORDER_CANCEL_CUT_OFF_KEY, orderCutOffDate, -1,Some(orderCutOffTimeStamp)).get(userName)
+            (soctCutOffRow, index)
+          })
+        })
+      })
+    //})
+  }
+
+  def getOrderCancelCutOffTime(orderTime: java.sql.Timestamp, category: String, bseCutOff: String): Future[java.util.Date] = {
+
+    val orderPlacedTime = Calendar.getInstance()
+    orderPlacedTime.setTime(new java.util.Date(orderTime.getTime))
+
+    val orderProcessCutOffTime = Calendar.getInstance()
+    orderProcessCutOffTime.setTimeInMillis(orderTime.getTime)
+    val cutOffTimeArray = bseCutOff.split(':')
+    orderProcessCutOffTime.set(Calendar.HOUR_OF_DAY, cutOffTimeArray(0).toInt)
+    orderProcessCutOffTime.set(Calendar.MINUTE, cutOffTimeArray(1).toInt)
+    orderProcessCutOffTime.set(Calendar.SECOND, cutOffTimeArray(2).toInt)
+
+    getBSEOrderProcessLimit(orderProcessCutOffTime, category).flatMap(bseOrderProcessLimit => {
+      if (orderPlacedTime.getTime.after(bseOrderProcessLimit.getTime)) {
+        bseOrderProcessLimit.add(Calendar.DAY_OF_MONTH, 1)
+        getBSEOrderProcessLimit(bseOrderProcessLimit, category).map(orderCancelCutOff => {
+          orderCancelCutOff.getTime
+        })
+      } else {
+        Future {
+          bseOrderProcessLimit.getTime
+        }
+      }
+    })
+  }
+
+  def getBSEOrderProcessLimit(orderProcessCutOffTime: Calendar, category: String): Future[Calendar] = {
+    val day = orderProcessCutOffTime.get(Calendar.DAY_OF_WEEK)
+    if (day == SUNDAY || day == SATURDAY) {
+      orderProcessCutOffTime.add(Calendar.DAY_OF_MONTH, 1)
+      getBSEOrderProcessLimit(orderProcessCutOffTime, category)
+    }
+    val orderDate = DateTimeUtils.convertCalendarToSqlDate(orderProcessCutOffTime)
+    isMarketSegmentHoliday(orderDate, category).flatMap(isHoliday => {
+      if (isHoliday) {
+        orderProcessCutOffTime.add(Calendar.DAY_OF_MONTH, 1)
+        getBSEOrderProcessLimit(orderProcessCutOffTime, category)
+      } else {
+        Future {
+          orderProcessCutOffTime
+        }
+      }
+    })
+
+  }
+
+  def getSchemeBSECutOff(soptrfnum:Long):Future[String] = {
+    val query = Fcbse.filter(x => x.bsesoptrfnum === soptrfnum).map(_.bsepurcutofftime).result
+    db.run(query).map(values =>{
+      values.head.get.toString
+
+    })
+  }
+
+  def checkSchemeFolioNo(subOrders: List[SubOrder], userLoginObject: UserLoginObject): Future[List[SubOrder]] = {
+
+    val userPk = userLoginObject.userid.get
+    val totalOrders = subOrders.size
+    val subOrderFolioFtr = for (subOrder <- subOrders) yield {
+      val soptrfnum = subOrder.buySchemeOptionRfnum
+      if (subOrder.folioNo.isEmpty || subOrder.folioNo.get.trim.length == 0) {
+        schemeRepository.getSchemeOptionAmcDetails(soptrfnum).flatMap(amctRowList => {
+          folioRepository.getAMCFolioNo(userPk, amctRowList.head.id).map(folioNo => {
+            folioNo
+          })
+        })
+      } else {
+        Future {
+          subOrder.folioNo
+        }
+      }
+    }
+    Future.sequence(subOrderFolioFtr).map(subOrderFolioList => {
+      val subOrderList: ListBuffer[SubOrder] = ListBuffer[SubOrder]()
+      for (i <- 0 until totalOrders) {
+        subOrderList.+=(subOrders(i).copy(folioNo = subOrderFolioList(i)))
+      }
+      subOrderList.toList
+    })
+  }
+
+  def updateSubOrderTxnId(sotrfnum: Long, omtrfnum: Long, orderCurrState: Long, transactionId: String, userName: String): Future[Int] = {
+
+    val query = {
+      sql"""SELECT SOTRFNUM FROM FCSOT WHERE SOTRFNUM = ${sotrfnum} FOR UPDATE""".as[Long]
+    } andThen {
+      sqlu"""UPDATE FCSOT SET SOTTRNSCTIONID1 = ${transactionId},
+         MODIFYDATE = CURRENT_TIMESTAMP, LASTMODIFIEDBY =${userName} WHERE SOTRFNUM = ${sotrfnum}"""
+    }
+    db.run(query.transactionally).map(value => value)
+  }
+
+  def updateStateForSubOrder(sotrfnum: Long, omtrfnum: Long, orderCurrState: Long, orderNewState:Long, userName: String): Future[Int] = {
+
+    val query = {
+      sql"""SELECT SOTRFNUM FROM FCSOT WHERE SOTRFNUM = ${sotrfnum} FOR UPDATE""".as[Long]
+    } andThen {
+      sqlu"""UPDATE FCSOT SET SOTOSTMSTATERFNUM = ${orderNewState},
+         MODIFYDATE = CURRENT_TIMESTAMP, LASTMODIFIEDBY =${userName} WHERE SOTRFNUM = ${sotrfnum}"""
+    } andThen {
+      val currentTime = DateTimeUtils.getCurrentTimeStamp()
+      Fcosht += new FcoshtRowWrapper(None, orderCurrState, orderNewState, Some(currentTime), None, sotrfnum).get(userName)
+    } andThen {
+      sql"""SELECT OMTRFNUM FROM FCOMT WHERE OMTRFNUM = ${omtrfnum} FOR UPDATE""".as[Long]
+    } andThen {
+      sqlu"""UPDATE FCOMT SET MODIFYDATE = CURRENT_TIMESTAMP, LASTMODIFIEDBY = ${userName} WHERE OMTRFNUM = ${omtrfnum}"""
+    }
+    db.run(query.transactionally).map(value => value)
+  }
+
+  def updateSipRegNo(sotrfnum: Long, omtrfnum: Long, orderCurrState: Long, transactionId: String, userName: String): Future[Int] = {
+
+    val query = {
+      sql"""SELECT SOTRFNUM FROM FCSOT WHERE SOTRFNUM = ${sotrfnum} FOR UPDATE""".as[Long]
+    } andThen {
+      sqlu"""UPDATE FCSOT SET SOTTRNSCTIONID2 = ${transactionId},
+            MODIFYDATE = CURRENT_TIMESTAMP, LASTMODIFIEDBY =${userName}  WHERE SOTRFNUM = ${sotrfnum}"""
+    }
+    db.run(query.transactionally).map(value => value)
+  }
+
+  def getBSESchemeCode(soptrfnum: Long): Future[String] = {
+    fcbseRepo.filter(_.bsesoptrfnum === soptrfnum).map(bseRowList => {
+      if (bseRowList.isEmpty) {
+        ""
+      } else {
+        bseRowList.head.bseschemecode.get
+      }
+    })
+  }
+
+  def getSubOrderBSESchemeCode(sotrfnum: Long): Future[String] = {
+    fcsoctRepo.filter(x => {
+      x.soctkey === BSE_SCHEME_CODE_KEY && x.soctsotrfnum === sotrfnum
+    }).map(soctRowList => {
+      if (soctRowList.isEmpty) {
+        ""
+      } else {
+        soctRowList.head.soctvalue
+      }
+    })
+  }
+
+  def getOrderStateObj(id:Long):Future[Option[FcostmRow]] = {
+
+    fcostmRepo.getById(id)
+  }
+  def getSubOrderCancelCutOff(sotrfnum: Long): Future[String] = {
+    fcsoctRepo.filter(x => {
+      x.soctsotrfnum === sotrfnum && x.soctkey === ORDER_CANCEL_CUT_OFF_KEY
+    }).map(soctRowList => {
+      if (soctRowList.isEmpty) {
+        ""
+      } else {
+        soctRowList.head.soctvalue
+      }
+    })
+  }
+
+  def getSubOrders(omtrfnum: Long): Future[List[FcsotRow]] = {
+    fcsotRepo.filter(_.sotomtrfnum === omtrfnum).map(sotRowList => {
+      if (sotRowList.isEmpty) {
+        List[FcsotRow]()
+      } else {
+        sotRowList.toList
+      }
+    })
+  }
+
+  def getSubOrders(omtrfnum: Long, subOrderState: Long): Future[List[FcsotRow]] = {
+    fcsotRepo.filter(x => x.sotomtrfnum === omtrfnum && x.sotostmstaterfnum === subOrderState).map(sotRowList => {
+      if (sotRowList.isEmpty) {
+        List[FcsotRow]()
+      } else {
+        sotRowList.toList
+      }
+    })
+  }
+
+  def getOrderDetails(omtrfnum: Long, userId: Long): Future[Seq[(FcomtRow, FcsotRow)]] = {
+
+    val query = for {
+      omtObj <- Fcomt.filter(x => x.id === omtrfnum && x.omtubdrfnum === userId)
+      sotObj <- Fcsot.filter(x => x.sotomtrfnum === omtObj.id && x.sotubdrfnum === userId)
+    } yield (omtObj, sotObj)
+
+    db.run(query.result).map(orderTuple => {
+      orderTuple
+    })
+  }
+
+  def getOrderDetails(omtrfnum: Long,subOrderState:Long, userId: Long): Future[Seq[(FcomtRow, FcsotRow)]] = {
+
+    val query = for {
+      omtObj <- Fcomt.filter(x => x.id === omtrfnum && x.omtubdrfnum === userId)
+      sotObj <- Fcsot.filter(x => x.sotomtrfnum === omtObj.id && x.sotubdrfnum === userId && x.sotostmstaterfnum === subOrderState)
+    } yield (omtObj, sotObj)
+
+    db.run(query.result).map(orderTuple => {
+      orderTuple
+    })
+  }
+
+  def getOrder(omtrfnum: Long): Future[FcomtRow] = {
+    fcomtRepo.getById(omtrfnum).map(_.get)
+  }
+
+  def getSubOrderFromTxnId1(txnId1: Option[String]): Future[Seq[FcsotRow]] = {
+    db.run(Fcsot.filter(x => x.sottrnsctionid1 === txnId1).result)
+  }
+
+  def getFailedSubOrders(omtrfnum: Long): Future[Seq[FcsotRow]] = {
+
+    fcsotRepo.filter(x => x.sotostmstaterfnum === ORDER_FAILED && x.sotomtrfnum === omtrfnum)
+  }
+
+  def getPlacedAtExchangeOrders(omtrfnum: Long): Future[Seq[FcsotRow]] = {
+    val query = Fcsot.filter(x => x.sotostmstaterfnum === PLACED_AT_EXCHANGE && x.sotomtrfnum === omtrfnum)
+    db.run(query.result).map(value =>{
+      value
+    })
+  }
+
+  def getUserSubOrderDetails(sotrfnum: Long, userPk: Long): Future[Seq[FcsotRow]] = {
+    fcsotRepo.filter(x => {
+      (x.id === sotrfnum) && (x.sotubdrfnum === userPk)
+    })
+  }
+
+  def getSubOrderDetails(sotrfnum: Long): Future[Seq[FcsotRow]] = {
+    fcsotRepo.filter(x => {
+      (x.id === sotrfnum)
+    })
+  }
+
+  def getQueuedSubOrders():Future[Seq[FcsotRow]] = {
+
+    val query = Fcsot.filter(_.sotostmstaterfnum === ORDER_TO_BE_PLACED_LATER)
+    db.run(query.result)
+  }
+
+  def saveOrderOTPDetails(omtrfnum: Long, mobileNo: String, userId: Long, gatewayId: String, otp: String, purpose: String,ip:String): Future[Long] = {
+
+    fcubdRepo.filter(x => x.id === userId).flatMap(ubdRowList => {
+      val ubdRow = ubdRowList.head
+      val currentTime = DateTimeUtils.getCurrentTimeStamp()
+      val validationTime = DateTimeUtils.getTimestampAfterInterval(OTP_VALID_TIME)
+      val fcotptRow = new FcotptRowWrapper(None, mobileNo, otp, Some(currentTime), Some(validationTime), None, None, gatewayId,Y_FLAG, Some(ip)).get(ubdRow.ubdemailid)
+      val fcooaRow = new FcooaRowWrapper(None, 0, omtrfnum, Some(userId), Some(purpose)).get(ubdRow.ubdemailid)
+
+      val query = for {
+        fcotpt <- Fcotpt returning Fcotpt.map(_.id) into ((fcotptObj, id) => fcotptObj.copy(id = id)) += fcotptRow
+        fcooa <- Fcooa returning Fcooa.map(_.id) into ((fcooaObj, id) => fcooaObj.copy(id = id)) += fcooaRow.copy(ooaotptrfnum = fcotpt.id)
+      } yield (fcotpt.id)
+
+      db.run(query.transactionally).map(value => {
+        value
+      })
+    })
+  }
+
+  def validateOTP(otp: String, purpose: String, userId: Long, orderId: Long): Future[Seq[FcotptRow]] = {
+
+    val query = for{
+      ooaRowList <- Fcooa.filter(x => x.ooaubdrfnum === userId && x.ooapurpose === purpose && x.ooaomtrfnum === orderId).map(_.ooaotptrfnum).result
+      otptRow <- Fcotpt.filter(x => x.otptotp === otp && x.otptisvalid === Y_FLAG && x.otptvaliditytime >= DateTimeUtils.getCurrentTimeStamp() && (x.id inSetBind(ooaRowList))).forUpdate.result
+
+      updatedObj <- otptRow.size match{
+        case 0 => DBIO.successful(1)
+        case n => Fcotpt.filter(_.id === otptRow.head.id).map(_.otptisvalid).update(N_FLAG)
+      }
+
+    }yield(otptRow)
+
+    db.run(query.transactionally).map(values => {
+      values
+    })
+
+  }
+
+  def getSegmentPaymentAllowedSubOrders(userPk: Long, workingTime: Timestamp, marketSegment: String): Future[List[FcsotRow]] = {
+
+    var category: Long = 1
+    if (marketSegment == EQUITY_MARKET_SEGMENT) {
+      category = EQUITY_ID
+    } else if (marketSegment == DEBT_MARKET_SEGMENT) {
+      category = DEBT_ID
+    }
+    val purchase: String = BUYSELL_BUY
+    var query = sql"""SELECT
+                      sot.*
+                  FROM
+                      FCOMT omt,
+                      (SELECT
+                          *
+                      FROM
+                          FCSOT
+                      WHERE
+                          SOTUBDRFNUM = ${userPk}
+                              AND CREATEDATE >= ${workingTime}
+                              AND SOTOSTMSTATERFNUM = ${PLACED_AT_EXCHANGE}
+                              AND SOTSOPTRFNUM IN (SELECT
+                                  SOPTRFNUM
+                              FROM
+                                  FCSOPT
+                              WHERE
+                                  SOPTSMTRFNUM IN (SELECT
+                                          SMTRFNUM
+                                      FROM
+                                          FCSMT, (SELECT
+                                          ch.CTMTRFNUM AS childId, pr.CTMTRFNUM AS parentId
+                                      FROM
+                                          FCCTMT pr, FCCTMT ch
+                                      WHERE
+                                          pr.CTMTRFNUM = ch.CTMTCTMTRFNUM) category
+                                      WHERE
+                                          SMTCTMTRFNUM = category.childId
+                                              AND category.parentId = ${category}))) sot
+                  WHERE
+                      omt.OMTRFNUM = sot.SOTOMTRFNUM
+                          AND omt.OMTBUYSELL = ${purchase}""".as[FcsotRow]
+
+    db.run(query.transactionally).map(subOrders => {
+      subOrders.toList
+    })
+  }
+
+  def getSubOrderListDetails(sotrfnumList: ListBuffer[Long], userPk: Long): Future[Seq[FcsotRow]] = {
+    fcsotRepo.filter(x => {
+      (x.id inSetBind (sotrfnumList)) && (x.sotubdrfnum === userPk)
+    })
+  }
+
+  def updateOrderState(omtrfnum: Long, orderCurrState: Long, orderNewState: Long, userName: String): Future[String] = {
+
+    val query = {
+      sql"""SELECT OMTRFNUM FROM FCOMT WHERE OMTRFNUM = ${omtrfnum} FOR UPDATE""".as[Long]
+    } andThen {
+      sqlu"""UPDATE FCOMT SET OMTOSTMSTATERFNUM = ${orderNewState},
+            MODIFYDATE = CURRENT_TIMESTAMP, LASTMODIFIEDBY =${userName}  WHERE OMTRFNUM = ${omtrfnum}"""
+    } andThen {
+      val currentTime = DateTimeUtils.getCurrentTimeStamp()
+      Fcoht += new FcohtRowWrapper(None, orderCurrState, orderNewState, None, omtrfnum, Some(currentTime)).get(userName)
+    } andThen {
+      sql"""SELECT OSTMDISPLAYNAME FROM FCOSTM WHERE OSTMRFNUM = (SELECT OMTOSTMSTATERFNUM FROM FCOMT
+           WHERE OMTRFNUM = ${omtrfnum} )""".as[String]
+    }
+    db.run(query.transactionally).map(value => value.head)
+  }
+
+  def getSubOrderState(sotrfnum: Long, userName: String): Future[FcostmRow] = {
+
+    val query = for {
+      sotObj <- Fcsot.filter(x => (x.id === sotrfnum) && (x.sotostmstaterfnum != ORDER_CANCELLED) && (x.createdby === userName))
+      ostmObj <- Fcostm.filter(_.id === sotObj.sotostmstaterfnum)
+    } yield (ostmObj)
+
+    db.run(query.result).map(value => {
+      value.head
+    })
+  }
+
+  def getSubOrderChildDetails(sotrfnum: Long):Future[List[FcsoctRow]] = {
+    val query = Fcsoct.filter(_.soctsotrfnum === sotrfnum).result
+
+    db.run(query).map(value =>{
+      value.toList
+    })
+  }
+
+  def getOrderMasterDetails(sotrfnum: Long): Future[Option[FcomtRow]] = {
+    fcomtRepo.getById(sotrfnum)
+  }
+
+  def getStateDetails(ostmrfnum: Long): Future[Option[FcostmRow]] = {
+    fcostmRepo.getById(ostmrfnum)
+  }
+
+  def getSubOrderHistoryDetails(sotrfnum: Long): Future[Seq[OrderHistoryDetails]] = {
+    val query = for {
+      oshtRow <- Fcosht.filter(_.oshtsotrfnum === sotrfnum)
+      ostmRow <- Fcostm.filter(_.id === oshtRow.oshtostmtorfnum)
+    } yield (oshtRow, ostmRow)
+
+    db.run(query.result).map(values => {
+      for (historyTuple <- values) yield {
+        val oshtRow = historyTuple._1
+        val ostmRow = historyTuple._2
+        val stateDate = DateTimeUtils.convertSqlTimestampToString(oshtRow.oshtdatestatechange.get)
+        OrderHistoryDetails(oshtRow.id, ostmRow.ostmdisplayname, stateDate)
+      }
+    })
+  }
+
+  def getOrderHistoryDetails(omtrfnum: Long): Future[Seq[OrderHistoryDetails]] = {
+    val query = for {
+      ohtRow <- Fcoht.filter(_.ohtomtrfnum === omtrfnum)
+      ostmRow <- Fcostm.filter(_.id === ohtRow.ohtostmtostaterfnum)
+    } yield (ohtRow, ostmRow)
+
+    db.run(query.result).map(values => {
+      for (historyTuple <- values) yield {
+        val oshtRow = historyTuple._1
+        val ostmRow = historyTuple._2
+        val stateDate = DateTimeUtils.convertSqlTimestampToString(oshtRow.ohtdateofstatechange.get)
+        OrderHistoryDetails(oshtRow.id, ostmRow.ostmdisplayname, stateDate)
+      }
+    })
+  }
+
+  def filterSchemeSubOrders(smtrfnumList: List[Long], sotrfnumList: List[Long]): Future[List[FcsotRow]] = {
+    val query = for {
+      sotObjList <- Fcsot.filter(x => (x.sotsoptrfnum in (Fcsopt.filter(_.soptsmtrfnum inSetBind (smtrfnumList)).map(_.id))) && (x.id inSetBind (sotrfnumList)))
+    } yield (sotObjList)
+
+    db.run(query.result).map(subOrderSeq => {
+      subOrderSeq.toList
+    })
+  }
+
+  def isHolidayExists(date: Date, category: Option[String], amctrfnum: Option[Long]): Future[Boolean] = {
+
+    val categoryValue: Option[String] = if (category.nonEmpty) Some(category.get.toLowerCase) else None
+
+    val query = for {
+      bankHoliday <- Fcholi.filter(x => x.holidate === date && x.holimarketsegment.toLowerCase === BANK_MARKET_SEGMENT.toLowerCase).result
+      marketTypeHoliday <- Fcholi.filter(x => x.holidate === date && x.holimarketsegment.toLowerCase === categoryValue).result
+      amcHoliday <- Fcholi.filter(x => x.holidate === date && x.holiamcrfnum === amctrfnum).result
+    } yield (bankHoliday, marketTypeHoliday, amcHoliday)
+
+    db.run(query).map(holidayTuple => {
+      var bankHoliday = false
+      if (holidayTuple._1.nonEmpty) {
+        bankHoliday = true
+      }
+      var marketHoliday = false
+      if (holidayTuple._2.nonEmpty) {
+        marketHoliday = true
+      }
+      var amcHoliday = false
+      if (holidayTuple._3.nonEmpty) {
+        amcHoliday = true
+      }
+      if (bankHoliday || marketHoliday || amcHoliday) {
+        true
+      } else false
+    })
+  }
+
+  def isMarketSegmentHoliday(date: Date, category: String): Future[Boolean] = {
+
+    val query = for {
+      marketTypeHoliday <- Fcholi.filter(x => x.holidate === date && x.holimarketsegment.toLowerCase === category.toLowerCase).result
+    } yield (marketTypeHoliday)
+
+    db.run(query).map(marketHoliday => {
+      marketHoliday.nonEmpty
+    })
+  }
+
+  def getBSECutOff(constantName: String): Future[String] = {
+    val query = Fcact.filter(_.actconstantname === constantName).result
+    db.run(query).map(actRowList => {
+      if (actRowList.isEmpty) {
+        ""
+      } else {
+        actRowList.head.actconstantvalue
+      }
+    })
+  }
+
+  def getBSESchemeSuffix(soptrfnum: Long): Future[Option[FcbsufRow]] = {
+    val query = for {
+      bsufObj <- Fcbsuf.filter(_.bsufebserfnum in Fcebse.filter(_.id in Fcbse.filter(_.bsesoptrfnum === soptrfnum).map(_.id)).map(_.id)).result
+    } yield (bsufObj)
+
+    db.run(query).map(bsufSeq => {
+      if (bsufSeq.isEmpty) {
+        None
+      } else {
+        Some(bsufSeq.head)
+      }
+    })
+  }
+
+
+  def updateTransactionModeForSuborder(suborderId: Long, trMode: String) = {
+    //var query = Fcsot.filter(_.id === suborderId).map(x => (x.sottranscnmode)).forUpdate()((trMode))
+
+    val query = for {
+      sotrows <- Fcsot.filter(_.id === suborderId).forUpdate.result
+      row <- sotrows.size match{
+        case 0 => DBIO.successful(1)
+        case n => Fcsot.filter(_.id === suborderId).map(x => (x.sottranscnmode)).update((trMode))
+      }
+    } yield (sotrows)
+
+    db.run(query.transactionally).map(values => {
+
+    }).recover {
+      case ex =>
+        logger.debug(ex.getMessage)
+        throw new Exception("Error occured while Updating SOT")
+    }
+  }
+
+  def getOrderStates():Future[List[FcostmRow]] = {
+    val query = Fcostm.result
+
+    db.run(query).map(ostmSeq =>{
+      ostmSeq.toList
+    })
+  }
+}

@@ -1,0 +1,5 @@
+# SIP Routes
+# This file defines all application routes (Higher priority routes first)
+# ~~~~
+
+GET   /getQuickSipFunds   controllers.SIPController.getQuickSipFunds

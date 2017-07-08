@@ -1,0 +1,37 @@
+package controllers
+
+import javax.inject.Inject
+
+import constants.DBConstants
+import models.batch.{PaymentStatusReqModel, SIPMailReqModel}
+import play.api.libs.json.Json
+import play.api.mvc.{Action, Controller}
+import service.{PaymentService, UserService}
+import models.batch.BatchReqJsonFormats._
+
+import scala.concurrent.ExecutionContext
+
+/**
+  * Created by fincash on 03-05-2017.
+  */
+class BatchController @Inject()(implicit ec: ExecutionContext,
+                                paymentService: PaymentService, userService: UserService)extends Controller with DBConstants{
+
+
+  def getBSEPaymentStatus() = Action.async(parse.json) { request =>
+
+    val payReqModel = request.body.as[PaymentStatusReqModel]
+
+    paymentService.getBSEPaymentStatus(payReqModel,SYSTEM_USER).map(paymenStatus =>{
+      Ok(Json.obj("paymentStatus" -> paymenStatus))
+    })
+  }
+
+  def sendSIPMail() = Action.async(parse.json){ request =>
+
+    val sipReqModel = request.body.as[SIPMailReqModel]
+    userService.sendSIPmail(sipReqModel.userId,sipReqModel.orderId).map(mailResp =>{
+      Ok(Json.obj("sipMailResponse" -> mailResp))
+    })
+  }
+}

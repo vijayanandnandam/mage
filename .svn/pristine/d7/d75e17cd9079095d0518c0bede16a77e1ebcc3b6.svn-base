@@ -1,0 +1,22 @@
+@(user: String = "Investor", baseurl:String = "http://test.fincash.com")
+
+Dear @user,
+
+    We welcome you to the Fincash family and look forward to have a healthy and wealthy relationship with you.
+
+    To start making most out of your Fincash account kindly follow these steps:
+        Login ("@baseurl/auth/login") to your account.
+        Fill up the registration form with all the correct information("@baseurl/registration/kyc)
+        Upload all the required documents.
+
+    After the successful registration, your Account with fincash.com will be activated.
+        You will receive the Account Activation email once the process is complete.
+
+    For any queries, you can contact us at:
+    Phone: 022-813456543
+    Email: support@@fincash.com
+
+    Please visit our RESOURCE CENTRE("https://www.fincash.com/b/")to know about Mutual Fund Investments and other investment products.
+
+    With Warm Regards,
+    Team Fincash

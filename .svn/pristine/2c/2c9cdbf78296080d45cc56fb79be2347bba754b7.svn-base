@@ -1,0 +1,28 @@
+@(user: String = "Investor", baseurl:String = "http://test.fincash.com")
+
+
+<div style="padding:4% 5%;background-color:white; position:relative; background-color:white; border-left:solid 1px #c1bdbd;border-right:solid 1px #c1bdbd;">
+    Dear @user, <br>
+
+    <p>We welcome you to the Fincash family and look forward to have a healthy and wealthy relationship with you.</p>
+
+    <p>To start making most out of your Fincash account kindly follow these steps:</p>
+    <ol style="list-style:number">
+        <li><a href="@baseurl/auth/login">Login</a> to your account.</li>
+        <li>Fill up the <a href="@baseurl/registration/kyc">registration</a> form with all the correct information</li>
+        <li>Upload all the required documents.</li>
+    </ol>
+
+    <p>After the successful registration, your Account with fincash.com will be activated.
+    You will receive the Account Activation email once the process is complete.</p>
+
+    @contact()
+
+    <p>Please visit our <a href="@baseurl/b/" style="color:#53ADD0">RESOURCE CENTRE</a> to know about Mutual Fund Investments and other investment products.</p>
+
+    <p style="position:absolute; bottom:2%;">
+        With Warm Regards,<br>
+        Team Fincash</p>
+</div>
+
+@products()

@@ -1,0 +1,71 @@
+package helpers
+
+import java.util.Calendar
+import javax.inject.Inject
+
+import constants.DBConstants
+import org.slf4j.LoggerFactory
+import repository.module.OrderRepository
+import utils.DateTimeUtils
+
+import scala.concurrent.{ExecutionContext, Future}
+
+/**
+  * Created by fincash on 26-04-2017.
+  */
+class MarketHelper @Inject()(implicit ec: ExecutionContext, orderRepository: OrderRepository) extends DBConstants {
+
+  val logger, log = LoggerFactory.getLogger(classOf[MarketHelper])
+
+  def getPrevWorkingDay(currTime: Calendar, marketSegment: String): Future[Calendar] = {
+    currTime.add(Calendar.DAY_OF_MONTH, -1)
+    isWorkingHoliday(currTime, marketSegment).flatMap(isHoliday => {
+      if (isHoliday) {
+        getPrevWorkingDay(currTime, marketSegment)
+      } else {
+        Future.apply(currTime)
+      }
+    })
+  }
+
+  def getNextNthWorkingDay(currTime: Calendar, marketSegment: String, offset:Long): Future[Calendar] ={
+
+    List.range(1,offset+1).foldLeft(Future.apply(currTime)){
+      (_, _) => {
+        getNextWorkingDay(currTime, marketSegment)
+      }
+    }
+
+  }
+  def getNextWorkingDay(currTime: Calendar, marketSegment: String): Future[Calendar] = {
+
+    currTime.add(Calendar.DAY_OF_MONTH, 1)
+    isWorkingHoliday(currTime, marketSegment).flatMap(isHoliday => {
+      if (isHoliday) {
+        getNextWorkingDay(currTime, marketSegment)
+      } else {
+        Future.apply(currTime)
+      }
+    })
+  }
+
+  def isWorkingHoliday(workingTime: Calendar, marketSegment: String): Future[Boolean] = {
+    val day = workingTime.get(Calendar.DAY_OF_WEEK)
+
+    if (day == SUNDAY || day == SATURDAY) {
+      Future.apply(true)
+    } else {
+      val workingDate = DateTimeUtils.convertCalendarToSqlDate(workingTime)
+      orderRepository.isMarketSegmentHoliday(workingDate, marketSegment)
+    }
+  }
+
+  def addCuttOffTimeToWorkingDay(workingDay: Calendar, cutOffTime: String): Calendar = {
+
+    val cutOffTimeArray = cutOffTime.split(':')
+    workingDay.set(Calendar.HOUR_OF_DAY, cutOffTimeArray(0).toInt)
+    workingDay.set(Calendar.MINUTE, cutOffTimeArray(1).toInt)
+    workingDay.set(Calendar.SECOND, cutOffTimeArray(2).toInt)
+    workingDay
+  }
+}

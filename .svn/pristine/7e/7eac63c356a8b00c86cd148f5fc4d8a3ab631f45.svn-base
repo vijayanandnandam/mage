@@ -1,0 +1,42 @@
+package controllers
+
+import javax.inject.Inject
+
+import helpers.ZendeskHelper
+import org.slf4j.LoggerFactory
+import play.api.libs.json.{JsObject, JsValue, Json}
+import play.api.mvc.{Action, Controller}
+import repository.module.ZendeskRepository
+import service.ZendeskService
+
+import scala.concurrent.ExecutionContext
+
+class ZendeskController @Inject()(implicit val ec: ExecutionContext, zendeskHelper: ZendeskHelper, zendeskService: ZendeskService, zendeskRepository: ZendeskRepository) extends Controller {
+
+  val logger, log = LoggerFactory.getLogger(classOf[ZendeskController])
+
+  def postRequest = Action(parse.json) { request =>
+    val requestData = request.body
+    val zendeskRequestObj = (requestData \ "zendeskRequest").asOpt[JsObject]
+    val message = new  StringBuilder
+    if(zendeskRequestObj.nonEmpty){
+      logger.debug(Json.stringify(zendeskRequestObj.get))
+      //{"kycRequest":{"userId":"100508","pan":"BYFPD2456P","mobile":"9535877327", "tags" : "" ,"kyc":"kyc_under_process"}}
+      val kycRequest = (zendeskRequestObj.get \ "kycRequest").asOpt[JsObject]
+      if(kycRequest.nonEmpty){
+        val userId = (kycRequest.get \ "userId").asOpt[JsValue]
+        val kycStatus = (kycRequest.get \ "kyc").asOpt[JsValue]
+        val pan = (kycRequest.get \ "pan").asOpt[JsValue]
+        val mobile = (kycRequest.get \ "mobile").asOpt[JsValue]
+        val tags = (kycRequest.get \ "tags").asOpt[JsValue]
+        
+        message.append("Successfull")
+      }else{
+        message.append("kycRequest object not found")
+      }
+    }else{
+      message.append("zendeskRequest not found")
+    }
+    Ok(Json.obj("success" -> true, "message" -> message.toString)
+  }
+}

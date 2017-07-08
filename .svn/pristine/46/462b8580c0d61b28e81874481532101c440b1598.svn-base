@@ -1,0 +1,24 @@
+@(user: String, password: String, utils: MailTemplateHelper)
+
+<div style="padding:4% 5%;background-color:white; position:relative; background-color:white; border-left:solid 1px #c1bdbd;border-right:solid 1px #c1bdbd;">
+    Dear <span style="text-transform: capitalize;">
+    @if(user){
+      @user
+    } else{
+      Investor
+    }
+</span>,<br>
+    <p>Here is your temporary password for login to Fincash: @password</p>
+    <p>Kindly change the password after first login</p>
+    <p>If you did not initiate this request, kindly ignore this email.</p>
+
+    @contact()
+
+    <p>Please visit our <a href="@utils.getBaseUrl()/b/" style="color:#53ADD0">RESOURCE CENTRE</a> to know about Mutual Fund Investments and other investment products.</p>
+
+    <p style="position:absolute; bottom:2%;">
+        With Warm Regards,<br>
+        Team Fincash</p>
+</div>
+
+@products(utils.getBaseUrl(), utils.getImagePath())

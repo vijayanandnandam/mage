@@ -1,0 +1,32 @@
+package helpers
+
+import javax.inject.Inject
+
+import models.OrderModel
+import org.slf4j.LoggerFactory
+import repository.module.OrderRepository
+
+import scala.concurrent.{ExecutionContext, Future}
+
+/**
+  * Created by fincash on 17-02-2017.
+  */
+class OrderHelper @Inject()(implicit ec:ExecutionContext, orderRepository: OrderRepository){
+  val logger , log = LoggerFactory.getLogger(classOf[OrderHelper])
+
+
+  def filterBSESchemes(orderModel:OrderModel):Future[List[Any]] = {
+
+    logger.info("Filtering for BSE Schemes")
+    Future.sequence(for(subOrder <- orderModel.subOrders) yield{
+      orderRepository.getBSESchemeCode(subOrder.buySchemeOptionRfnum).map(bseSchemeCode =>{
+        val validBseSchemeCode = bseSchemeCode.trim
+        if(validBseSchemeCode.trim.length > 0){
+          subOrder.copy(bseSchemeCode = Some(validBseSchemeCode))
+        } else{
+          logger.error("BSE Scheme code for soptrfnum " + subOrder.buySchemeOptionRfnum + " doesn't exist")
+        }
+      })
+    })
+  }
+}

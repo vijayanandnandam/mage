@@ -1,0 +1,50 @@
+package controllers
+
+import javax.inject.Inject
+
+import helpers.AuthenticatedAction
+import models.OrderJsonFormats._
+import models.{OrderModel, SubOrder, UserLoginObject}
+import play.api.libs.json.Json
+import play.api.mvc.{Action, Controller}
+import service.{OrderService, UserService}
+
+import scala.concurrent.ExecutionContext
+
+/**
+  * Created by fincash on 16-02-2017.
+  */
+class OrderController @Inject()(implicit ec: ExecutionContext, orderService: OrderService,
+                                auth: AuthenticatedAction,
+                                userService: UserService) extends Controller {
+
+  def orderAcknowledgementDetails(orderId: String) = auth.Action.async { request =>
+
+    userService.getUserObjectFromReq(request).flatMap { userLoginObject =>
+
+      orderService.getOrderAcknowledgeDetails(orderId.toLong, userLoginObject.get).map(acknowledgementOrderModel =>{
+        Ok(Json.toJson(acknowledgementOrderModel))
+      })
+    }
+  }
+
+  def checkOrderPaymentStatus(subOrderId:String) = auth.Action.async{request =>
+
+    userService.getUserObjectFromReq(request).flatMap { userLoginObject =>
+
+      orderService.checkOrderPaymentStatus(subOrderId.toLong,userLoginObject.get).map(paymentStatus =>{
+        Ok(Json.toJson(paymentStatus))
+      })
+    }
+  }
+
+  def getOrderDetails(orderId:String) = auth.Action.async{ request =>
+
+    userService.getUserObjectFromReq(request).flatMap { userLoginObject =>
+
+      orderService.populateOrderDetails(orderId.toLong,userLoginObject.get).map(subOrderDetail =>{
+        Ok(Json.toJson(subOrderDetail))
+      })
+    }
+  }
+}

@@ -1,0 +1,35 @@
+@import _root_.data.model.Tables._
+@import _root_.constants.{OrderConstants}
+
+
+@(user: FcubdRow, userBank:Option[UserBank]= None, orders: OrderDetails, subOrder: SubOrderDetails, utils: MailTemplateHelper)
+
+Investor Name: @if(user.ubdfirstname) { @user.ubdfirstname} else {NA}
+    Order Id: @orders.orderId
+    Order Type: @if(orders.orderType.toLowerCase() == "p") {purchase } else { redemption}
+    Order Time: @utils.parseDate(orders.createDate, "yyyy/MM/dd HH:mm:ss", "dd MMM yy hh:mm a")
+
+    -------
+    Suborder id: @subOrder.subOrderId
+    Transaction Type: @subOrder.investmentMode
+    Scheme Name-Plan-Option: @subOrder.schemeName - @subOrder.schemePlan - @subOrder.schemeOption
+    Initial Status: @subOrder.stateName
+@if(subOrder.investmentMode == "SIP" || subOrder.investmentMode == "sip") {
+    Amount : @if((subOrder.amount.nonEmpty) && (subOrder.amount.get > 0)) {@utils.parse(subOrder.amount.get)  Freq - @subOrder.sipFrequency | Instalments - @subOrder.sipNoOfInstallments} @if(subOrder.quantity.nonEmpty && (subOrder.quantity.get > 0)) {
+        @subOrder.quantity.get Units}
+    @if(subOrder.mandateDetails.nonEmpty){Mandate Id: @subOrder.mandateDetails.get.mandateId
+        Mandate Type: @subOrder.mandateDetails.get.mandateType
+        @if(userBank.nonEmpty){ -- Bank Details --
+            Holder Name : @userBank.get.holderName
+            Account Number : @userBank.get.accountNumber  |  Account Type : @utils.getcndVal(userBank.get.accountType.get)
+            Bank Name : @userBank.get.bank.get.bankName   | IFSC : @userBank.get.bank.get.IFSC
+            Branch : @userBank.get.bank.get.branch
+        }
+    } SIP Date: @subOrder.sipDayOfMonth.getOrElse("NA")
+}else { @if(subOrder.buySellType.nonEmpty && (subOrder.buySellType == OrderConstants.ACKNOWLEDGE_REDEMPTION_FULL_VALUE)) { Full Redemption} @if(subOrder.buySellType.nonEmpty && (subOrder.buySellType == OrderConstants.ACKNOWLEDGE_REDEMPTION_PARTIAL_VALUE)) {
+    Partial Redemption} @if(subOrder.buySellType.nonEmpty && (subOrder.buySellType == OrderConstants.ACKNOWLEDGE_FRESH_VALUE)) {Fresh Purchase }@if(subOrder.buySellType.nonEmpty && (subOrder.buySellType == OrderConstants.ACKNOWLEDGE_ADDITIONAL_VALUE)) { Additional Purchase}
+    Amount : @if(subOrder.amount.nonEmpty && (subOrder.amount.get > 0)) {@utils.parse(subOrder.amount.get)} @if(subOrder.quantity.nonEmpty && (subOrder.quantity.get > 0)) {
+    @subOrder.quantity.get Units
+}}
+
+

@@ -1,0 +1,454 @@
+package service
+
+import java.io.{File, FileInputStream}
+import java.util
+import java.util.Calendar
+import javax.inject.Inject
+
+import constants.{CNDConstants, KycConstants, OrderConstants}
+import helpers.{MailHelper, ZendeskHelper}
+import models.{OrderDetails, SubOrderDetails, SubOrderUnitDetails}
+import org.slf4j.LoggerFactory
+import org.zendesk.client.v2.model.Ticket.Requester
+import org.zendesk.client.v2.model._
+import repository.module.{KycRepository, OrderRepository, UserRepository, ZendeskRepository}
+import utils.DateTimeUtils
+
+import scala.concurrent.{ExecutionContext, Future}
+
+
+/**
+  * Created by Fincash on 22-05-2017.
+  */
+class ZendeskService @Inject()(implicit ec: ExecutionContext, zendeskHelper: ZendeskHelper, userRepository: UserRepository, kycRepository: KycRepository, orderRepository: OrderRepository,
+                               zendeskRepository: ZendeskRepository, configuration: play.api.Configuration, mailHelper: MailHelper, bankService: BankService) extends CNDConstants with KycConstants with OrderConstants {
+
+  val IS_ZENDESK_CLIENT_POSTING_ALLOWED = configuration.underlying.getBoolean("zendesk.tktAllowed")
+  val logger,log = LoggerFactory.getLogger(classOf[ZendeskService])
+  val zendesk : org.zendesk.client.v2.Zendesk = zendeskHelper.zendesk
+
+  def createTicket(requester: Ticket.Requester, subject: String, comment: Comment, groupId: Option[Long] = None,
+                   recipient: String, username: String, userid: Long,subOrderId:Option[Long]): Future[Option[Long]] = {
+
+    val ticket = zendeskHelper.createTicketObject()
+    ticket.setRequester(requester)
+    ticket.setSubject(subject)
+    ticket.setComment(comment)
+    ticket.setGroupId(groupId.get)
+    ticket.setRecipient(recipient)
+
+    try {
+      if (IS_ZENDESK_CLIENT_POSTING_ALLOWED) {
+
+        val status = Status.NEW.toString.toLowerCase()
+        val tktSource = zendeskHelper.ZENDESK_SOURCE_API.toLowerCase()
+        zendeskRepository.saveTicket("0", None, userid, username, status, tktSource,subOrderId).map(fctktRow =>{
+          if(fctktRow.nonEmpty){
+            val tktId = zendesk.createTicket(ticket).getId.toString
+            val updatedFctktRow = fctktRow.get.copy(tktticketid = tktId)
+            zendeskRepository.updateZendeskTicket(updatedFctktRow)
+            Some(tktId.toLong)
+          } else{
+            None
+          }
+        }) recover {
+          case ex => logger.error(ex.getMessage)
+            None
+        }
+      } else {
+        Future.apply(None)
+      }
+    } catch {
+      case e: Exception => {
+        logger.error(" error in creating ticket " + e.getMessage)
+        Future.apply(None)
+      }
+    }
+
+  }
+
+  def updateStatus(tktId: Long, status: Status): Future[Boolean] = {
+    try {
+      if (IS_ZENDESK_CLIENT_POSTING_ALLOWED) {
+        val zdTicket = zendesk.getTicket(tktId)
+        val fromStatus = zdTicket.getStatus.toString
+        zdTicket.setStatus(status)
+        val tkt: Ticket = zendesk.updateTicket(zdTicket)
+        logger.debug("Ticket Id [" + tkt.getId + "] updated successfully @ [" + tkt.getUpdatedAt + "]")
+        if (tkt.getStatus == status) {
+          zendeskRepository.updateTicketStatus(tktId, fromStatus, status.toString)
+        } else {
+          Future.apply(false)
+        }
+      } else {
+        Future.apply(false)
+      }
+    } catch {
+      case e: Exception => {
+        logger.error(" error in creating ticket " + e.getMessage)
+        Future.apply(false)
+      }
+    }
+  }
+
+  def getTicket(ticketId : Long): Option[Ticket] = {
+    try {
+      Some(zendesk.getTicket(ticketId))
+    }catch {
+      case ex: Exception => {
+        logger.error(ex.getMessage)
+        None
+      }
+    }
+  }
+
+  def setCustomField(tktId: Long, customFieldList: util.List[CustomFieldValue], requester: Option[Requester], commentString: Option[String], commentPublic: Option[Boolean]): (Long, Boolean) = {
+    try {
+      if (IS_ZENDESK_CLIENT_POSTING_ALLOWED) {
+        val zdTicket = zendesk.getTicket(tktId)
+        zdTicket.setCustomFields(customFieldList)
+        if (commentString.nonEmpty && commentString.get.trim.length > 0) {
+          val commenTs = new Comment()
+          commenTs.setBody(commentString.get)
+          if (commentPublic.nonEmpty) {
+            commenTs.setPublic(commentPublic.get)
+          } else {
+            commenTs.setPublic(false)
+          }
+          zdTicket.setComment(commenTs)
+        }
+        if (requester.nonEmpty) {
+          zdTicket.setRequester(requester.get)
+        }
+        val ticket: org.zendesk.client.v2.model.Ticket = zendesk.updateTicket(zdTicket)
+        logger.debug("Ticket Id [" + ticket.getId + "] updated successfully @ [" + ticket.getUpdatedAt + "]")
+        (ticket.getId, true)
+      } else {
+        (0L, false)
+      }
+    } catch {
+      case ex: Exception => {
+        (0L, false)
+      }
+    }
+  }
+
+  def updateUserPhone(zdUserId: Long, mob: String): Boolean = {
+    try{
+      if (IS_ZENDESK_CLIENT_POSTING_ALLOWED) {
+        val user = zendesk.getUser(zdUserId)
+        user.setPhone(mob)
+        val updatedUser = zendesk.updateUser(user)
+        logger.debug("user update [" + updatedUser.getId+"] updated successfully @ ["+ updatedUser.getUpdatedAt + "]")
+        updatedUser.getPhone.equalsIgnoreCase(mob)
+      } else {
+        false
+      }
+    }catch {
+      case ex: Exception =>{
+        logger.error("error updateUserPhone zendesk " + ex.getMessage)
+        false
+      }
+    }
+  }
+
+  def setUserField(zdUserId: Long, userField: java.util.Map[String, Object]): Boolean = {
+    try{
+      if (IS_ZENDESK_CLIENT_POSTING_ALLOWED) {
+        val user = zendesk.getUser(zdUserId)
+        user.setUserFields(userField)
+        val updatedUser = zendesk.updateUser(user)
+        logger.debug("user update [" + updatedUser.getId+"] updated successfully @ ["+ updatedUser.getUpdatedAt + "]")
+        val userFieldsKeys = updatedUser.getUserFields.keySet
+        userFieldsKeys.size.equals(userField.size())
+      } else {
+        false
+      }
+    }catch {
+      case ex: Exception =>{
+        logger.error("error setUserField zendesk " + ex.getMessage)
+        false
+      }
+    }
+  }
+
+  def setUserName(zdUserId: Long, name: String): Boolean = {
+    try{
+      val user = zendesk.getUser(zdUserId)
+      user.setName(name)
+      val updatedUser = zendesk.updateUser(user)
+      logger.debug("user update [" + updatedUser.getId+"] updated successfully @ ["+ updatedUser.getUpdatedAt + "]")
+      updatedUser.getName.equalsIgnoreCase(name)
+    }catch {
+      case ex: Exception =>{
+        logger.error("error setUserField zendesk " + ex.getMessage)
+        false
+      }
+    }
+  }
+
+  /**
+    *
+    * @param tktId
+    * @param comment
+    * @param requester
+    * @return tuple of ticketId & Status (true/false)
+    */
+  def setTktComment(tktId: Long, comment: Comment, requester: Option[Requester]): (Long, Boolean) = {
+    try {
+      val zdTicket = zendesk.getTicket(tktId)
+      if (requester.nonEmpty) {
+        zdTicket.setRequester(requester.get)
+      }
+      zdTicket.setComment(comment)
+      val ticket = zendesk.updateTicket(zdTicket)
+      logger.debug("Ticket Id [" + ticket.getId + "] updated successfully @ [" + ticket.getUpdatedAt + "]")
+      (ticket.getId, true)
+    } catch {
+      case ex: Exception => {
+        logger.error("Error updating ticket using setTktComment " + ex.getMessage)
+        (tktId, false)
+      }
+    }
+  }
+
+  /**
+    *
+    * @param orderDetails
+    * @param subOrder
+    * @param fromState
+    * @param userId
+    * @return SuborderId & TicketId tuple
+    */
+
+  def postOrderUpdate(orderDetails: OrderDetails, subOrder: SubOrderDetails, fromState: String,fromStateCode : String, userId: Long): Future[(Long, Long)] = {
+
+    userRepository.getUserByPk(userId).flatMap(ubdRowList => {
+      val ubdRow = ubdRowList.head
+      val userName = ubdRow.ubdemailid
+      logger.debug("Zendesk Ticket posting allowed [" + IS_ZENDESK_CLIENT_POSTING_ALLOWED + "]")
+      if (IS_ZENDESK_CLIENT_POSTING_ALLOWED) {
+        val requester = zendeskHelper.createRequester
+        val userEmail = userName
+        requester.setEmail(userEmail)
+        requester.setName(ubdRow.ubdfirstname.getOrElse(userName))
+
+        (for{
+          mandateBankDetail <- bankService.getMandateBankDetails(subOrder)
+          mandateDetails <- bankService.getMandate(subOrder)
+        }yield {
+          var mandateAmount: Option[Double] = None
+          if (mandateDetails.nonEmpty) {
+            mandateAmount = Some(mandateDetails.get.mmtamount)
+          }
+          val subOrderExt = subOrder.extDetails
+          var bseSchemeCode: Option[String] = None
+          var estimatedAllotmentDate: Option[String] = None
+          var cancellationDate: Option[String] = None
+          var folioNo: Option[String] = None
+          for (childDetail <- subOrderExt.get) {
+
+            if (childDetail.extDetailKey == BSE_SCHEME_CODE_KEY) {
+              bseSchemeCode = Some(childDetail.extDetailValue)
+            }
+            if(childDetail.extDetailKey == ORDER_APPROX_ALLOT_KEY){
+              estimatedAllotmentDate = Some(childDetail.extDetailValue)
+            }
+            if(childDetail.extDetailKey == ORDER_CANCEL_CUT_OFF_KEY){
+              cancellationDate = Some(childDetail.extDetailValue)
+            }
+            if(childDetail.extDetailKey == FOLIO_NO_KEY){
+              folioNo = Some(childDetail.extDetailValue)
+            }
+          }
+          logger.debug("getMandateBankDetails [" + mandateBankDetail + "] bseSchemeCode [" + bseSchemeCode + "]")
+          zendeskRepository.getTicketByOrderId(subOrder.subOrderId).flatMap(tktRows => {
+            if (tktRows.nonEmpty) {
+                val tktRow = tktRows.head
+                zendeskRepository.updateTicketInDatabase(tktRow.id, userName).map(dbUpdated =>{
+                  try {logger.debug("Modify date in db updated " + dbUpdated)
+                  val zdTicket = zendesk.getTicket(tktRow.tktticketid.toLong)
+                  val currentCal = Calendar.getInstance()
+                  val updateCal = Calendar.getInstance()
+                  // for comments to reapper 30 seconds delay in  updates is required as it might mean code is transferring order from one state to another. Might results in too many comments being posted
+                  currentCal.add(Calendar.SECOND, -30)
+                  updateCal.setTimeInMillis(tktRow.modifydate.getTime)
+                  logger.debug(" update cal [" + updateCal.getTime + "] currentCal [" + currentCal.getTime + "] TKTMODIFIEDDATE [" + tktRow.modifydate + "]")
+                  if (subOrder.buySellType.equalsIgnoreCase(BUYSELL_SELL) || updateCal.getTime.before(currentCal.getTime)) {
+                    val bodyTextZd = views.html.zdOrderProcessedTxt(ubdRow, mandateBankDetail, mandateAmount, orderDetails, subOrder, bseSchemeCode.getOrElse(""),
+                      Some(fromState), Some(fromStateCode),estimatedAllotmentDate,cancellationDate,folioNo, mailHelper.getMth).toString()
+                    val comment = new Comment()
+                    comment.setBody(bodyTextZd)
+                    comment.setPublic(false)
+                    zdTicket.setComment(comment)
+                  }
+                  val customField1 = new CustomFieldValue(zendeskHelper.ZENDESK_TICKET_ORDER_STATUS, subOrder.stateName.getOrElse("NA"))
+                  val customFieldList = new java.util.ArrayList[CustomFieldValue]
+                  customFieldList.add(customField1)
+                  zdTicket.setCustomFields(customFieldList)
+                  zdTicket.setRequester(requester)
+                  val updatedTicket = zendesk.updateTicket(zdTicket)
+                  logger.debug("Ticket Id [" + updatedTicket.getId + "] updated successfully @ [" + updatedTicket.getUpdatedAt + "]")
+                  (subOrder.subOrderId, updatedTicket.getId.toString.toLong)
+                  } catch {
+                    case ex: Exception => {
+                      logger.debug("Error updating ticket " + ex.getMessage)
+                      (subOrder.subOrderId, 0L)
+                    }
+                  }
+                })
+            } else {
+              logger.debug("@@no ticket found with order Id [" + subOrder.subOrderId + "]")
+              //var tickets = Future.sequence(for(subOrder <- subOrderDetail.subOrderDetails) yield {
+
+                val bodyTextZd = views.html.zdOrderProcessedTxt(ubdRow, mandateBankDetail, mandateAmount, orderDetails, subOrder,
+                  bseSchemeCode.getOrElse(""), Some(fromState), Some(fromStateCode),estimatedAllotmentDate,cancellationDate,folioNo, mailHelper.getMth).toString()
+                val comment = new Comment()
+                comment.setBody(bodyTextZd)
+                comment.setPublic(false)
+                var tktSubject = orderDetails.orderId.toString + '/' + subOrder.subOrderId.toString
+                tktSubject += "--" + subOrder.schemeName.getOrElse("") + '-' + subOrder.schemePlan.getOrElse("") + '-' + subOrder.schemeOption.getOrElse("")
+                val resTuple = zendeskHelper.getGroupANDPurposeFromOrderType(orderDetails.orderType, subOrder.investmentMode)
+                val assigneeGroup = resTuple._1
+                val tktPurpose = resTuple._2
+                logger.debug("Assignee group [" + assigneeGroup + "] tktPupose [" + tktPurpose + "] requester [" + requester + "] tktSubject [" + tktSubject + "] username [" + userName + "] userid [" + userId + "]")
+                createTicket(requester, tktSubject, comment, Some(assigneeGroup), userEmail, userEmail, userId, Some(subOrder.subOrderId)).flatMap(_tktId => {
+
+                    logger.debug("createTicket [" + _tktId + "]")
+                  if (_tktId.nonEmpty) {
+                    val customField1 = new CustomFieldValue(zendeskHelper.ZENDESK_TICKET_USER_STAGE, zendeskHelper.ZENDESK_TICKET_VALUE_ACCOUNT_ACTIVE)
+                    val customField2 = new CustomFieldValue(zendeskHelper.ZENDESK_TICKET_ORDER_STATUS, subOrder.stateName.getOrElse("NA"))
+                    kycRepository.getUserKYCStatus(userId).map(retList => {
+                      try {
+                        if (retList.nonEmpty && retList.length > 0) {
+                        val kycrow = retList.head
+                        val kycStatus = kycrow.kycstatus
+                        var zdkycstatus = ""
+                        val commentString = kycrow.kyctype
+                        if (kycStatus.equalsIgnoreCase(KYC_DONE)) {
+                          zdkycstatus = zendeskHelper.ZENDESK_TICKET_VALUE_KYC_DONE
+                        } else if (kycStatus.equalsIgnoreCase(KYC_EXTERNALLY_DONE)) {
+                          zdkycstatus = zendeskHelper.ZENDESK_TICKET_VALUE_KYC_DONE_EKYC
+                        } else if (kycStatus.equalsIgnoreCase(KYC_NOTDONE)) {
+                          zdkycstatus = zendeskHelper.ZENDESK_TICKET_VALUE_KYC_NOT_DONE
+                        } else if (kycStatus.equalsIgnoreCase(KYC_UNDERPROCESS)) {
+                          zdkycstatus = zendeskHelper.ZENDESK_TICKET_VALUE_KYC_UNDER_PROCESS
+                        }
+                        val customField3 = new CustomFieldValue(zendeskHelper.ZENDESK_TICKET_KYC_STATUS, zdkycstatus)
+                        val customFieldList = new java.util.ArrayList[CustomFieldValue]
+                        customFieldList.add(customField1)
+                        customFieldList.add(customField2)
+                        customFieldList.add(customField3)
+                        val zdTicket = getTicket(_tktId.get)
+                        if (zdTicket.nonEmpty) {
+                          val ticket = zdTicket.get
+                          ticket.setRequester(requester)
+                          ticket.setCustomFields(customFieldList)
+                          val comments = new Comment()
+                          var commentStr = "KYC TYPE: " + commentString.get
+                          /*commentStr  = commentStr + "\n" + " Order Snapshot "*/
+                          comments.setBody(commentStr)
+                          val url = mailHelper.filepath + "/" + orderDetails.snapshotPath.get
+                          mailHelper.downLoadFile(url, "png").map(_file => {
+                            var contentType = "image/png"
+                            val fin = new FileInputStream(_file.getAbsoluteFile)
+                            val cnt = fin.available
+                            val bytes = Array.ofDim[Byte](cnt)
+                            fin.read(bytes)
+                            fin.close()
+                            val token = createUpload(_file, contentType, bytes)
+                            val zdTokens = new java.util.ArrayList[String]
+                            if (token.nonEmpty) {
+                              zdTokens.add(token.get)
+                            }
+                            if (zdTokens.size > 0) {
+                              comments.setUploads(zdTokens)
+                            }
+                            comments.setPublic(false)
+                            ticket.setComment(comments)
+                            try {
+                              val updateTicket = zendesk.updateTicket(ticket)
+                              logger.debug("Ticket Id [" + updateTicket.getId + "] updated successfully @ [" + updateTicket.getUpdatedAt + "]")
+                            } catch {
+                              case exp: Exception => {
+                                logger.error("Error updating ticket " + _tktId.get)
+                              }
+                            }
+                            if (_file.exists) {
+                              _file.delete
+                            }
+                          })
+                        }
+                      }
+                      logger.debug("ticketId [" + _tktId + "]")
+                      zendeskRepository.updateSotPurpose(_tktId.get, tktPurpose, subOrder.subOrderId).map(purposeSotResponse => {
+                        logger.debug("@@@@@@@@ updateTktpurpose res ->" + purposeSotResponse)
+                        purposeSotResponse
+                      })
+                      (subOrder.subOrderId, _tktId.getOrElse(0L))
+                      } catch {
+                        case e: Exception => {
+                          logger.error("error in order ticker >>> " + e.getMessage)
+                          (subOrder.subOrderId, 0L)
+                        }
+                      }
+                    })
+                  } else{
+                    Future.apply((subOrder.subOrderId, 0L))
+                  }
+
+                })
+            }
+          })
+        }).flatMap(value => value)
+      } else {
+        logger.debug("@@tkt update not allowed for this config")
+        Future.apply((subOrder.subOrderId, 0L))
+      }
+    })
+  }
+
+  def postOrderUnitUpdate(subOrderUnitDetails: SubOrderUnitDetails): Future[Boolean] = {
+    if (IS_ZENDESK_CLIENT_POSTING_ALLOWED) {
+      try{
+        val subOrderId = subOrderUnitDetails.subOrderId
+        zendeskRepository.getTicketByOrderId(subOrderId).map(tktRows => {
+          if (tktRows.nonEmpty) {
+            val tktRow = tktRows.head
+            val zdTicket = zendesk.getTicket(tktRow.tktticketid.toLong)
+            val customField1 = new CustomFieldValue(zendeskHelper.ZENDESK_TICKET_ORDER_STATUS, subOrderUnitDetails.orderStateName.getOrElse(""))
+            val customFieldList = new java.util.ArrayList[CustomFieldValue]
+            customFieldList.add(customField1)
+            val tktComment = new Comment()
+            val bodyTextZd = views.html.zdOrderUnitDetailsTxt(subOrderUnitDetails, mailHelper.getMth).toString()
+            tktComment.setBody(bodyTextZd)
+            tktComment.setPublic(false)
+            zdTicket.setCustomFields(customFieldList)
+            zdTicket.setComment(tktComment)
+            zendeskRepository.updateTicketInDatabase(tktRow.id,"SYSTEM").map(done =>{
+              logger.debug("Fctkt row modification successfull")
+            })
+            val updateTicket = zendesk.updateTicket(zdTicket)
+            logger.debug("Ticket Id [" + updateTicket.getId + "] updated successfully @ [" + updateTicket.getUpdatedAt + "]")
+            true
+          } else {
+            logger.debug("No Ticket found  for given order")
+            false
+          }
+        })
+      }catch {
+        case ex : Exception => {
+          logger.error("Error updating postOrderUnitUpdate" + ex.getMessage)
+          Future.apply(false)
+        }
+      }
+    } else {
+      logger.debug("@@tkt update not allowed for this config")
+      Future.apply(false)
+    }
+  }
+
+  def createUpload(file: File, contentType : String, bytes: Array[Byte]): Option[String] ={
+    this.zendeskHelper.createUpload(file, contentType, bytes)
+  }
+}

@@ -1,0 +1,69 @@
+package constants
+
+/**
+  * Created by Fincash on 12-05-2017.
+  */
+trait ZendeskTicketFieldConstant {
+  final val SUBJECT = 42639549L
+  final val DESCRIPTION = 42639569L
+  final val STATUS = 42639589L
+  final val TICKET_TYPE = 42639609L
+  final val PRIORITY = 42639629L
+  final val GROUP = 42639649L
+  final val ASSIGNEE = 42639669L
+  final val USER_STAGE = 44939569L
+  final val KYC_STATUS = 45002045L
+  final val ORDER_STATUS = 45212969L
+  final val PAYMENT_LINK = 45212989L
+}
+
+trait ZendeskTicketFieldValueConstant{
+  final val ACCOUNT_ACTIVE = "account_active"
+  final val DOCUMENTS_APPROVED = "documents_approved"
+  final val DOCUMENTS_PENDING = "documents_pending"
+  final val MOBILE_VERIFIED = "mobile_verified"
+  final val PAN_UPDATED = "pan_updated"
+  final val REGISTRATION_COMPLETE = "registration_complete"
+  final val REGISTRATION_FAILED = "registration_failed"
+  final val REGISTRATION_INCOMPLETE = "registration_incomplete"
+  final val SIGN_UP = "sign_up"
+  final val AADHAAR_EKYC = "aadhaar_ekyc"
+  final val EKYC_FAILED = "ekyc_failed"
+  final val KYC_NOT_DONE = "kyc_not_done"
+  final val KYC_DONE = "kyc_done"
+  final val KYC_UNDER_PROCESS = "kyc_under_process"
+  final val KYC_DONE_EKYC = "ekyc"
+
+}
+trait ZendeskUserFieldConstant {
+  final val PAN = "pan"
+  final val DOB = "dob"
+  final val KYC = "kyc"
+  final val BANK = "bank"
+  final val USER_ID = "user_id"
+}
+
+trait ZendeskUserFieldValueConstant{
+  final val ACCOUNT_ACTIVE = "account_active"
+  final val DOCUMENTS_APPROVED = "documents_approved"
+  final val DOCUMENTS_PENDING = "documents_pending"
+  final val MOBILE_VERIFIED = "mobile_verified"
+  final val PAN_UPDATED = "pan_updated"
+  final val REGISTRATION_COMPLETE = "registration_complete"
+  final val REGISTRATION_FAILED = "registration_failed"
+  final val REGISTRATION_INCOMPLETE = "registration_incomplete"
+  final val SIGN_UP = "sign_up"
+
+}
+trait ZendeskGroupConstants {
+  final val ONBOARDING = 28448865L
+  final val PURCHASE = 28389269L
+  final val REDEMPTION = 28448905L
+  final val SUPPORT = 27940229L
+  final val SYSTEMATIC_INVESTMENT = 28448925L
+}
+trait ZendesktktSourceConstants {
+  final val API = "API"
+  final val EMAIL = "email"
+  final val CHAT = "chat"
+}

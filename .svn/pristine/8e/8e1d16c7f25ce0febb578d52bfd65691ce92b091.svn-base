@@ -1,0 +1,122 @@
+package service
+
+import java.util.Calendar
+import javax.inject.Inject
+
+import models.UserLoginJsonFormats._
+import models.UserLoginObject
+import org.slf4j.LoggerFactory
+import pdi.jwt.{JwtAlgorithm, JwtClaim, JwtJson}
+import play.api.libs.json.{JsValue, Json}
+import play.modules.reactivemongo.ReactiveMongoApi
+import reactivemongo.api.collections.bson.BSONCollection
+import reactivemongo.api.commands.{UpdateWriteResult, WriteResult}
+import reactivemongo.bson.{BSONDocument, BSONObjectID}
+import reactivemongo.core.errors.DatabaseException
+
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.{ExecutionContext, Future}
+import scala.util.{Failure, Success}
+
+class MongoDbService @Inject()(implicit val ec: ExecutionContext, reactiveMongoApi: ReactiveMongoApi, configuration: play.api.Configuration) {
+  val logger , log = LoggerFactory.getLogger(classOf[MongoDbService])
+
+  private def mongoDatabase = reactiveMongoApi.database
+
+  val tokenTimeoutinDuration = configuration.underlying.getInt("token.expiry.duration.days")
+
+  def collection(name: String) =  {
+    // on completion callback
+    mongoDatabase.onComplete{
+      case Failure(e) => {
+        logger.error("onComplete >> Failure >> " + e.getMessage)
+      }
+      case Success(s) => {
+        // commenting as connection is already closed by ReactiveMongoApi.
+        //s.connection.close
+        //logger.debug("onComplete >> Success >> "+s.connection.name)
+      }
+    }
+    // in case of any unhandled error on the connection returned below
+    mongoDatabase.recover{
+      case dex: DatabaseException => {
+        dex.printStackTrace
+        logger.error(dex.getMessage)
+      }
+      case e: Exception => {
+        e.printStackTrace
+        logger.error(e.getMessage)
+      }
+    }
+    // returning connection to execute query etc.
+    mongoDatabase.map(_.collection[BSONCollection](name))
+  }
+
+  /**
+    * @param coll
+    * @param doc
+    * @return
+    */
+  def findOneDoc(coll: BSONCollection, query: BSONDocument): Future[Option[BSONDocument]] = {
+    coll.find(query).one[BSONDocument].map(doc =>
+      doc
+    )
+  }
+
+  def insertDoc(coll: BSONCollection, doc: BSONDocument): Future[WriteResult] = {
+    coll.insert(doc)
+  }
+
+  def findAndRemove(coll: BSONCollection, doc: BSONDocument) = {
+    coll.findAndRemove(doc);
+  }
+
+  def findAndUpdate(coll: BSONCollection, selectorDoc: BSONDocument, modifierDoc: BSONDocument) = {
+    val selector = selectorDoc
+    val modifier = BSONDocument("$set" -> modifierDoc)
+    coll.findAndUpdate(selector, modifier, fetchNewObject = true)
+  }
+
+  def updateDoc(coll: BSONCollection, selectorDoc: BSONDocument, modifierDoc: BSONDocument): Future[UpdateWriteResult] = {
+    val selector = selectorDoc
+    val modifier = BSONDocument("$set" -> modifierDoc)
+    // get a future update
+    coll.update(selector, modifier)
+  }
+
+  def userDocument(username : Option[String], userid : Option[Long], folio : Option[Long], firstName : Option[String],
+                   pan : Option[String], mob : Option[String],signingKey :  Option[String]): (BSONDocument,JsValue,String) = {
+    val _username = username.getOrElse("Anonymous")
+    val key = signingKey.getOrElse(BSONObjectID.generate.stringify)
+    val algo = JwtAlgorithm.HS256
+    val data = Json.obj("username" -> _username)
+    val calendar = Calendar.getInstance()
+    calendar.add(Calendar.DAY_OF_MONTH, Calendar.DAY_OF_MONTH+tokenTimeoutinDuration)
+    calendar.set(Calendar.HOUR_OF_DAY, 5)
+    val tokenExpiryTime = calendar.getTimeInMillis - System.currentTimeMillis
+
+    val claim = JwtClaim(data.toString()).issuedNow.expiresIn(tokenExpiryTime/1000)
+    val newToken = JwtJson.encode(claim, key, algo)
+    val tokenExpireTime = claim.expiration.getOrElse(calendar.getTimeInMillis)
+    val userObject = new UserLoginObject(username,userid,folio,firstName,pan,mob)
+    val panNumber = pan.getOrElse("")
+    val mobile = mob.getOrElse("")
+    val userFirstName =  firstName.getOrElse("")
+    val _userid = userid.getOrElse(0L)
+    val _folio = folio.getOrElse(0L)
+    (BSONDocument(
+        "token" -> newToken,
+        "username" -> _username,
+        "key" -> key,
+        "algo" -> algo.toString,
+        "expiry" -> claim.expiration,
+        "userid" -> _userid,
+        "foliocount" ->  _folio,
+        "firstname" -> userFirstName,
+        "pan" -> panNumber,
+        "mob" -> mobile
+      ),
+    Json.toJson(userObject),
+    newToken)
+  }
+}

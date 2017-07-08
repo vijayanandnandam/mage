@@ -1,0 +1,108 @@
+package service
+
+import java.util.Calendar
+import javax.inject.Inject
+
+import data.model.Tables.{Fcact, FcactRow, Fcbmt, FcbmtRow, Fcimt, FcimtRow, Fcirql, FcirqlRow}
+import org.slf4j.LoggerFactory
+import play.api.db.slick.{DatabaseConfigProvider, HasDatabaseConfigProvider}
+import slick.jdbc.JdbcProfile
+
+import scala.concurrent.ExecutionContext.Implicits.global
+
+class ApplicationConstantService @Inject() (protected val dbConfigProvider: DatabaseConfigProvider) extends HasDatabaseConfigProvider[JdbcProfile] {
+
+  val logger, log = LoggerFactory.getLogger(classOf[ApplicationConstantService])
+
+
+  import profile.api._
+  
+  val imtTable = TableQuery[Fcimt]
+  val irqlTable = TableQuery[Fcirql]
+  
+  def insert() = {
+  val row = FcactRow(-1,"XYZ","XYZ","Y",None,new java.sql.Timestamp(Calendar.getInstance().getTime().getTime()),"user","user")
+   val bmtTable = TableQuery[Fcbmt]
+    
+    val imtRow = FcimtRow(1,"BSE","Y",Some("BSE Star"),None,new java.sql.Timestamp(Calendar.getInstance().getTime().getTime()),"user","user")
+    
+    val irqlRow = FcirqlRow(1,5,"abc","abc",Some("1234"),None,new java.sql.Timestamp(Calendar.getInstance().getTime().getTime()),"user","user")
+    val bmtRow = FcbmtRow(1,"SBI",Some("SBI123"),"Y",None,new java.sql.Timestamp(Calendar.getInstance().getTime().getTime()),"user","user","")
+    val collection = TableQuery[Fcact]
+    //val data = (collection += row)
+    var imtRowId = 0
+    //db.run((imtTable returning imtTable.map(_.imtrfnum) into ((imtObj, id) => imtObj.copy(imtrfnum = id))))
+    //logger.debug(imtRowId)
+    val a = (for {
+      //_ <- (collection += row)
+      //_ <- (bmtTable += bmtRow)
+      imtNewInstance <- imtTable returning imtTable.map(_.id) into ((imtObj, id) => imtObj.copy(id = id)) += imtRow
+      _ <- (irqlTable += irqlRow)
+      
+    } yield ()).transactionally
+    db.run(a)
+  
+  }
+  
+  def find() = {
+    val imtRow = imtTable.filter{x => ((x.id > 1L && x.id < 5L) || (x.id === 8L))}.map(x => (x.id,x.imtintgratname))
+    val action = imtRow.result
+    val result= db.run(action).map { values => values.foreach { currValue => logger.debug(currValue.toString)} }
+    result
+  }
+  
+  
+  def findByPk(pkValue:Long) = {
+    
+    val findByPk = irqlTable.findBy(_.id) // pre-compiles SQL for better performance
+    
+    db.run(findByPk(pkValue).result)
+    /*val irqlRow = irqlTable.filter { x => (x.irqlrfnum === 2L) }
+    val action = irqlRow.result;
+    db.run(action).map { values => values.foreach { currValue => logger.debug(currValue.irqlimtrfnum) } }*/
+    
+  }
+  def findParentFromChild() = {
+    
+    //val findByPk = irqlTable.filter ( _.irqlrfnum inSet(Set(2L,1L))).flatMap { x => x.fcimtFk }
+    //db.run(findByPk.result).map{x => logger.debug(x)}
+    
+    val irqlQuery = irqlTable.filter ( _.id inSet(Set(2L,1L)))
+    irqlQuery.join(Fcimt).on(_.irqlimtrfnum === _.id)
+    db.run(irqlQuery.result);
+  }
+  
+  def findBySubquery() = {
+    val imtPk = imtTable.filter { x => (x.id > 8L || x.imtintgratname === "BSE")}.map { _.id}
+    val imtRow = imtTable.filter(_.id in imtPk).map(_.id)
+    val action = imtRow.result
+    val result= db.run(action).map { values => values.foreach { currValue => logger.debug(currValue.toString) } }
+  }
+  
+  def findWithForYieldInClause() = {
+    val imtPkList = List(2L,8L)
+    val query = for{
+      x <- imtTable if x.id inSetBind(imtPkList)
+    } yield (x.imtintgratname, x.imtintgratdescrp)
+    val action = query.result
+    val result= db.run(action).map { values => values.foreach { currValue => logger.debug(currValue._1 + " " + currValue._2.getOrElse("")) } }
+  }
+  
+  def findWithInClause() = {
+    val imtPkList = List(2L,8L)
+    val imtRow = imtTable.filter{x => x.id inSetBind(imtPkList)}.map(x => (x.id,x.imtintgratname, x.imtintgratdescrp))
+    val action = imtRow.result
+    val result= db.run(action).map { values => values.foreach { currValue => logger.debug(currValue.toString) } }
+  }
+  def update() = {
+    val imtRow = imtTable.filter { x => x.imtintgratname==="NSE" }.map { x => (x.imtintgratname,x.imtintgratdescrp) }.update(("NSE1",Some("NSE1")))
+    //val action = imtRow.result
+    val result= db.run(imtRow)
+  }
+  
+  def upsert() = {
+    val imtRow = FcimtRow(0,"BSE","Y",Some("BSE Star Mf1"),None,new java.sql.Timestamp(Calendar.getInstance().getTime().getTime()),"user","user")
+    db.run(imtTable.insertOrUpdate(imtRow))
+  }
+  
+}

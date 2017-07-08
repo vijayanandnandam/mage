@@ -1,0 +1,4 @@
+
+POST        /postUserEkycData               controllers.UserController.postUserEkycData
+POST        /socialLogin                    controllers.LoginController.socialLogin
+POST        /activateUser                   controllers.UserController.activateUser

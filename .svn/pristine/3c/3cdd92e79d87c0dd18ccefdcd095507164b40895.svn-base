@@ -1,0 +1,22 @@
+# ~~~~~ Slick Database Configurations ~~~~~
+# Default database configuration
+slick.dbs.default.driver="slick.jdbc.MySQLProfile$"
+slick.dbs.default.db.driver="com.mysql.jdbc.Driver"
+slick.dbs.default.db.url="jdbc:mysql://10.1.0.2:3306/fincash_live"
+slick.dbs.default.db.user=fincash
+slick.dbs.default.db.password="fincash"
+slick.dbs.default.hikaricp.connectionTestQuery="SELECT TRUE"
+slick.dbs.default.db.connectionTimeout=15000
+slick.dbs.default.db.numThreads=2
+slick.dbs.default.db.isolation=READ_COMMITTED
+slick.dbs.default.db.idleTimeout=30000
+
+# default mongo configuration
+play.modules.enabled += "play.modules.reactivemongo.ReactiveMongoModule"
+mongodb.uri ="mongodb://10.1.0.2:27017/fincash-user?rm.tcpNoDelay=true&rm.keepAlive=true&maxIdleTimeMS=60000&connectTimeoutMS=15000&rm.failover=remote&readPreference=primaryPreferred&rm.nbChannelsPerNode=2"
+mongo-async-driver {
+  akka {
+    loggers = [ "akka.event.slf4j.Slf4jLogger" ]
+    loglevel = DEBUG
+  }
+}

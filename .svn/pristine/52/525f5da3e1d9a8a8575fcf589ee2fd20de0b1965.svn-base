@@ -1,0 +1,9 @@
+GET         /summaryReport                         controllers.ReportsController.getPortfolioAssetAllocation
+GET         /getCapitalGainsReport/:finYear        controllers.ReportsController.getCapitalGainReport(finYear)
+GET         /getHoldingReport                      controllers.ReportsController.getHoldingReport
+POST        /getTransactionReport                  controllers.ReportsController.getTransactionReport
+GET         /getAssetAllocationReport              controllers.ReportsController.getAssetAllocationReport
+GET         /getTransactionFilterValues            controllers.ReportsController.getTransactionFilterValues
+GET         /getAssetClassFundDetails              controllers.DashboardController.getCategoryWiseFunds
+GET         /getTopFunds                           controllers.DashboardController.getTopThreeFundPerformers
+GET         /getUserTransactions                   controllers.ReportsController.getUserTransactions

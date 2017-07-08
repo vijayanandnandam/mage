@@ -1,0 +1,100 @@
+package utils.mail
+
+import java.text.DecimalFormat
+import java.util.Calendar
+import javax.inject.Inject
+
+import org.slf4j.LoggerFactory
+import repository.module.CNDRepository
+import repository.tables.FcubdRepo
+import data.model.Tables.FccndRow
+import service.PropertiesLoaderService
+import utils.DateTimeUtils
+
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, ExecutionContext, Future}
+
+/**
+  * Created by Fincash on 10-03-2017.
+  */
+class MailTemplateHelper @Inject()(implicit ec: ExecutionContext, fcubdRepo: FcubdRepo,
+                                   configuration: play.api.Configuration, cNDRepository: CNDRepository) {
+
+  val logger, log = LoggerFactory.getLogger(classOf[MailTemplateHelper])
+  val staticImagePath = configuration.underlying.getString("mail.url.staticImagePath")
+  val baseUrl = configuration.underlying.getString("mail.url.baseurl")
+  val userActivationRelPath = PropertiesLoaderService.getConfig().getString("mail.registration.heading")
+def userActivationLink(id:Long) :String = {
+  baseUrl+userActivationRelPath+id.toString
+}
+def getBaseUrl () :String = {
+  return baseUrl
+}
+  def getImagePath () :String = {
+  return staticImagePath
+}
+  def parseDate(date: String, from: String, to: String): String = {
+    return DateTimeUtils.convertStringDateWithFormats(date, from, to).getOrElse("")
+  }
+
+  def parse(input: Double): String = {
+    val myFormatter = new DecimalFormat("##,##,##,###.##");
+    var retval: Option[String] = None
+    try {
+      retval = Some(myFormatter.format(input))
+    } catch {
+      case e: Exception => logger.debug(e.getMessage)
+    }
+    return retval.getOrElse(input.toLong.toString)
+  }
+
+  def parse(input: Option[Object]): String = {
+    if(input.nonEmpty){
+      val obj = input.get
+      if(obj.isInstanceOf[Double])
+       return parse(obj.asInstanceOf[Double])
+      else if(obj.isInstanceOf[Long])
+        return parse(obj.asInstanceOf[Long])
+      else if(obj.isInstanceOf[Integer])
+        return parse(obj.asInstanceOf[Integer])
+      else
+        ""
+    }else{
+       ""
+    }
+  }
+
+  def parse(input: Long): String = {
+    val myFormatter = new DecimalFormat("##,##,##,###");
+    var retval: Option[String] = None
+    try {
+      retval = Some(myFormatter.format(input))
+    } catch {
+      case e: Exception => logger.debug(e.getMessage)
+    }
+    return retval.getOrElse(input.toString)
+  }
+
+
+  def parse(input: Integer): String = {
+    val myFormatter = new DecimalFormat("##,##,##,###");
+    var retval: Option[String] = None
+    try {
+      retval = Some(myFormatter.format(input))
+    } catch {
+      case e: Exception => logger.debug(e.getMessage)
+    }
+    return retval.getOrElse(input.toString)
+  }
+
+  def getCurrentYearString(): Int ={
+      Calendar.getInstance().get(Calendar.YEAR)
+  }
+
+  def getcndVal(id:String): String = {
+    val results = cNDRepository.getCnd(id.toLong);
+    Await.result(results, Duration.Inf).get.cndname
+  }
+
+
+}

@@ -1,0 +1,379 @@
+package service
+
+import java.util.Date
+import javax.inject.Inject
+
+import constants.{CategoryConstants, OrderConstants}
+import helpers.SchemeHelper
+import models._
+import models.integration.enumerations.BuySellEnum
+import org.slf4j.LoggerFactory
+import repository.module.{FolioRepository, IntegrationRepository, SchemeRepository}
+import repository.tables.FcmerRepo
+import utils.DateTimeUtils
+
+import scala.collection.mutable
+import scala.collection.mutable.ListBuffer
+import scala.concurrent.{ExecutionContext, Future}
+
+/**
+  * Created by fincash on 25-01-2017.
+  */
+class ReportService @Inject()(implicit ec: ExecutionContext, reportRepository: FolioRepository, schemeRepository: SchemeRepository,
+                              schemeHelper: SchemeHelper, orderCancelService: OrderCancelService, productService: ProductService,
+                              paymentService: PaymentService, folioRepository: FolioRepository, integrationRepository: IntegrationRepository,
+                              fcmerRepo: FcmerRepo, solrFundSearchService: SolrFundSearchService)
+  extends OrderConstants with CategoryConstants{
+
+  val logger, log = LoggerFactory.getLogger(classOf[ReportService])
+
+  def getPortfolioAssetAllocationDetails(userPk: Long): Future[ListBuffer[FundDetails]] = {
+
+    reportRepository.getPortfolioDetails(userPk).flatMap { fundsList =>
+
+      Future.sequence(for (fund <- fundsList) yield {
+        reportRepository.getCurrNavByFundId(fund.fundId).map(navTuple => {
+          fund.copy(currNav = BigDecimal(navTuple._1), navDate = Some(navTuple._2))
+        })
+      })
+    }
+  }
+
+  def getFundDetails(userPk: Long,holdingFilter:HoldingFilter): Future[ListBuffer[FundDetails]] = {
+
+    reportRepository.getFundDetails(userPk,holdingFilter).flatMap { fundsList =>
+
+      Future.sequence(for (fund <- fundsList) yield {
+        reportRepository.getCurrNavByFundId(fund.fundId).map(navTuple => {
+          fund.copy(currNav = BigDecimal(navTuple._1), navDate = Some(navTuple._2))
+        })
+      })
+    }
+  }
+
+  def getRedemptionFundDetails(userPk: Long): Future[ListBuffer[RedemptionFund]] = {
+    val redemptionFundList: ListBuffer[RedemptionFund] = ListBuffer[RedemptionFund]()
+    reportRepository.getHoldingFundDetails(userPk).flatMap (holdingFunds => {
+      val ftrList = for (fund <- holdingFunds) yield {
+        val fhtrfnum = fund.fhtrfnum
+        val folioNo = fund.folioNo
+        val holdingModeCode = fund.holdingMode
+        val holdingMode = schemeHelper.getHoldingMode(holdingModeCode)
+        val totalUnits = fund.holdingUnits
+        var soptrfnum = fund.soptrfnum
+        (for {
+          mergerId <- schemeRepository.getMergerSchemes(soptrfnum)
+        } yield {
+          if (mergerId.nonEmpty) {
+            soptrfnum = mergerId.get
+          }
+          (for {
+            soptrow <- schemeRepository.getSchemeOptionById(soptrfnum)
+            smtrow <- schemeRepository.getSchemeById(soptrow.soptsmtrfnum)
+            navData <- folioRepository.getCurrNavByFundId(soptrfnum)
+            bSEValues <- integrationRepository.getBseAndEbseFromSoptrfnum(soptrfnum)
+            rPAValues <- integrationRepository.getRPAValuesForSoptrfnum(soptrfnum)
+          } yield {
+            val planCode = soptrow.soptschemeplan
+            val smtid = soptrow.soptsmtrfnum
+            val subcategory = smtrow.smtctmtrfnum
+            val displayName = smtrow.smtdisplayname
+            val dividendFrqnCode = soptrow.soptdividendfrqn
+            val dividendOptionCode = soptrow.soptdivioptiontype
+            val plan = schemeHelper.getSchemeOption(planCode, dividendFrqnCode)
+            // This gives Scheme Plan = freq + Plan
+            val dividendOption = schemeHelper.getDivOption(dividendOptionCode)
+            // This gives scheme option
+            val sipAllowed = true
+            val isDefault = true
+            val aipData = None
+            val product = Product(0, "", smtid, List.empty[ProductOption])
+            val currNav = navData._1
+            val navDate = navData._2
+            val currValue = currNav * totalUnits
+            calculateRedeembleUnits(fhtrfnum, subcategory, totalUnits).map(redeemableUnits => {
+              var minLumpsum = 100d
+              if (rPAValues.nonEmpty && rPAValues.get.rpaminpuramount.nonEmpty) {
+                minLumpsum = rPAValues.get.rpaminpuramount.get
+              }
+              val fundOption = FundOption(soptrfnum, displayName, plan, dividendFrqnCode, dividendOption, sipAllowed, minLumpsum, isDefault, aipData, 0)
+
+              val redemptionAllowed = bSEValues._1.bseredemptionallowed
+              var minRedemptionQuantity = bSEValues._1.bseminredemqty
+              var redemptionQuantityMultiplier = bSEValues._1.bseredemqtymultiplier
+              var minRedemptionAmount = bSEValues._2.ebseminredamt
+              var redemptionAmountMultiplier = bSEValues._2.ebseredamtmultiple
+              if (bSEValues._1.bseminredemqty.nonEmpty && rPAValues.nonEmpty && rPAValues.get.rpaminredunit.nonEmpty) {
+                minRedemptionQuantity = Some(Math.max(bSEValues._1.bseminredemqty.get, rPAValues.get.rpaminredunit.get))
+              }
+              if (bSEValues._1.bseredemqtymultiplier.nonEmpty && rPAValues.nonEmpty && rPAValues.get.rparedunitmultiplier.nonEmpty) {
+                redemptionQuantityMultiplier = Some(Math.max(bSEValues._1.bseredemqtymultiplier.get, rPAValues.get.rparedunitmultiplier.get))
+              }
+              if (bSEValues._2.ebseminredamt.nonEmpty && rPAValues.nonEmpty && rPAValues.get.rpaminredamount.nonEmpty) {
+                minRedemptionAmount = Some(Math.max(bSEValues._2.ebseminredamt.get, rPAValues.get.rpaminredamount.get))
+              }
+              if (bSEValues._2.ebseredamtmultiple.nonEmpty && rPAValues.nonEmpty && rPAValues.get.rparedamtmultiplier.nonEmpty) {
+                redemptionAmountMultiplier = Some(Math.max(bSEValues._2.ebseredamtmultiple.get, rPAValues.get.rparedamtmultiplier.get))
+              }
+
+              val redemptionFund = RedemptionFund(smtid, fundName = displayName, plan = plan, option = fundOption, folioNo = folioNo, holdingMode = holdingMode, selectedRedemptionMode = None, amount = 0L, amountUnitFlag = true, fullPartialFlag = false, totalUnits = Some(totalUnits), redeemableUnits = Some(redeemableUnits), currValue = Some(currValue.toDouble), currNav = Some(currNav), navDate = Some(navDate), redemptionAllowed = redemptionAllowed, minQuantity = minRedemptionQuantity, minAmount = minRedemptionAmount, quantityMultiple = redemptionQuantityMultiplier, amountMultiple = redemptionAmountMultiplier)
+              redemptionFund
+            })
+          }).flatMap(value => value)
+        }).flatMap(value => value)
+      }
+      Future.sequence(ftrList)
+    })
+  }
+
+//  def getRedemptionFundObjectForFund(userPk: Long, holdingFund: HoldingFund): Future[(FundDoc, BigDecimal)] = {
+//    val fund = new FundDoc(0, "", 0, 0, 0, 0, "", 0, "", 0, "", "NA", Some(false), None, Some(false), None, None)
+//    val redemptionList: ListBuffer[RedemptionFund] = ListBuffer[RedemptionFund]()
+//    schemeRepository.getSchemeOptionById(holdingFund.soptrfnum).flatMap(soptrow => {
+//      val planCode = soptrow.soptschemeplan
+//      val smtid = soptrow.soptsmtrfnum
+//      schemeRepository.getSchemeById(smtid).flatMap(smtrow => {
+//        val displayName = smtrow.smtdisplayName
+//        val dividendFrqnCode = soptrow.soptdividendfrqn
+//        val dividendOptionCode = soptrow.soptdivioptiontype
+//        val plan = schemeHelper.getSchemeOption(planCode, dividendFrqnCode)
+//        // This gives Scheme Plan = freq + Plan
+//        val dividendOption = schemeHelper.getDivOption(dividendOptionCode)
+//        // This gives scheme option
+//        val sipAllowed = true
+//        val isDefault = true
+//        val aipData = None
+//
+//        val product = Product(0, "", smtid, List.empty[ProductOption])
+//        productService.getFundObjBySchemeId(product).flatMap(fundObj => {
+//          folioRepository.getCurrNavByFundId(holdingFund.soptrfnum).flatMap(navData => {
+//            val currNav = navData._1
+//            val navDate = navData._2
+//            val currValue = currNav * holdingFund.holdingUnits
+//            integrationRepository.getRPAValuesForSoptrfnum(holdingFund.soptrfnum).flatMap(rPAValues => {
+//              var minLumpsum = 100d
+//              if (rPAValues.rpaminpuramount.nonEmpty){
+//                minLumpsum = rPAValues.rpaminpuramount.get
+//              }
+//              val fundOption = FundOption(holdingFund.soptrfnum, displayName, plan, dividendFrqnCode, dividendOption, sipAllowed, minLumpsum, isDefault, aipData,0)
+//              if (fundObj.nonEmpty) {
+//                calculateRedeembleUnits(holdingFund.fhtrfnum, fundObj.get, holdingFund.holdingUnits).map(redeemableUnits => {
+//                  (fundObj.get, redeemableUnits)
+//                })
+//              }
+//              else {
+//                Future.apply(fund, 0.0)
+//              }
+//            })
+//          })
+//        })
+//      })
+//    })
+//  }
+
+  def calculateRedeembleUnits(fhtrfnum: Long, subcategoryId: Long, totalUnits: BigDecimal): Future[BigDecimal] = {
+    if (subcategoryId == ELSS_ID) {
+      folioRepository.getThreeYearOlderTransactionsByFhtrfnum(fhtrfnum).map(fhsrows => {
+        if (fhsrows.length > 0){
+          var redeemableUnits = 0.0
+          fhsrows.foreach(fhsrow => {
+            if (fhsrow.fhstype == CREDIT) {
+              redeemableUnits = redeemableUnits + fhsrow.fhsunits
+            }
+            else {
+              redeemableUnits = redeemableUnits - fhsrow.fhsunits
+            }
+          })
+          redeemableUnits
+        }
+        else {
+          0.0
+        }
+      })
+    }
+    else {
+      Future {
+        totalUnits
+      }
+    }
+  }
+
+  def getTransactionFundDetails(userPk: Long, transactionFilter: TransactionFilter): Future[ListBuffer[FundDetails]] = {
+
+    reportRepository.getTransactionFundDetails(userPk, transactionFilter).flatMap { fundsList =>
+
+      Future.sequence(for (fund <- fundsList) yield {
+        reportRepository.getCurrNavByFundId(fund.fundId).map(navTuple => {
+          fund.copy(currNav = BigDecimal(navTuple._1), navDate = Some(navTuple._2))
+        })
+      })
+    }
+  }
+
+  def addSchemePayouts(fundsList: ListBuffer[FundDetails]): Future[ListBuffer[FundDetails]] = {
+    Future.sequence(for (fund <- fundsList) yield {
+
+      reportRepository.getFolioSchemePayoutTxns(fund.folioId.get,fund.fundId).map(payoutList =>{
+        val transactionList = fund.transactionList
+        for(payoutRow <- payoutList){
+          val payoutTransaction = FundTransaction(-1,payoutRow.fptremarks.getOrElse(""),
+            payoutRow.fptpayoutdate,BuySellEnum.withName(payoutRow.fpttype),0,0,Some(payoutRow.fptamount),
+            folioId = fund.folioId, folioNo = fund.transactionList(0).folioNo)
+          transactionList.+=(payoutTransaction)
+        }
+        fund
+      })
+    })
+  }
+
+  def getPayoutGains(fundsList: ListBuffer[FundDetails]):Future[BigDecimal] = {
+    Future.sequence(for (fund <- fundsList) yield {
+      reportRepository.getFolioSchemePayoutTxns(fund.folioId.get,fund.fundId).map(payoutList =>{
+        var payoutGain = BigDecimal(0.0)
+        for(payoutRow <- payoutList){
+          if(payoutRow.fpttype == CREDIT){
+            payoutGain -= payoutRow.fptamount
+          } else{
+            payoutGain += payoutRow.fptamount
+          }
+        }
+        payoutGain
+      })
+    }).map(payoutGainList =>{
+      payoutGainList.sum
+    })
+  }
+
+  def getCapitalGainFundDetails(userPk: Long, financialYear: Int): Future[ListBuffer[FundDetails]] = {
+
+    val finYearDateRange = DateTimeUtils.getFinancialYear(financialYear)
+    val startDate: Date = finYearDateRange._1
+    val endDate: Date = finYearDateRange._2
+    reportRepository.getCapitalGainFundDetails(userPk, DEBIT,List[Long](), Some(startDate), Some(endDate)).flatMap { fundsList =>
+
+        Future.sequence(for (fund <- fundsList) yield {
+          reportRepository.getCurrNavByFundId(fund.fundId).map(navTuple => {
+            fund.copy(currNav = BigDecimal(navTuple._1), navDate = Some(navTuple._2))
+          })
+        })
+      }
+    }
+
+  def getCapitalGainPurchaseTxns(userPk: Long, fundsList:ListBuffer[FundDetails]): Future[ListBuffer[FundDetails]] = {
+
+    val holdingIdList = ListBuffer[Long]();
+    for(fund <- fundsList){
+      holdingIdList.++=(fund.transactionList.map(_.folioHoldingId))
+    }
+    reportRepository.getCapitalGainFundDetails(userPk, CREDIT, holdingIdList.toList, None,None).map ( purchaseFundsList =>{
+      purchaseFundsList
+    })
+  }
+
+  def getAssetAllocationFundDetails(userPk: Long): Future[ListBuffer[FundDetails]] = {
+
+    reportRepository.getAssetAllocationFundDetails(userPk).flatMap { fundsList =>
+
+      val mergedFolioFundsList = mergeFolioTransaction(fundsList)
+      Future.sequence(for (fund <- mergedFolioFundsList) yield {
+        reportRepository.getCurrNavByFundId(fund.fundId).map(navTuple => {
+          fund.copy(currNav = BigDecimal(navTuple._1), navDate = Some(navTuple._2))
+        })
+      })
+    }
+  }
+
+  def getIRRFundDetails(userPk: Long): Future[ListBuffer[Transaction]] = {
+    reportRepository.getIRRFundDetails(userPk).map { transactions =>
+      transactions
+    }
+  }
+
+  def getFundTxnReport(fundDetailsList:ListBuffer[FundDetails]):List[FundTransactionReport] = {
+
+    var fundTransactionReportList: List[FundTransactionReport] = List[FundTransactionReport]()
+    val fundMap = mutable.HashMap.empty[Long,mutable.HashMap[Long,Boolean]]
+    for (fund <- fundDetailsList) {
+      val fundDetails = fund.fundBasicDetails
+      if(!fundMap.contains(fund.fundId) || !fundMap.get(fund.fundId).get.contains(fund.folioId.get)){
+        val folioMap:mutable.HashMap[Long,Boolean] = mutable.HashMap[Long,Boolean]()
+        if(!fundMap.contains(fund.fundId)){
+          folioMap.+=(fund.folioId.get -> true)
+          fundMap.+=(fund.fundId -> folioMap)
+        } else{
+          fundMap.get(fund.fundId).get.+=(fund.folioId.get -> true)
+        }
+        fundTransactionReportList = fundTransactionReportList.:+(FundTransactionReport(fundDetails.folioNo, fund.fundId, fundDetails.fundName,
+          fundDetails.plan,fundDetails.divFreq,fundDetails.divOption, fundDetails.fundType.getOrElse(""), "", BigDecimal(0.0),
+          BigDecimal(0.0), BigDecimal(0.0), BigDecimal(0.0), fund.transactionList, folioId = fund.folioId))
+      }
+    }
+    fundTransactionReportList
+  }
+
+  def getFundFilter(fundTransactionReport: List[FundTransactionReport]):List[FundTransactionReport] = {
+    fundTransactionReport.groupBy(_.fundId).map(_._2.head)(scala.collection.breakOut)
+  }
+
+  def getFolioFilter(fundTransactionReport: List[FundTransactionReport]):List[FolioFilter] = {
+
+    fundTransactionReport.groupBy(_.folioId.get).map(fundMap => {
+        FolioFilter(fundMap._2.head.folioId.get, fundMap._2.head.folioNo)
+    })(scala.collection.breakOut)
+  }
+
+  def getUserOrders(userPk: Long): Future[List[TransactionSummary]] = {
+    reportRepository.getUserTransactions(userPk).flatMap(data => {
+      val subOrderIdList = ListBuffer[Long]()
+      val transSummaryList = ListBuffer[TransactionSummary]()
+      data.foreach(trnSummary => {
+        if (trnSummary.subOrderState == PLACED_AT_EXCHANGE) {
+
+          subOrderIdList.+=(trnSummary.subOrderId)
+        }
+      })
+      for {
+        paymentAllowedSubOrders <- paymentService.getPaymentAllowedSubOrders(userPk)
+        sotCancelMap <- orderCancelService.isCancellationAllowed(subOrderIdList, userPk)
+      } yield {
+        val paymentAllowedMap = paymentService.getSubOrdersMap(paymentAllowedSubOrders)
+        data.foreach(trnSummary => {
+          transSummaryList.+=(trnSummary.copy(schemePlan = schemeHelper.getSchemePlan(trnSummary.schemePlan),
+            dividendFreq = schemeHelper.getDivFrequency(trnSummary.dividendFreq),
+            dividendOption = schemeHelper.getDivOption(trnSummary.dividendOption),
+            cancelAllowed = sotCancelMap.getOrElse(trnSummary.subOrderId, false),
+            paymentAllowed = paymentAllowedMap.getOrElse(trnSummary.subOrderId, false)))
+        })
+        transSummaryList.toList
+      }
+    });
+  }
+
+  def mergeFolioTransaction(fundDetailsList: ListBuffer[FundDetails]): ListBuffer[FundDetails] = {
+
+    val fundMap = mutable.LinkedHashMap.empty[Long, FundDetails]
+
+    for (fund <- fundDetailsList) {
+      val transactionList = fund.transactionList
+      for (i <- 0 until transactionList.size) {
+        transactionList(i) = transactionList(i).copy(folioNo = Some(fund.fundBasicDetails.folioNo))
+      }
+    }
+    for (fund <- fundDetailsList) {
+      if (fundMap.contains(fund.fundId)) {
+
+        val fundDetails: FundDetails = fundMap.get(fund.fundId).get
+        val transactionsList = fund.transactionList
+        fundDetails.transactionList.++=(transactionsList)
+      } else {
+        fundMap.+=(fund.fundId -> fund)
+      }
+    }
+
+    val mergedFolioFunds = ListBuffer[FundDetails]()
+    for ((key, value) <- fundMap) {
+      mergedFolioFunds.+=(value)
+    }
+    mergedFolioFunds
+  }
+}

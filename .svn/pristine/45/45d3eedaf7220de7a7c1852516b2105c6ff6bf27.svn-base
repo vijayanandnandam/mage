@@ -1,0 +1,39 @@
+# Routes
+
+#Login
+POST   /login                                  controllers.LoginController.getLoginToken
+POST   /login/signup                           controllers.LoginController.signup
+POST   /checkUsernameInDB                       controllers.LoginController.checkUsernameInDB
+GET     /getFirstName                           controllers.UserController.getFirstName
+
+POST    /panCheck                               controllers.UserController.panCheck
+POST    /panUpdate                              controllers.UserController.panUpdate
+POST    /mobUpdate                              controllers.UserController.mobUpdate
+GET     /getDmtIds                              controllers.KYCController.getDmtIds
+POST    /updateFilePath                         controllers.KYCController.updateFilePath
+
+#KYC
+POST   /checkKYC                               controllers.KYCController.checkKYCFromPAN
+GET    /checkKycStatus                          controllers.KYCController.checkKycStatus
+POST    /updateKycStatus                        controllers.KYCController.updateKycStatus
+GET     /checkIfBankUpdated                     controllers.KYCController.checkIfBankUpdated
+GET     /checkIfFatcaUpdated                    controllers.KYCController.checkIfFatcaUpdated
+GET     /checkIfBasicDetailsUpdated             controllers.KYCController.checkIfBasicDetailsUpdated
+GET     /checkIfAddressUpdated                  controllers.KYCController.checkIfAddressUpdated
+
+GET    /getUserData                            controllers.UserController.getUserData
+POST   /postUserData                           controllers.UserController.postUserData
+POST    /postUserBasicData                      controllers.UserController.postUserBasicData
+POST    /postUserAddressData                    controllers.UserController.postUserAddressData
+POST    /postUserFatcaData                      controllers.UserController.postUserFatcaData
+POST    /postUserBankData                       controllers.UserController.postUserBankData
+POST    /postUserNomineeData                    controllers.UserController.postUserNomineeData
+
+
+GET   /getUserDetails                               controllers.UserController.getUserDetails
+GET     /getUserBasicData                           controllers.UserController.getUserBasicData
+GET     /getUserFatcaData                           controllers.UserController.getUserFatcaData
+GET     /getUserBankData                            controllers.UserController.getUserBankData
+GET     /getUserAddressData                         controllers.UserController.getUserAddressData
+GET     /getUserNomineeData                         controllers.UserController.getUserNomineeData
+

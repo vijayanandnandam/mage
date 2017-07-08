@@ -1,0 +1,2189 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="BookmarkManager">
+    <bookmark url="file://$PROJECT_DIR$/conf/uat.conf" description="token.expiry.duration.days=1" line="8" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" readonly="true" id="2f62c24b-1c80-4776-ad9b-ec4cfed77087" name="Default" comment="IP of machine from from which document uploaded">
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/conf/application.conf" afterPath="$PROJECT_DIR$/conf/application.conf" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/sqlStatements/July2017.sql" afterPath="$PROJECT_DIR$/sqlStatements/July2017.sql" />
+    </list>
+    <ignored path="$PROJECT_DIR$/target/" />
+    <ignored path="$PROJECT_DIR$/project/project/target/" />
+    <ignored path="$PROJECT_DIR$/project/target/" />
+    <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
+    <option name="TRACKING_ENABLED" value="true" />
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="CreatePatchCommitExecutor">
+    <option name="PATCH_PATH" value="" />
+  </component>
+  <component name="DatabaseView">
+    <option name="GROUP_SCHEMA" value="true" />
+    <option name="GROUP_CONTENTS" value="false" />
+    <option name="SORT_POSITIONED" value="false" />
+    <option name="SHOW_TABLE_DETAILS" value="true" />
+    <option name="SHOW_EMPTY_GROUPS" value="false" />
+    <option name="AUTO_SCROLL_FROM_SOURCE" value="false" />
+  </component>
+  <component name="ExecutionTargetManager" SELECTED_TARGET="default_target" />
+  <component name="ExternalProjectsData">
+    <projectState path="$PROJECT_DIR$">
+      <ProjectState />
+    </projectState>
+  </component>
+  <component name="ExternalProjectsManager">
+    <system id="SBT">
+      <state>
+        <projects_view>
+          <tree_state>
+            <PATH>
+              <PATH_ELEMENT>
+                <option name="myItemId" value="" />
+                <option name="myItemType" value="com.intellij.openapi.externalSystem.view.ExternalProjectsStructure$RootNode" />
+              </PATH_ELEMENT>
+              <PATH_ELEMENT>
+                <option name="myItemId" value="fincashApi" />
+                <option name="myItemType" value="com.intellij.openapi.externalSystem.view.ProjectNode" />
+              </PATH_ELEMENT>
+            </PATH>
+          </tree_state>
+        </projects_view>
+      </state>
+    </system>
+  </component>
+  <component name="FileEditorManager">
+    <leaf SIDE_TABS_SIZE_LIMIT_KEY="375">
+      <file leaf-file-name="SavingsPlusController.scala" pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/app/controllers/SavingsPlusController.scala">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="338">
+              <caret line="16" column="30" lean-forward="false" selection-start-line="16" selection-start-column="30" selection-end-line="16" selection-end-column="30" />
+              <folding>
+                <element signature="e#4264#4404#0" expanded="false" />
+                <element signature="e#5175#5340#0" expanded="false" />
+                <element signature="e#6812#9231#0" expanded="false" />
+                <element signature="e#8289#8521#0" expanded="false" />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="redeem.routes" pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/conf/redeem.routes">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="176">
+              <caret line="8" column="90" lean-forward="false" selection-start-line="8" selection-start-column="90" selection-end-line="8" selection-end-column="90" />
+              <folding />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="console.sql" pinned="false" current-in-tab="true">
+        <entry file="file://$APPLICATION_CONFIG_DIR$/consoles/db/0d0edbc6-f6a3-4d94-92a4-dae9628be2dc/console.sql">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="154">
+              <caret line="7" column="20" lean-forward="false" selection-start-line="7" selection-start-column="20" selection-end-line="7" selection-end-column="20" />
+              <folding />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="July2017.sql" pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/sqlStatements/July2017.sql">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="110">
+              <caret line="5" column="59" lean-forward="false" selection-start-line="5" selection-start-column="59" selection-end-line="5" selection-end-column="59" />
+              <folding>
+                <marker date="1499435728714" expanded="true" signature="64:161" ph="ALTER TABLE `FCDMT`... " />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="BirlaIntegrationServiceImpl.scala" pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/app/service/integration/BirlaIntegrationServiceImpl.scala">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="316">
+              <caret line="566" column="76" lean-forward="false" selection-start-line="566" selection-start-column="76" selection-end-line="566" selection-end-column="76" />
+              <folding>
+                <element signature="e#29#55#0" expanded="true" />
+                <element signature="e#5650#14038#0" expanded="false" />
+                <element signature="e#14052#14519#0" expanded="false" />
+                <element signature="e#14543#14763#0" expanded="false" />
+                <element signature="e#23496#23852#0" expanded="false" />
+                <element signature="e#28567#29427#0" expanded="false" />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="RelianceIntegrationServiceImpl.scala" pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/app/service/integration/RelianceIntegrationServiceImpl.scala">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="396">
+              <caret line="144" column="82" lean-forward="false" selection-start-line="144" selection-start-column="82" selection-end-line="144" selection-end-column="82" />
+              <folding>
+                <element signature="e#29#55#0" expanded="true" />
+                <element signature="e#11188#15077#0" expanded="false" />
+                <element signature="e#15132#15937#0" expanded="false" />
+                <element signature="e#17663#19163#0" expanded="false" />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="JwtService.scala" pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/app/service/JwtService.scala">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="1276">
+              <caret line="70" column="21" lean-forward="false" selection-start-line="70" selection-start-column="21" selection-end-line="70" selection-end-column="21" />
+              <folding>
+                <element signature="e#17#56#0" expanded="false" />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="LoginController.scala" pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/app/controllers/LoginController.scala">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="220">
+              <caret line="44" column="0" lean-forward="false" selection-start-line="44" selection-start-column="0" selection-end-line="44" selection-end-column="0" />
+              <folding>
+                <element signature="e#21#47#0" expanded="true" />
+                <element signature="e#3884#7640#0" expanded="false" />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="MongoConstants.scala" pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/app/constants/MongoConstants.scala">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="242">
+              <caret line="11" column="51" lean-forward="false" selection-start-line="11" selection-start-column="51" selection-end-line="11" selection-end-column="51" />
+              <folding />
+            </state>
+          </provider>
+        </entry>
+      </file>
+    </leaf>
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Class" />
+      </list>
+    </option>
+  </component>
+  <component name="FindInProjectRecents">
+    <findStrings>
+      <find>twi</find>
+      <find>cartId</find>
+      <find>fhtrfnum</find>
+      <find>bank</find>
+      <find>ip</find>
+      <find>smtrow</find>
+      <find>bSEValues</find>
+      <find>rPAValues</find>
+      <find>ARNCODE</find>
+      <find>.modify</find>
+      <find>update</find>
+      <find>sipAllowed</find>
+      <find>fundOption</find>
+      <find>findQuery</find>
+      <find>redemptionFundList</find>
+      <find>PLAN</find>
+      <find>Fcsopt</find>
+      <find>sopt</find>
+      <find>`fincash_prod`.</find>
+      <find>bse</find>
+      <find>zendeskSe</find>
+      <find>schemeDetails</find>
+      <find>soptrtacode</find>
+      <find>userData</find>
+      <find>newToken</find>
+      <find>logger</find>
+      <find>eKycApiData</find>
+      <find>collection(</find>
+      <find>non</find>
+      <find>soptrow</find>
+    </findStrings>
+    <replaceStrings>
+      <replace>username.get</replace>
+      <replace>cartId</replace>
+      <replace>redMode</replace>
+      <replace>redemptionId</replace>
+      <replace>{ if</replace>
+      <replace>0.8998</replace>
+      <replace>val</replace>
+      <replace>def</replace>
+      <replace>(_number1: String, _number2: String): BigDecimal = {</replace>
+      <replace>(_number1: Double): BigDecimal = {</replace>
+      <replace>( _number1: BigDecimal,  _number2: BigDecimal): BigDecimal = {) {</replace>
+      <replace>( _number1: BigDecimal,  _number2: BigDecimal): BigDecimal = {</replace>
+      <replace>HALF_DOWN</replace>
+      <replace>displayName</replace>
+      <replace>String</replace>
+      <replace>asOpt[String]</replace>
+      <replace>JsValue</replace>
+      <replace>papi</replace>
+      <replace>checkoutId</replace>
+    </replaceStrings>
+    <dirStrings>
+      <dir>D:\workspace\fincash-backend\app\repository</dir>
+      <dir>D:\workspace\fincash-backend\app</dir>
+      <dir>D:\workspace\fincash-backend</dir>
+    </dirStrings>
+  </component>
+  <component name="IdeDocumentHistory">
+    <option name="CHANGED_PATHS">
+      <list>
+        <option value="$PROJECT_DIR$/sqlStatements/June2017.sql" />
+        <option value="$PROJECT_DIR$/conf/nonsecure.routes" />
+        <option value="$PROJECT_DIR$/app/controllers/CartController.scala" />
+        <option value="$PROJECT_DIR$/app/controllers/CheckoutController.scala" />
+        <option value="$PROJECT_DIR$/conf/fund.routes" />
+        <option value="$PROJECT_DIR$/app/repository/module/FolioRepository.scala" />
+        <option value="$PROJECT_DIR$/app/controllers/RedemptionController.scala" />
+        <option value="$PROJECT_DIR$/app/repository/module/IntegrationRepository.scala" />
+        <option value="$PROJECT_DIR$/conf/checkout.routes" />
+        <option value="$PROJECT_DIR$/sqlStatements/June2017-Finch.sql" />
+        <option value="$PROJECT_DIR$/app/constants/ProductConstants.scala" />
+        <option value="$PROJECT_DIR$/app/helpers/SolrSearchHelper.scala" />
+        <option value="$PROJECT_DIR$/app/constants/SolrConstants.scala" />
+        <option value="$PROJECT_DIR$/app/service/ReportService.scala" />
+        <option value="$PROJECT_DIR$/app/service/SolrRedemptionSearchService.scala" />
+        <option value="$PROJECT_DIR$/app/controllers/ZendeskController.scala" />
+        <option value="$PROJECT_DIR$/app/service/integration/BSEClientService.scala" />
+        <option value="$PROJECT_DIR$/conf/user.routes" />
+        <option value="$APPLICATION_CONFIG_DIR$/consoles/db/5669223b-5f77-405c-b5cd-492e8b3ecc93/console.sql" />
+        <option value="$PROJECT_DIR$/conf/reliance-properties-live.conf" />
+        <option value="$PROJECT_DIR$/conf/reliance-properties.conf" />
+        <option value="$PROJECT_DIR$/conf/redeem.routes" />
+        <option value="$PROJECT_DIR$/conf/slick.conf" />
+        <option value="$PROJECT_DIR$/app/repository/module/OrderRepository.scala" />
+        <option value="$PROJECT_DIR$/app/controllers/OrderController.scala" />
+        <option value="$PROJECT_DIR$/app/service/ZendeskService.scala" />
+        <option value="$PROJECT_DIR$/app/repository/module/UserRepository.scala" />
+        <option value="$PROJECT_DIR$/app/service/JwtService.scala" />
+        <option value="$PROJECT_DIR$/app/models/LoginObject.scala" />
+        <option value="$PROJECT_DIR$/app/controllers/JWTController.scala" />
+        <option value="$PROJECT_DIR$/conf/uat.conf" />
+        <option value="$PROJECT_DIR$/app/service/OrderService.scala" />
+        <option value="$PROJECT_DIR$/app/utils/DateTimeUtils.scala" />
+        <option value="$PROJECT_DIR$/app/helpers/UserHelper.scala" />
+        <option value="$PROJECT_DIR$/app/service/MongoDbService.scala" />
+        <option value="$PROJECT_DIR$/app/controllers/LoginController.scala" />
+        <option value="$PROJECT_DIR$/app/controllers/UserController.scala" />
+        <option value="$PROJECT_DIR$/app/controllers/KYCController.scala" />
+        <option value="$PROJECT_DIR$/app/repository/module/KycRepository.scala" />
+        <option value="$PROJECT_DIR$/app/service/UserService.scala" />
+        <option value="$PROJECT_DIR$/conf/application.conf" />
+        <option value="$PROJECT_DIR$/conf/logback.xml" />
+        <option value="$PROJECT_DIR$/app/utils/NumberUtils.scala" />
+        <option value="$PROJECT_DIR$/app/models/Product.scala" />
+        <option value="$PROJECT_DIR$/app/constants/MongoConstants.scala" />
+        <option value="$APPLICATION_CONFIG_DIR$/consoles/db/0d0edbc6-f6a3-4d94-92a4-dae9628be2dc/console.sql" />
+        <option value="$PROJECT_DIR$/conf/applicationContext-integration.xml" />
+        <option value="$PROJECT_DIR$/app/service/integration/RelianceIntegrationServiceImpl.scala" />
+        <option value="$PROJECT_DIR$/app/controllers/SavingsPlusController.scala" />
+        <option value="$PROJECT_DIR$/app/service/integration/BirlaIntegrationServiceImpl.scala" />
+        <option value="$PROJECT_DIR$/sqlStatements/July2017.sql" />
+      </list>
+    </option>
+  </component>
+  <component name="JsBuildToolGruntFileManager" detection-done="true" sorting="DEFINITION_ORDER" />
+  <component name="JsBuildToolPackageJson" detection-done="true" sorting="DEFINITION_ORDER" />
+  <component name="JsGulpfileManager">
+    <detection-done>true</detection-done>
+    <sorting>DEFINITION_ORDER</sorting>
+  </component>
+  <component name="MavenProjectNavigator">
+    <treeState />
+  </component>
+  <component name="Play2ProjectSettings">
+    <option name="LANGUAGE_IMPORTS">
+      <array>
+        <option value="play.api.templates.PlayMagic._" />
+        <option value="utils.mail._" />
+      </array>
+    </option>
+  </component>
+  <component name="ProjectFrameBounds">
+    <option name="x" value="-9" />
+    <option name="y" value="-9" />
+    <option name="width" value="1938" />
+    <option name="height" value="1048" />
+  </component>
+  <component name="ProjectView">
+    <navigator currentView="ProjectPane" proportions="" version="1">
+      <flattenPackages />
+      <showMembers />
+      <showModules />
+      <showLibraryContents />
+      <hideEmptyPackages />
+      <abbreviatePackageNames />
+      <autoscrollToSource />
+      <autoscrollFromSource ProjectPane="true" />
+      <sortByType />
+      <manualOrder />
+      <foldersAlwaysOnTop value="true" />
+    </navigator>
+    <panes>
+      <pane id="Scope" />
+      <pane id="ProjectPane">
+        <subPane>
+          <PATH>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="fincashApi" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.ProjectViewProjectNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="External Libraries" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.ExternalLibrariesNode" />
+            </PATH_ELEMENT>
+          </PATH>
+          <PATH>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="fincashApi" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.ProjectViewProjectNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="External Libraries" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.ExternalLibrariesNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="SBT: com.amazonaws:aws-java-sdk:1.3.11:jar" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.NamedLibraryElementNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="aws-java-sdk-1.3.11.jar" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+          </PATH>
+          <PATH>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="fincashApi" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.ProjectViewProjectNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="External Libraries" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.ExternalLibrariesNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="SBT: com.amazonaws:aws-java-sdk:1.3.11:jar" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.NamedLibraryElementNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="aws-java-sdk-1.3.11.jar" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="com" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="amazonaws" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+          </PATH>
+          <PATH>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="fincashApi" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.ProjectViewProjectNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="External Libraries" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.ExternalLibrariesNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="SBT: com.amazonaws:aws-java-sdk:1.3.11:jar" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.NamedLibraryElementNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="aws-java-sdk-1.3.11.jar" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="com" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="amazonaws" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="services" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+          </PATH>
+          <PATH>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="fincashApi" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.ProjectViewProjectNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="External Libraries" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.ExternalLibrariesNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="SBT: com.amazonaws:aws-java-sdk:1.3.11:jar" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.NamedLibraryElementNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="aws-java-sdk-1.3.11.jar" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="com" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="amazonaws" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="services" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="identitymanagement" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+          </PATH>
+          <PATH>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="fincashApi" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.ProjectViewProjectNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="External Libraries" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.ExternalLibrariesNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="SBT: com.amazonaws:aws-java-sdk:1.3.11:jar" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.NamedLibraryElementNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="aws-java-sdk-1.3.11.jar" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="com" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="amazonaws" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="services" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="identitymanagement" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="model" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+          </PATH>
+          <PATH>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="fincashApi" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.ProjectViewProjectNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="fincash-backend" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+          </PATH>
+          <PATH>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="fincashApi" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.ProjectViewProjectNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="fincash-backend" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="sqlStatements" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+          </PATH>
+          <PATH>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="fincashApi" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.ProjectViewProjectNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="fincash-backend" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="conf" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+          </PATH>
+          <PATH>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="fincashApi" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.ProjectViewProjectNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="fincash-backend" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="app" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+          </PATH>
+          <PATH>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="fincashApi" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.ProjectViewProjectNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="fincash-backend" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="app" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="service" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+          </PATH>
+          <PATH>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="fincashApi" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.ProjectViewProjectNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="fincash-backend" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="app" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="service" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="integration" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+          </PATH>
+          <PATH>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="fincashApi" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.ProjectViewProjectNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="fincash-backend" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="app" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="controllers" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+          </PATH>
+          <PATH>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="fincashApi" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.ProjectViewProjectNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="fincash-backend" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="app" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+            <PATH_ELEMENT>
+              <option name="myItemId" value="constants" />
+              <option name="myItemType" value="com.intellij.ide.projectView.impl.nodes.PsiDirectoryNode" />
+            </PATH_ELEMENT>
+          </PATH>
+        </subPane>
+      </pane>
+      <pane id="Scratches" />
+      <pane id="PackagesPane" />
+    </panes>
+  </component>
+  <component name="PropertiesComponent">
+    <property name="settings.editor.selected.configurable" value="org.jetbrains.plugins.scala.compiler.ScalaCompileServerForm" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$/../slick-codegen" />
+    <property name="project.structure.last.edited" value="Modules" />
+    <property name="project.structure.proportion" value="0.0" />
+    <property name="project.structure.side.proportion" value="0.2" />
+    <property name="WebServerToolWindowFactoryState" value="false" />
+    <property name="aspect.path.notification.shown" value="true" />
+    <property name="nodejs_interpreter_path" value="C:/Program Files/nodejs/node" />
+    <property name="js.eslint.eslintPackage" value="" />
+    <property name="js-jscs-nodeInterpreter" value="C:\Program Files\nodejs\node.exe" />
+    <property name="com.intellij.database.dataSource.DataSourceTemplate" value="MySQL" />
+    <property name="SearchEverywhereHistoryKey" value="changepass&#9;PSI&#9;JAVA://com.amazonaws.services.identitymanagement.model.ChangePasswordRequest&#10;getBirlaFolioStatus&#9;null&#9;null&#10;posteky&#9;null&#9;null&#10;getIp&#9;null&#9;null&#10;upload&#9;null&#9;null&#10;getloginto&#9;null&#9;null&#10;activateuser&#9;null&#9;null&#10;getuserde&#9;null&#9;null&#10;invest&#9;null&#9;null&#10;updateky&#9;null&#9;null&#10;getInstaF&#9;null&#9;null&#10;redeemi&#9;null&#9;null&#10;getuserbyP&#9;null&#9;null&#10;getuserbyp&#9;null&#9;null&#10;getuserby&#9;null&#9;null&#10;updatekyc&#9;null&#9;null&#10;redeem&#9;null&#9;null&#10;redeemsu&#9;null&#9;null&#10;getbanksuggesti&#9;null&#9;null&#10;getbanks&#9;null&#9;null&#10;getsugg&#9;null&#9;null&#10;getred&#9;null&#9;null&#10;postekyc&#9;null&#9;null&#10;getsche&#9;null&#9;null&#10;checkIns&#9;null&#9;null&#10;getredeem&#9;null&#9;null&#10;getredemption&#9;null&#9;null&#10;getredem&#9;null&#9;null&#10;getrede&#9;null&#9;null&#10;checkPan&#9;null&#9;null&#10;signup&#9;null&#9;null&#10;activateu&#9;null&#9;null&#10;updateKyc&#9;null&#9;null&#10;getcartd&#9;null&#9;null&#10;getirr&#9;null&#9;null&#10;getsaving&#9;null&#9;null&#10;getfundobjof&#9;null&#9;null&#10;checkinsta&#9;null&#9;null&#10;sugg&#9;null&#9;null&#10;checkkyc&#9;null&#9;null&#10;fundt&#9;null&#9;null&#10;activate&#9;null&#9;null&#10;updatesuborder&#9;null&#9;null&#10;getFundO&#9;null&#9;null&#10;checkInsta&#9;null&#9;null&#10;processedOr&#9;null&#9;null&#10;paymentstat&#9;null&#9;null&#10;calcu&#9;FILE&#9;file://D:/workspace/fincash-backend/app/utils/BigDecimalCalculation.scala&#10;sug&#9;null&#9;null&#10;getfolio&#9;null&#9;null" />
+    <property name="database.data.extractors.current" value="Comma-separated (CSV)" />
+  </component>
+  <component name="RestoreUpdateTree" date="Moments ago" ActionInfo="_Update">
+    <UpdatedFiles>
+      <FILE-GROUP>
+        <option name="myUpdateName" value="Updated from server" />
+        <option name="myStatusName" value="Changed on server" />
+        <option name="mySupportsDeletion" value="false" />
+        <option name="myCanBeAbsent" value="false" />
+        <option name="myId" value="CHANGED_ON_SERVER" />
+        <FILE-GROUP>
+          <option name="myUpdateName" value="Updated" />
+          <option name="myStatusName" value="Changed" />
+          <option name="mySupportsDeletion" value="false" />
+          <option name="myCanBeAbsent" value="false" />
+          <option name="myId" value="UPDATED" />
+          <PATH vcs="svn" revision="6191">D:\workspace\fincash-backend\app\controllers\UserController.scala</PATH>
+          <PATH vcs="svn" revision="6191">D:\workspace\fincash-backend\app\repository\module\FolioRepository.scala</PATH>
+          <PATH vcs="svn" revision="6191">D:\workspace\fincash-backend\app\service\ZendeskService.scala</PATH>
+          <PATH vcs="svn" revision="6191">D:\workspace\fincash-backend\app\data\model\Tables.scala</PATH>
+          <PATH vcs="svn" revision="6191">D:\workspace\fincash-backend\app\constants\CNDConstants.scala</PATH>
+          <PATH vcs="svn" revision="6191">D:\workspace\fincash-backend\sqlStatements\July2017.sql</PATH>
+        </FILE-GROUP>
+        <FILE-GROUP>
+          <option name="myUpdateName" value="Created" />
+          <option name="myStatusName" value="Created" />
+          <option name="mySupportsDeletion" value="false" />
+          <option name="myCanBeAbsent" value="false" />
+          <option name="myId" value="CREATED" />
+        </FILE-GROUP>
+        <FILE-GROUP>
+          <option name="myUpdateName" value="Deleted" />
+          <option name="myStatusName" value="Deleted" />
+          <option name="mySupportsDeletion" value="false" />
+          <option name="myCanBeAbsent" value="true" />
+          <option name="myId" value="REMOVED_FROM_REPOSITORY" />
+        </FILE-GROUP>
+        <FILE-GROUP>
+          <option name="myUpdateName" value="Restored" />
+          <option name="myStatusName" value="Will be restored" />
+          <option name="mySupportsDeletion" value="false" />
+          <option name="myCanBeAbsent" value="false" />
+          <option name="myId" value="RESTORED" />
+        </FILE-GROUP>
+      </FILE-GROUP>
+      <FILE-GROUP>
+        <option name="myUpdateName" value="Modified" />
+        <option name="myStatusName" value="Modified" />
+        <option name="mySupportsDeletion" value="false" />
+        <option name="myCanBeAbsent" value="false" />
+        <option name="myId" value="MODIFIED" />
+      </FILE-GROUP>
+      <FILE-GROUP>
+        <option name="myUpdateName" value="Skipped" />
+        <option name="myStatusName" value="Skipped" />
+        <option name="mySupportsDeletion" value="false" />
+        <option name="myCanBeAbsent" value="false" />
+        <option name="myId" value="SKIPPED" />
+      </FILE-GROUP>
+      <FILE-GROUP>
+        <option name="myUpdateName" value="Merged with conflicts" />
+        <option name="myStatusName" value="Will be merged with conflicts" />
+        <option name="mySupportsDeletion" value="false" />
+        <option name="myCanBeAbsent" value="false" />
+        <option name="myId" value="MERGED_WITH_CONFLICTS" />
+      </FILE-GROUP>
+      <FILE-GROUP>
+        <option name="myUpdateName" value="Merged with tree conflicts" />
+        <option name="myStatusName" value="Merged with tree conflicts" />
+        <option name="mySupportsDeletion" value="false" />
+        <option name="myCanBeAbsent" value="false" />
+        <option name="myId" value="MERGED_WITH_TREE_CONFLICT" />
+      </FILE-GROUP>
+      <FILE-GROUP>
+        <option name="myUpdateName" value="Merged with property conflicts" />
+        <option name="myStatusName" value="Will be merged with property conflicts" />
+        <option name="mySupportsDeletion" value="false" />
+        <option name="myCanBeAbsent" value="false" />
+        <option name="myId" value="MERGED_WITH_PROPERTY_CONFLICT" />
+      </FILE-GROUP>
+      <FILE-GROUP>
+        <option name="myUpdateName" value="Merged" />
+        <option name="myStatusName" value="Will be merged" />
+        <option name="mySupportsDeletion" value="false" />
+        <option name="myCanBeAbsent" value="false" />
+        <option name="myId" value="MERGED" />
+      </FILE-GROUP>
+      <FILE-GROUP>
+        <option name="myUpdateName" value="Not in repository" />
+        <option name="myStatusName" value="Not in repository" />
+        <option name="mySupportsDeletion" value="true" />
+        <option name="myCanBeAbsent" value="false" />
+        <option name="myId" value="UNKNOWN" />
+      </FILE-GROUP>
+      <FILE-GROUP>
+        <option name="myUpdateName" value="Locally added" />
+        <option name="myStatusName" value="Locally added" />
+        <option name="mySupportsDeletion" value="false" />
+        <option name="myCanBeAbsent" value="false" />
+        <option name="myId" value="LOCALLY_ADDED" />
+      </FILE-GROUP>
+      <FILE-GROUP>
+        <option name="myUpdateName" value="Locally removed" />
+        <option name="myStatusName" value="Locally removed" />
+        <option name="mySupportsDeletion" value="false" />
+        <option name="myCanBeAbsent" value="false" />
+        <option name="myId" value="LOCALLY_REMOVED" />
+      </FILE-GROUP>
+      <FILE-GROUP>
+        <option name="myUpdateName" value="Switched" />
+        <option name="myStatusName" value="Switched" />
+        <option name="mySupportsDeletion" value="false" />
+        <option name="myCanBeAbsent" value="false" />
+        <option name="myId" value="SWITCHED" />
+      </FILE-GROUP>
+    </UpdatedFiles>
+  </component>
+  <component name="RunManager" selected="Remote.Debug1">
+    <configuration default="false" name="DateTimeUtils" type="Application" factoryName="Application" temporary="true">
+      <option name="MAIN_CLASS_NAME" value="utils.DateTimeUtils" />
+      <option name="VM_PARAMETERS" />
+      <option name="PROGRAM_PARAMETERS" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="ALTERNATIVE_JRE_PATH_ENABLED" value="false" />
+      <option name="ALTERNATIVE_JRE_PATH" />
+      <option name="ENABLE_SWING_INSPECTOR" value="false" />
+      <option name="ENV_VARIABLES" />
+      <option name="PASS_PARENT_ENVS" value="true" />
+      <module name="root" />
+      <envs />
+      <method />
+    </configuration>
+    <configuration default="false" name="Scala Console" type="ScalaScriptConsoleRunConfiguration" factoryName="Scala Console" temporary="true">
+      <module name="root" />
+      <setting name="vmparams4" value="-Djline.terminal=NONE" />
+      <setting name="workingDirectory" value="$PROJECT_DIR$" />
+      <setting name="consoleArgs" value="-usejavacp" />
+      <method />
+    </configuration>
+    <configuration default="true" type="#org.jetbrains.idea.devkit.run.PluginConfigurationType" factoryName="Plugin">
+      <module name="" />
+      <option name="VM_PARAMETERS" value="-Xmx512m -Xms256m -XX:MaxPermSize=250m -ea" />
+      <option name="PROGRAM_PARAMETERS" />
+      <predefined_log_file id="idea.log" enabled="true" />
+      <method />
+    </configuration>
+    <configuration default="true" type="Applet" factoryName="Applet">
+      <option name="HTML_USED" value="false" />
+      <option name="WIDTH" value="400" />
+      <option name="HEIGHT" value="300" />
+      <option name="POLICY_FILE" value="$APPLICATION_HOME_DIR$/bin/appletviewer.policy" />
+      <module />
+      <method />
+    </configuration>
+    <configuration default="true" type="Application" factoryName="Application">
+      <option name="MAIN_CLASS_NAME" />
+      <option name="VM_PARAMETERS" />
+      <option name="PROGRAM_PARAMETERS" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="ALTERNATIVE_JRE_PATH_ENABLED" value="false" />
+      <option name="ALTERNATIVE_JRE_PATH" />
+      <option name="ENABLE_SWING_INSPECTOR" value="false" />
+      <option name="ENV_VARIABLES" />
+      <option name="PASS_PARENT_ENVS" value="true" />
+      <module name="" />
+      <envs />
+      <method />
+    </configuration>
+    <configuration default="true" type="JarApplication" factoryName="JAR Application">
+      <envs />
+      <method />
+    </configuration>
+    <configuration default="true" type="Java Scratch" factoryName="Java Scratch">
+      <option name="SCRATCH_FILE_ID" value="0" />
+      <option name="MAIN_CLASS_NAME" />
+      <option name="VM_PARAMETERS" />
+      <option name="PROGRAM_PARAMETERS" />
+      <option name="WORKING_DIRECTORY" />
+      <option name="ALTERNATIVE_JRE_PATH_ENABLED" value="false" />
+      <option name="ALTERNATIVE_JRE_PATH" />
+      <option name="ENABLE_SWING_INSPECTOR" value="false" />
+      <option name="ENV_VARIABLES" />
+      <option name="PASS_PARENT_ENVS" value="true" />
+      <module name="" />
+      <envs />
+      <method />
+    </configuration>
+    <configuration default="true" type="JavaScriptTestRunnerProtractor" factoryName="Protractor">
+      <config-file value="" />
+      <node-interpreter value="project" />
+      <envs />
+      <method />
+    </configuration>
+    <configuration default="true" type="JavascriptDebugType" factoryName="JavaScript Debug">
+      <method />
+    </configuration>
+    <configuration default="true" type="Remote" factoryName="Remote">
+      <option name="USE_SOCKET_TRANSPORT" value="true" />
+      <option name="SERVER_MODE" value="false" />
+      <option name="SHMEM_ADDRESS" value="javadebug" />
+      <option name="HOST" value="localhost" />
+      <option name="PORT" value="5005" />
+      <method />
+    </configuration>
+    <configuration default="true" type="ScalaScriptConsoleRunConfiguration" factoryName="Scala Console">
+      <module name="" />
+      <setting name="vmparams4" value="-Djline.terminal=NONE" />
+      <setting name="workingDirectory" value="$PROJECT_DIR$" />
+      <setting name="consoleArgs" value="-usejavacp" />
+      <method />
+    </configuration>
+    <configuration default="true" type="ScalaTestRunConfiguration" factoryName="ScalaTest">
+      <module name="" />
+      <setting name="path" value="" />
+      <setting name="package" value="" />
+      <setting name="vmparams" value="" />
+      <setting name="params" value="" />
+      <setting name="workingDirectory" value="" />
+      <setting name="searchForTest" value="Across module dependencies" />
+      <setting name="testName" value="" />
+      <setting name="testKind" value="Class" />
+      <setting name="showProgressMessages" value="true" />
+      <classRegexps />
+      <testRegexps />
+      <envs />
+      <method />
+    </configuration>
+    <configuration default="true" type="Specs2RunConfiguration" factoryName="Specs2">
+      <module name="" />
+      <setting name="path" value="" />
+      <setting name="package" value="" />
+      <setting name="vmparams" value="" />
+      <setting name="params" value="" />
+      <setting name="workingDirectory" value="" />
+      <setting name="searchForTest" value="Across module dependencies" />
+      <setting name="testName" value="" />
+      <setting name="testKind" value="Class" />
+      <setting name="showProgressMessages" value="true" />
+      <classRegexps />
+      <testRegexps />
+      <envs />
+      <method />
+    </configuration>
+    <configuration default="true" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot">
+      <module name="" />
+      <envs />
+      <method />
+    </configuration>
+    <configuration default="true" type="js.build_tools.gulp" factoryName="Gulp.js">
+      <node-interpreter>project</node-interpreter>
+      <node-options />
+      <gulpfile />
+      <tasks />
+      <arguments />
+      <envs />
+      <method />
+    </configuration>
+    <configuration default="true" type="js.build_tools.npm" factoryName="npm">
+      <command value="run" />
+      <scripts />
+      <node-interpreter value="project" />
+      <envs />
+      <method />
+    </configuration>
+    <configuration default="true" type="uTestRunConfiguration" factoryName="utest">
+      <module name="" />
+      <setting name="path" value="" />
+      <setting name="package" value="" />
+      <setting name="vmparams" value="" />
+      <setting name="params" value="" />
+      <setting name="workingDirectory" value="" />
+      <setting name="searchForTest" value="Across module dependencies" />
+      <setting name="testName" value="" />
+      <setting name="testKind" value="Class" />
+      <setting name="showProgressMessages" value="true" />
+      <classRegexps />
+      <testRegexps />
+      <envs />
+      <method />
+    </configuration>
+    <configuration default="false" name="Debug1" type="Remote" factoryName="Remote">
+      <option name="USE_SOCKET_TRANSPORT" value="true" />
+      <option name="SERVER_MODE" value="false" />
+      <option name="SHMEM_ADDRESS" value="javadebug" />
+      <option name="HOST" value="localhost" />
+      <option name="PORT" value="9999" />
+      <RunnerSettings RunnerId="Debug">
+        <option name="DEBUG_PORT" value="9999" />
+        <option name="LOCAL" value="false" />
+      </RunnerSettings>
+      <method />
+    </configuration>
+    <list size="3">
+      <item index="0" class="java.lang.String" itemvalue="Remote.Debug1" />
+      <item index="1" class="java.lang.String" itemvalue="Application.DateTimeUtils" />
+      <item index="2" class="java.lang.String" itemvalue="Scala Console.Scala Console" />
+    </list>
+    <recent_temporary>
+      <list size="2">
+        <item index="0" class="java.lang.String" itemvalue="Scala Console.Scala Console" />
+        <item index="1" class="java.lang.String" itemvalue="Application.DateTimeUtils" />
+      </list>
+    </recent_temporary>
+    <configuration name="&lt;template&gt;" type="JUnit" default="true" selected="false">
+      <option name="MAIN_CLASS_NAME" />
+      <option name="VM_PARAMETERS" value="-ea" />
+      <option name="PARAMETERS" />
+      <option name="WORKING_DIRECTORY" value="$MODULE_DIR$" />
+    </configuration>
+    <configuration name="&lt;template&gt;" type="TestNG" default="true" selected="false">
+      <option name="MAIN_CLASS_NAME" />
+      <option name="VM_PARAMETERS" value="-ea" />
+      <option name="PARAMETERS" />
+      <option name="WORKING_DIRECTORY" value="$MODULE_DIR$" />
+    </configuration>
+  </component>
+  <component name="SbtLocalSettings">
+    <option name="lastUpdateTimestamp" value="1499402933441" />
+    <option name="availableProjects">
+      <map>
+        <entry>
+          <key>
+            <ExternalProjectPojo>
+              <option name="name" value="fincashApi" />
+              <option name="path" value="$PROJECT_DIR$" />
+            </ExternalProjectPojo>
+          </key>
+          <value>
+            <list>
+              <ExternalProjectPojo>
+                <option name="name" value="root" />
+                <option name="path" value="$PROJECT_DIR$" />
+              </ExternalProjectPojo>
+              <ExternalProjectPojo>
+                <option name="name" value="root-build" />
+                <option name="path" value="$PROJECT_DIR$/project" />
+              </ExternalProjectPojo>
+            </list>
+          </value>
+        </entry>
+      </map>
+    </option>
+    <option name="externalProjectsViewState">
+      <projects_view />
+    </option>
+  </component>
+  <component name="ShelveChangesManager" show_recycled="false">
+    <option name="remove_strategy" value="false" />
+  </component>
+  <component name="SvnConfiguration" myUseAcceleration="nothing" cleanupOnStartRun="true">
+    <configuration>C:\Users\Fincash\AppData\Roaming\Subversion</configuration>
+    <supportedVersion>125</supportedVersion>
+    <option name="sshConnectionType" value="PASSWORD" />
+    <option name="sshUserName" value="paresh" />
+  </component>
+  <component name="SvnFileUrlMappingImpl">
+    <option name="myMappingRoots">
+      <list>
+        <SvnCopyRootSimple>
+          <option name="myVcsRoot" value="D:\workspace\fincash-backend" />
+          <option name="myCopyRoot" value="D:\workspace\fincash-backend" />
+        </SvnCopyRootSimple>
+        <SvnCopyRootSimple>
+          <option name="myVcsRoot" value="D:\workspace\fincash-backend\project" />
+          <option name="myCopyRoot" value="D:\workspace\fincash-backend\project" />
+        </SvnCopyRootSimple>
+      </list>
+    </option>
+    <option name="myMoreRealMappingRoots">
+      <list>
+        <SvnCopyRootSimple>
+          <option name="myVcsRoot" value="D:\workspace\fincash-backend" />
+          <option name="myCopyRoot" value="D:\workspace\fincash-backend" />
+        </SvnCopyRootSimple>
+      </list>
+    </option>
+  </component>
+  <component name="ToolWindowManager">
+    <frame x="-9" y="-9" width="1938" height="1048" extended-state="7" />
+    <editor active="true" />
+    <layout>
+      <window_info id="TODO" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="5" side_tool="false" content_ui="tabs" />
+      <window_info id="SBT" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.40450644" sideWeight="0.5" order="6" side_tool="false" content_ui="tabs" />
+      <window_info id="Palette&#9;" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="5" side_tool="false" content_ui="tabs" />
+      <window_info id="Java Enterprise" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="6" side_tool="false" content_ui="tabs" />
+      <window_info id="Event Log" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.45413363" sideWeight="0.50216216" order="7" side_tool="true" content_ui="tabs" />
+      <window_info id="Maven Projects" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.32972974" sideWeight="0.5" order="3" side_tool="false" content_ui="tabs" />
+      <window_info id="Run" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.3295583" sideWeight="0.5" order="2" side_tool="false" content_ui="tabs" />
+      <window_info id="Version Control" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.398641" sideWeight="0.5" order="13" side_tool="false" content_ui="tabs" />
+      <window_info id="Spring" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.3295583" sideWeight="0.5" order="10" side_tool="false" content_ui="tabs" />
+      <window_info id="Terminal" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.26274067" sideWeight="0.5" order="12" side_tool="false" content_ui="tabs" />
+      <window_info id="Database Console" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.54699886" sideWeight="0.49783784" order="14" side_tool="false" content_ui="tabs" />
+      <window_info id="Designer" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="2" side_tool="false" content_ui="tabs" />
+      <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.1695279" sideWeight="0.5" order="0" side_tool="false" content_ui="combo" />
+      <window_info id="Database" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.1303648" sideWeight="0.5" order="4" side_tool="false" content_ui="tabs" />
+      <window_info id="Structure" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.24972972" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
+      <window_info id="Debug" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.38052094" sideWeight="0.5" order="11" side_tool="false" content_ui="tabs" />
+      <window_info id="Favorites" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="3" side_tool="true" content_ui="tabs" />
+      <window_info id="SVN Repositories" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.54699886" sideWeight="0.5" order="8" side_tool="false" content_ui="tabs" />
+      <window_info id="Cvs" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="3" side_tool="false" content_ui="tabs" />
+      <window_info id="Message" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="0" side_tool="false" content_ui="tabs" />
+      <window_info id="Commander" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.4" sideWeight="0.5" order="0" side_tool="false" content_ui="tabs" />
+      <window_info id="Hierarchy" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="2" side_tool="false" content_ui="combo" />
+      <window_info id="Ant Build" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
+      <window_info id="Messages" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.3295583" sideWeight="0.5" order="9" side_tool="false" content_ui="tabs" />
+      <window_info id="Inspection" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.4" sideWeight="0.5" order="4" side_tool="false" content_ui="tabs" />
+      <window_info id="Find" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.3601359" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
+    </layout>
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="processedProjectFiles" value="true" />
+  </component>
+  <component name="VcsContentAnnotationSettings">
+    <option name="myLimit" value="2678400000" />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <option name="CHECK_CODE_SMELLS_BEFORE_PROJECT_COMMIT" value="false" />
+    <MESSAGE value="order splitting" />
+    <MESSAGE value="Redemption changes" />
+    <MESSAGE value="Reliance &amp; BSL changes on 31 may day end" />
+    <MESSAGE value="Replacing ws client with httpClient &#10;SIA modifications" />
+    <MESSAGE value="redeemble units calculation" />
+    <MESSAGE value="&#10;Getting redemption data changes" />
+    <MESSAGE value="Insta changes in Birla &amp; Reliance&#10;API for insta page" />
+    <MESSAGE value="cartCollection added" />
+    <MESSAGE value="solr search for redemptions" />
+    <MESSAGE value="&#10;getting insta funds from solr" />
+    <MESSAGE value="isIndividual method" />
+    <MESSAGE value="Insta amounts from APIs" />
+    <MESSAGE value="reliance property change IP&#10; pan check method checks userVarified" />
+    <MESSAGE value="isVerified changes" />
+    <MESSAGE value="birla insta amount correction" />
+    <MESSAGE value="saving bank details of api in mongo" />
+    <MESSAGE value="IP of machine from from which document uploaded" />
+    <option name="LAST_COMMIT_MESSAGE" value="IP of machine from from which document uploaded" />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint type="scala-line">
+          <url>file://$PROJECT_DIR$/app/controllers/LoginController.scala</url>
+          <line>252</line>
+          <properties />
+          <option name="timeStamp" value="3" />
+        </line-breakpoint>
+        <line-breakpoint type="scala-line">
+          <url>file://$PROJECT_DIR$/app/controllers/LoginController.scala</url>
+          <line>320</line>
+          <properties />
+          <option name="timeStamp" value="4" />
+        </line-breakpoint>
+        <line-breakpoint type="scala-line">
+          <url>file://$PROJECT_DIR$/app/controllers/LoginController.scala</url>
+          <line>99</line>
+          <properties />
+          <option name="timeStamp" value="62" />
+        </line-breakpoint>
+        <line-breakpoint type="scala-line">
+          <url>file://$PROJECT_DIR$/app/repository/module/UserRepository.scala</url>
+          <line>241</line>
+          <properties />
+          <option name="timeStamp" value="65" />
+        </line-breakpoint>
+        <line-breakpoint type="scala-line">
+          <url>file://$PROJECT_DIR$/app/repository/module/UserRepository.scala</url>
+          <line>237</line>
+          <properties />
+          <option name="timeStamp" value="66" />
+        </line-breakpoint>
+        <line-breakpoint type="scala-line">
+          <url>file://$PROJECT_DIR$/app/service/UserService.scala</url>
+          <line>179</line>
+          <properties />
+          <option name="timeStamp" value="80" />
+        </line-breakpoint>
+        <line-breakpoint type="scala-line">
+          <url>file://$PROJECT_DIR$/app/service/UserService.scala</url>
+          <line>181</line>
+          <properties />
+          <option name="timeStamp" value="81" />
+        </line-breakpoint>
+        <line-breakpoint type="scala-line">
+          <url>file://$PROJECT_DIR$/app/service/UserService.scala</url>
+          <line>171</line>
+          <properties />
+          <option name="timeStamp" value="82" />
+        </line-breakpoint>
+        <line-breakpoint type="scala-line">
+          <url>file://$PROJECT_DIR$/app/service/integration/BSEClientService.scala</url>
+          <line>120</line>
+          <properties />
+          <option name="timeStamp" value="83" />
+        </line-breakpoint>
+        <line-breakpoint type="scala-line">
+          <url>file://$PROJECT_DIR$/app/service/UserService.scala</url>
+          <line>100</line>
+          <properties />
+          <option name="timeStamp" value="137" />
+        </line-breakpoint>
+        <line-breakpoint type="scala-line">
+          <url>file://$PROJECT_DIR$/app/service/UserService.scala</url>
+          <line>103</line>
+          <properties />
+          <option name="timeStamp" value="138" />
+        </line-breakpoint>
+        <line-breakpoint type="scala-line">
+          <url>file://$PROJECT_DIR$/app/controllers/UserController.scala</url>
+          <line>589</line>
+          <properties />
+          <option name="timeStamp" value="145" />
+        </line-breakpoint>
+        <line-breakpoint type="scala-line">
+          <url>file://$PROJECT_DIR$/app/service/UserService.scala</url>
+          <line>106</line>
+          <properties />
+          <option name="timeStamp" value="150" />
+        </line-breakpoint>
+        <line-breakpoint type="scala-line">
+          <url>file://$PROJECT_DIR$/app/service/UserService.scala</url>
+          <line>109</line>
+          <properties />
+          <option name="timeStamp" value="152" />
+        </line-breakpoint>
+        <line-breakpoint type="scala-line">
+          <url>file://$PROJECT_DIR$/app/service/SchemeService.scala</url>
+          <line>58</line>
+          <properties />
+          <option name="timeStamp" value="222" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="scala-line">
+          <url>file://$PROJECT_DIR$/app/service/integration/IntegrationServiceImpl.scala</url>
+          <line>237</line>
+          <properties />
+          <option name="timeStamp" value="232" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="scala-line">
+          <url>file://$PROJECT_DIR$/app/service/integration/IntegrationServiceImpl.scala</url>
+          <line>247</line>
+          <properties />
+          <option name="timeStamp" value="234" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="scala-line">
+          <url>file://$PROJECT_DIR$/app/controllers/IRRController.scala</url>
+          <line>42</line>
+          <properties>
+            <option name="lambda-ordinal" value="-1" />
+          </properties>
+          <option name="timeStamp" value="245" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="scala-line">
+          <url>file://$PROJECT_DIR$/app/controllers/IRRController.scala</url>
+          <line>37</line>
+          <properties />
+          <option name="timeStamp" value="246" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="scala-line">
+          <url>file://$PROJECT_DIR$/app/controllers/IRRController.scala</url>
+          <line>30</line>
+          <properties />
+          <option name="timeStamp" value="247" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="scala-line">
+          <url>file://$PROJECT_DIR$/app/controllers/IRRController.scala</url>
+          <line>49</line>
+          <properties />
+          <option name="timeStamp" value="248" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="scala-line">
+          <url>file://$PROJECT_DIR$/app/controllers/IRRController.scala</url>
+          <line>53</line>
+          <properties />
+          <option name="timeStamp" value="249" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="scala-line">
+          <url>file://$PROJECT_DIR$/app/controllers/IRRController.scala</url>
+          <line>56</line>
+          <properties />
+          <option name="timeStamp" value="250" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="scala-line">
+          <url>file://$PROJECT_DIR$/app/controllers/IRRController.scala</url>
+          <line>58</line>
+          <properties />
+          <option name="timeStamp" value="251" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="scala-line">
+          <url>file://$PROJECT_DIR$/app/controllers/IRRController.scala</url>
+          <line>62</line>
+          <properties />
+          <option name="timeStamp" value="252" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="scala-line">
+          <url>file://$PROJECT_DIR$/app/controllers/IRRController.scala</url>
+          <line>68</line>
+          <properties />
+          <option name="timeStamp" value="253" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="scala-line">
+          <url>file://$PROJECT_DIR$/app/controllers/IRRController.scala</url>
+          <line>73</line>
+          <properties />
+          <option name="timeStamp" value="254" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="scala-line">
+          <url>file://$PROJECT_DIR$/app/controllers/KYCController.scala</url>
+          <line>116</line>
+          <properties />
+          <option name="timeStamp" value="304" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="scala-line">
+          <url>file://$PROJECT_DIR$/app/controllers/KYCController.scala</url>
+          <line>100</line>
+          <properties />
+          <option name="timeStamp" value="305" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="scala-line">
+          <url>file://$PROJECT_DIR$/app/controllers/KYCController.scala</url>
+          <line>94</line>
+          <properties />
+          <option name="timeStamp" value="307" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="scala-line">
+          <url>file://$PROJECT_DIR$/app/service/integration/BirlaIntegrationServiceImpl.scala</url>
+          <line>112</line>
+          <properties />
+          <option name="timeStamp" value="330" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="scala-line">
+          <url>file://$PROJECT_DIR$/app/service/ReportService.scala</url>
+          <line>253</line>
+          <properties />
+          <option name="timeStamp" value="356" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="scala-line">
+          <url>file://$PROJECT_DIR$/app/service/ReportService.scala</url>
+          <line>274</line>
+          <properties />
+          <option name="timeStamp" value="357" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="scala-line">
+          <url>file://$PROJECT_DIR$/app/controllers/RedemptionController.scala</url>
+          <line>702</line>
+          <properties>
+            <option name="lambda-ordinal" value="-1" />
+          </properties>
+          <option name="timeStamp" value="368" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="scala-line">
+          <url>file://$PROJECT_DIR$/app/service/OrderService.scala</url>
+          <line>105</line>
+          <properties>
+            <option name="lambda-ordinal" value="-1" />
+          </properties>
+          <option name="timeStamp" value="369" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="scala-line">
+          <url>file://$PROJECT_DIR$/app/service/integration/IntegrationServiceImpl.scala</url>
+          <line>74</line>
+          <properties />
+          <option name="timeStamp" value="370" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="scala-line">
+          <url>file://$PROJECT_DIR$/app/service/integration/IntegrationServiceImpl.scala</url>
+          <line>48</line>
+          <properties />
+          <option name="timeStamp" value="372" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="scala-line">
+          <url>file://$PROJECT_DIR$/app/service/integration/IntegrationServiceImpl.scala</url>
+          <line>51</line>
+          <properties />
+          <option name="timeStamp" value="373" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="scala-line">
+          <url>file://$PROJECT_DIR$/app/service/integration/BirlaIntegrationServiceImpl.scala</url>
+          <line>487</line>
+          <properties />
+          <option name="timeStamp" value="375" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="scala-line">
+          <url>file://$PROJECT_DIR$/app/service/integration/BirlaIntegrationServiceImpl.scala</url>
+          <line>405</line>
+          <properties />
+          <option name="timeStamp" value="376" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="scala-line">
+          <url>file://$PROJECT_DIR$/app/service/integration/BirlaIntegrationServiceImpl.scala</url>
+          <line>290</line>
+          <properties />
+          <option name="timeStamp" value="378" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="scala-line">
+          <url>file://$PROJECT_DIR$/app/service/integration/BirlaIntegrationServiceImpl.scala</url>
+          <line>494</line>
+          <properties />
+          <option name="timeStamp" value="379" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="scala-line">
+          <url>file://$PROJECT_DIR$/app/service/integration/BirlaIntegrationServiceImpl.scala</url>
+          <line>498</line>
+          <properties />
+          <option name="timeStamp" value="380" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="scala-line">
+          <url>file://$PROJECT_DIR$/app/service/integration/BirlaIntegrationServiceImpl.scala</url>
+          <line>490</line>
+          <properties />
+          <option name="timeStamp" value="381" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="scala-line">
+          <url>file://$PROJECT_DIR$/app/service/integration/BirlaIntegrationServiceImpl.scala</url>
+          <line>334</line>
+          <properties />
+          <option name="timeStamp" value="382" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="scala-line">
+          <url>file://$PROJECT_DIR$/app/service/integration/BirlaIntegrationServiceImpl.scala</url>
+          <line>349</line>
+          <properties />
+          <option name="timeStamp" value="383" />
+        </line-breakpoint>
+      </breakpoints>
+      <breakpoints-dialog>
+        <breakpoints-dialog />
+      </breakpoints-dialog>
+      <option name="time" value="387" />
+    </breakpoint-manager>
+    <watches-manager />
+  </component>
+  <component name="editorHistoryManager">
+    <entry file="file://$PROJECT_DIR$/app/service/OrderService.scala">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="1320">
+          <caret line="60" column="58" lean-forward="false" selection-start-line="60" selection-start-column="58" selection-end-line="60" selection-end-column="58" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="jar://$USER_HOME$/.ivy2/cache/com.pauldijou/jwt-core_2.11/jars/jwt-core_2.11-0.12.0.jar!/pdi/jwt/JwtClaim.class">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="22">
+          <caret line="1" column="328" lean-forward="false" selection-start-line="1" selection-start-column="328" selection-end-line="1" selection-end-column="328" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/app/helpers/UserHelper.scala">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="528">
+          <caret line="202" column="3" lean-forward="false" selection-start-line="202" selection-start-column="3" selection-end-line="202" selection-end-column="3" />
+          <folding>
+            <element signature="e#477#1171#0" expanded="false" />
+            <element signature="e#1175#2837#0" expanded="false" />
+            <element signature="e#2841#4178#0" expanded="false" />
+            <element signature="e#4182#6771#0" expanded="false" />
+            <element signature="e#6775#8123#0" expanded="false" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/conf/user.routes">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="88">
+          <caret line="4" column="47" lean-forward="false" selection-start-line="4" selection-start-column="47" selection-end-line="4" selection-end-column="47" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/app/service/integration/BSEClientService.scala">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="1053">
+          <caret line="65" column="6" lean-forward="false" selection-start-line="65" selection-start-column="6" selection-end-line="65" selection-end-column="6" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/app/utils/RequestUtils.scala">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="220">
+          <caret line="11" column="6" lean-forward="false" selection-start-line="11" selection-start-column="6" selection-end-line="11" selection-end-column="6" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/app/repository/module/FolioRepository.scala">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="414">
+          <caret line="1338" column="7" lean-forward="false" selection-start-line="1338" selection-start-column="7" selection-end-line="1338" selection-end-column="7" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/app/data/model/Tables.scala">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="176">
+          <caret line="16" column="37" lean-forward="false" selection-start-line="16" selection-start-column="37" selection-end-line="16" selection-end-column="37" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/sqlStatements/June2017-Finch.sql">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/conf/slick.conf">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="110">
+          <caret line="5" column="33" lean-forward="false" selection-start-line="5" selection-start-column="33" selection-end-line="5" selection-end-column="33" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/app/controllers/KYCController.scala">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="272">
+          <caret line="34" column="87" lean-forward="false" selection-start-line="34" selection-start-column="87" selection-end-line="34" selection-end-column="87" />
+          <folding>
+            <element signature="e#21#47#0" expanded="false" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/app/helpers/ZendeskHelper.scala">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="66">
+          <caret line="30" column="113" lean-forward="false" selection-start-line="30" selection-start-column="113" selection-end-line="30" selection-end-column="113" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/conf/zendesk-live.conf">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="198">
+          <caret line="9" column="39" lean-forward="false" selection-start-line="9" selection-start-column="39" selection-end-line="9" selection-end-column="39" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/app/helpers/SecuredAction.scala">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="268">
+          <caret line="49" column="40" lean-forward="false" selection-start-line="49" selection-start-column="40" selection-end-line="49" selection-end-column="40" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/conf/server.routes">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="440">
+          <caret line="20" column="86" lean-forward="false" selection-start-line="20" selection-start-column="86" selection-end-line="20" selection-end-column="86" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/conf/birla-properties-live.conf">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="242">
+          <caret line="11" column="29" lean-forward="false" selection-start-line="11" selection-start-column="29" selection-end-line="11" selection-end-column="29" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/conf/reliance-properties-live.conf">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="352">
+          <caret line="16" column="31" lean-forward="false" selection-start-line="16" selection-start-column="31" selection-end-line="16" selection-end-column="31" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/app/helpers/PoolingClientConnectionManager.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/conf/logback.xml">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="242">
+          <caret line="36" column="15" lean-forward="true" selection-start-line="36" selection-start-column="15" selection-end-line="36" selection-end-column="15" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/app/models/Redemption.scala">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+          <folding>
+            <element signature="e#16#37#0" expanded="false" />
+            <element signature="e#1386#1413#0" expanded="false" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/app/controllers/PasswordController.scala">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="44">
+          <caret line="2" column="7" lean-forward="true" selection-start-line="2" selection-start-column="7" selection-end-line="2" selection-end-column="7" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/app/utils/EnumerationUtils.scala">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="88">
+          <caret line="11" column="7" lean-forward="false" selection-start-line="11" selection-start-column="7" selection-end-line="11" selection-end-column="7" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/app/utils/DBConstantsUtil.scala">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="88">
+          <caret line="6" column="7" lean-forward="false" selection-start-line="6" selection-start-column="7" selection-end-line="6" selection-end-column="7" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/app/utils/DateTimeUtils.scala">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="1452">
+          <caret line="73" column="6" lean-forward="false" selection-start-line="73" selection-start-column="6" selection-end-line="73" selection-end-column="6" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/app/utils/NumberUtils.scala">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="484">
+          <caret line="23" column="53" lean-forward="false" selection-start-line="23" selection-start-column="53" selection-end-line="23" selection-end-column="53" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/app/models/Product.scala">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="286">
+          <caret line="13" column="0" lean-forward="true" selection-start-line="13" selection-start-column="0" selection-end-line="13" selection-end-column="0" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/app/models/Funds.scala">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/app/repository/module/UserRepository.scala">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="5236">
+          <caret line="1120" column="15" lean-forward="false" selection-start-line="1120" selection-start-column="15" selection-end-line="1120" selection-end-column="15" />
+          <folding>
+            <element signature="e#27#52#0" expanded="false" />
+            <element signature="e#3905#3944#0" expanded="false" />
+            <element signature="e#4339#4655#0" expanded="false" />
+            <element signature="e#4460#4651#0" expanded="false" />
+            <element signature="e#4498#4549#0" expanded="false" />
+            <element signature="e#4561#4645#0" expanded="false" />
+            <element signature="e#5490#5527#0" expanded="false" />
+            <element signature="e#5547#5584#0" expanded="false" />
+            <element signature="e#5599#6098#0" expanded="false" />
+            <element signature="e#6102#6771#0" expanded="false" />
+            <element signature="e#6204#6767#0" expanded="false" />
+            <element signature="e#6240#6710#0" expanded="false" />
+            <element signature="e#6437#6487#0" expanded="false" />
+            <element signature="e#6507#6702#0" expanded="false" />
+            <element signature="e#6722#6760#0" expanded="false" />
+            <element signature="e#6775#7577#0" expanded="false" />
+            <element signature="e#6900#7573#0" expanded="false" />
+            <element signature="e#6942#7523#0" expanded="false" />
+            <element signature="e#7078#7515#0" expanded="false" />
+            <element signature="e#7118#7453#0" expanded="false" />
+            <element signature="e#7256#7441#0" expanded="false" />
+            <element signature="e#7375#7426#0" expanded="false" />
+            <element signature="e#7459#7504#0" expanded="false" />
+            <element signature="e#7529#7566#0" expanded="false" />
+            <element signature="e#7581#8008#0" expanded="false" />
+            <element signature="e#7975#8004#0" expanded="false" />
+            <element signature="e#8012#8484#0" expanded="false" />
+            <element signature="e#8331#8480#0" expanded="false" />
+            <element signature="e#8366#8447#0" expanded="false" />
+            <element signature="e#8451#8473#0" expanded="false" />
+            <element signature="e#9804#11213#0" expanded="false" />
+            <element signature="e#9841#11154#0" expanded="false" />
+            <element signature="e#10909#10950#0" expanded="false" />
+            <element signature="e#10959#11146#0" expanded="false" />
+            <element signature="e#11166#11206#0" expanded="false" />
+            <element signature="e#11221#11471#0" expanded="false" />
+            <element signature="e#11374#11467#0" expanded="false" />
+            <element signature="e#11403#11426#0" expanded="false" />
+            <element signature="e#11438#11460#0" expanded="false" />
+            <element signature="e#11475#12398#0" expanded="false" />
+            <element signature="e#11710#12394#0" expanded="false" />
+            <element signature="e#11755#11805#0" expanded="false" />
+            <element signature="e#11817#12387#0" expanded="false" />
+            <element signature="e#12031#12217#0" expanded="false" />
+            <element signature="e#12130#12207#0" expanded="false" />
+            <element signature="e#12223#12379#0" expanded="false" />
+            <element signature="e#12291#12369#0" expanded="false" />
+            <element signature="e#12402#14712#0" expanded="false" />
+            <element signature="e#13914#14047#0" expanded="false" />
+            <element signature="e#14716#14861#0" expanded="false" />
+            <element signature="e#14832#14857#0" expanded="false" />
+            <element signature="e#14867#17812#0" expanded="false" />
+            <element signature="e#16035#17808#0" expanded="false" />
+            <element signature="e#16074#17330#0" expanded="false" />
+            <element signature="e#17251#17322#0" expanded="false" />
+            <element signature="e#17387#17438#0" expanded="false" />
+            <element signature="e#17450#17501#0" expanded="false" />
+            <element signature="e#17816#19474#0" expanded="false" />
+            <element signature="e#18672#19470#0" expanded="false" />
+            <element signature="e#18710#19182#0" expanded="false" />
+            <element signature="e#19478#21146#0" expanded="false" />
+            <element signature="e#20344#21142#0" expanded="false" />
+            <element signature="e#20382#20854#0" expanded="false" />
+            <element signature="e#21150#25057#0" expanded="false" />
+            <element signature="e#22258#23139#0" expanded="false" />
+            <element signature="e#23609#25046#0" expanded="false" />
+            <element signature="e#23652#24990#0" expanded="false" />
+            <element signature="e#25004#25037#0" expanded="false" />
+            <element signature="e#25716#28066#0" expanded="false" />
+            <element signature="e#25755#28010#0" expanded="false" />
+            <element signature="e#25959#26157#0" expanded="false" />
+            <element signature="e#26269#28002#0" expanded="false" />
+            <element signature="e#26312#27930#0" expanded="false" />
+            <element signature="e#27029#27918#0" expanded="false" />
+            <element signature="e#27077#27853#0" expanded="false" />
+            <element signature="e#27858#27903#0" expanded="false" />
+            <element signature="e#27946#27991#0" expanded="false" />
+            <element signature="e#28022#28059#0" expanded="false" />
+            <element signature="e#28381#28573#0" expanded="false" />
+            <element signature="e#29171#29315#0" expanded="false" />
+            <element signature="e#29355#29406#0" expanded="false" />
+            <element signature="e#29513#29828#0" expanded="false" />
+            <element signature="e#30369#30508#0" expanded="false" />
+            <element signature="e#30714#30756#0" expanded="false" />
+            <element signature="e#30765#30920#0" expanded="false" />
+            <element signature="e#31042#31226#0" expanded="false" />
+            <element signature="e#31233#31372#0" expanded="false" />
+            <element signature="e#31590#31757#0" expanded="false" />
+            <element signature="e#31790#35055#0" expanded="false" />
+            <element signature="e#32335#32395#0" expanded="false" />
+            <element signature="e#32615#33233#0" expanded="false" />
+            <element signature="e#33674#34128#0" expanded="false" />
+            <element signature="e#33962#34010#0" expanded="false" />
+            <element signature="e#34019#34122#0" expanded="false" />
+            <element signature="e#34161#34616#0" expanded="false" />
+            <element signature="e#34450#34498#0" expanded="false" />
+            <element signature="e#34507#34610#0" expanded="false" />
+            <element signature="e#34626#35051#0" expanded="false" />
+            <element signature="e#34885#34933#0" expanded="false" />
+            <element signature="e#34942#35045#0" expanded="false" />
+            <element signature="e#35059#45229#0" expanded="false" />
+            <element signature="e#35389#35533#0" expanded="false" />
+            <element signature="e#35858#36810#0" expanded="false" />
+            <element signature="e#36858#37851#0" expanded="false" />
+            <element signature="e#37923#38084#0" expanded="false" />
+            <element signature="e#38441#38602#0" expanded="false" />
+            <element signature="e#38920#41270#0" expanded="false" />
+            <element signature="e#38989#39956#0" expanded="false" />
+            <element signature="e#39709#39798#0" expanded="false" />
+            <element signature="e#39807#39906#0" expanded="false" />
+            <element signature="e#39968#41264#0" expanded="false" />
+            <element signature="e#41011#41106#0" expanded="false" />
+            <element signature="e#41115#41214#0" expanded="false" />
+            <element signature="e#41302#45214#0" expanded="false" />
+            <element signature="e#41349#42376#0" expanded="false" />
+            <element signature="e#41443#41609#0" expanded="false" />
+            <element signature="e#42129#42218#0" expanded="false" />
+            <element signature="e#42227#42326#0" expanded="false" />
+            <element signature="e#42388#45208#0" expanded="false" />
+            <element signature="e#42425#43814#0" expanded="false" />
+            <element signature="e#42667#42835#0" expanded="false" />
+            <element signature="e#43549#43644#0" expanded="false" />
+            <element signature="e#43653#43760#0" expanded="false" />
+            <element signature="e#43828#45200#0" expanded="false" />
+            <element signature="e#43927#44095#0" expanded="false" />
+            <element signature="e#44270#44438#0" expanded="false" />
+            <element signature="e#44935#45030#0" expanded="false" />
+            <element signature="e#45039#45146#0" expanded="false" />
+            <element signature="e#45233#50466#0" expanded="false" />
+            <element signature="e#45753#45820#0" expanded="false" />
+            <element signature="e#45902#45971#0" expanded="false" />
+            <element signature="e#46049#46114#0" expanded="false" />
+            <element signature="e#46158#46198#0" expanded="false" />
+            <element signature="e#46268#46325#0" expanded="false" />
+            <element signature="e#46403#46468#0" expanded="false" />
+            <element signature="e#46553#46626#0" expanded="false" />
+            <element signature="e#46703#46934#0" expanded="false" />
+            <element signature="e#47043#49296#0" expanded="false" />
+            <element signature="e#47106#49288#0" expanded="false" />
+            <element signature="e#47156#47940#0" expanded="false" />
+            <element signature="e#47741#47797#0" expanded="false" />
+            <element signature="e#47806#47913#0" expanded="false" />
+            <element signature="e#47946#49277#0" expanded="false" />
+            <element signature="e#48086#48325#0" expanded="false" />
+            <element signature="e#48332#48558#0" expanded="false" />
+            <element signature="e#49062#49122#0" expanded="false" />
+            <element signature="e#49131#49246#0" expanded="false" />
+            <element signature="e#49301#50462#0" expanded="false" />
+            <element signature="e#49383#49616#0" expanded="false" />
+            <element signature="e#49623#49843#0" expanded="false" />
+            <element signature="e#50307#50356#0" expanded="false" />
+            <element signature="e#50365#50456#0" expanded="false" />
+            <element signature="e#50470#54287#0" expanded="false" />
+            <element signature="e#50847#51051#0" expanded="false" />
+            <element signature="e#51430#52270#0" expanded="false" />
+            <element signature="e#52692#53444#0" expanded="false" />
+            <element signature="e#53290#53338#0" expanded="false" />
+            <element signature="e#53347#53438#0" expanded="false" />
+            <element signature="e#53454#54283#0" expanded="false" />
+            <element signature="e#54128#54177#0" expanded="false" />
+            <element signature="e#54186#54277#0" expanded="false" />
+            <element signature="e#54989#55433#0" expanded="false" />
+            <element signature="e#55397#55429#0" expanded="false" />
+            <element signature="e#55437#55827#0" expanded="false" />
+            <element signature="e#55556#55733#0" expanded="false" />
+            <element signature="e#55784#55823#0" expanded="false" />
+            <element signature="e#55831#56929#0" expanded="false" />
+            <element signature="e#56082#56925#0" expanded="false" />
+            <element signature="e#56884#56918#0" expanded="false" />
+            <element signature="e#56933#57257#0" expanded="false" />
+            <element signature="e#57261#57990#0" expanded="false" />
+            <element signature="e#57520#57697#0" expanded="false" />
+            <element signature="e#57736#57892#0" expanded="false" />
+            <element signature="e#57952#57984#0" expanded="false" />
+            <element signature="e#57994#58323#0" expanded="false" />
+            <element signature="e#58287#58319#0" expanded="false" />
+            <element signature="e#58327#58609#0" expanded="false" />
+            <element signature="e#58408#58458#0" expanded="false" />
+            <element signature="e#58462#58605#0" expanded="false" />
+            <element signature="e#58522#58542#0" expanded="false" />
+            <element signature="e#58548#58598#0" expanded="false" />
+            <element signature="e#58613#58897#0" expanded="false" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/app/repository/module/KycRepository.scala">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="396">
+          <caret line="31" column="6" lean-forward="false" selection-start-line="31" selection-start-column="6" selection-end-line="31" selection-end-column="6" />
+          <folding>
+            <element signature="e#27#56#0" expanded="false" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/app/controllers/UserController.scala">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="10120">
+          <caret line="474" column="74" lean-forward="false" selection-start-line="474" selection-start-column="74" selection-end-line="474" selection-end-column="74" />
+          <folding>
+            <element signature="n#!!doc" expanded="false" />
+            <element signature="e#69#85#0" expanded="false" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/app/service/UserService.scala">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="1936">
+          <caret line="204" column="26" lean-forward="false" selection-start-line="204" selection-start-column="26" selection-end-line="204" selection-end-column="26" />
+          <folding>
+            <element signature="n#!!doc;n#UserService#0;n#!!top" expanded="false" />
+            <element signature="e#1708#1927#0" expanded="false" />
+            <element signature="e#1795#1923#0" expanded="false" />
+            <element signature="e#1835#1890#0" expanded="false" />
+            <element signature="e#1896#1916#0" expanded="false" />
+            <element signature="e#4051#5997#0" expanded="false" />
+            <element signature="e#4161#5993#0" expanded="false" />
+            <element signature="e#4203#5937#0" expanded="false" />
+            <element signature="e#4501#5929#0" expanded="false" />
+            <element signature="e#4574#5918#0" expanded="false" />
+            <element signature="e#4620#5838#0" expanded="false" />
+            <element signature="e#4811#5824#0" expanded="false" />
+            <element signature="e#4891#5807#0" expanded="false" />
+            <element signature="e#4945#5703#0" expanded="false" />
+            <element signature="e#5007#5204#0" expanded="false" />
+            <element signature="e#5252#5314#0" expanded="false" />
+            <element signature="e#5335#5683#0" expanded="false" />
+            <element signature="e#5727#5788#0" expanded="false" />
+            <element signature="e#5856#5905#0" expanded="false" />
+            <element signature="e#5949#5986#0" expanded="false" />
+            <element signature="e#6001#6402#0" expanded="false" />
+            <element signature="e#6107#6398#0" expanded="false" />
+            <element signature="e#6147#6342#0" expanded="false" />
+            <element signature="e#6296#6334#0" expanded="false" />
+            <element signature="e#6354#6391#0" expanded="false" />
+            <element signature="e#6406#7595#0" expanded="false" />
+            <element signature="e#6529#7591#0" expanded="false" />
+            <element signature="e#6571#7534#0" expanded="false" />
+            <element signature="e#6638#6817#0" expanded="false" />
+            <element signature="e#6823#7526#0" expanded="false" />
+            <element signature="e#6892#7516#0" expanded="false" />
+            <element signature="e#6936#7441#0" expanded="false" />
+            <element signature="e#7002#7427#0" expanded="false" />
+            <element signature="e#7052#7338#0" expanded="false" />
+            <element signature="e#7200#7320#0" expanded="false" />
+            <element signature="e#7344#7410#0" expanded="false" />
+            <element signature="e#7447#7503#0" expanded="false" />
+            <element signature="e#7540#7584#0" expanded="false" />
+            <element signature="e#7599#7724#0" expanded="false" />
+            <element signature="e#7694#7720#0" expanded="false" />
+            <element signature="e#7923#7945#0" expanded="false" />
+            <element signature="e#8149#8171#0" expanded="false" />
+            <element signature="e#8501#8963#0" expanded="false" />
+            <element signature="e#8569#8957#0" expanded="false" />
+            <element signature="e#8604#8917#0" expanded="false" />
+            <element signature="e#8923#8949#0" expanded="false" />
+            <element signature="e#9037#9293#0" expanded="false" />
+            <element signature="e#9149#9289#0" expanded="false" />
+            <element signature="e#9196#9265#0" expanded="false" />
+            <element signature="e#9297#9516#0" expanded="false" />
+            <element signature="e#9520#9843#0" expanded="false" />
+            <element signature="e#9646#9839#0" expanded="false" />
+            <element signature="e#9729#9797#0" expanded="false" />
+            <element signature="e#9847#10062#0" expanded="false" />
+            <element signature="e#9965#10058#0" expanded="false" />
+            <element signature="e#10017#10051#0" expanded="false" />
+            <element signature="e#10066#10280#0" expanded="false" />
+            <element signature="e#10284#10449#0" expanded="false" />
+            <element signature="e#10453#10619#0" expanded="false" />
+            <element signature="e#10623#10752#0" expanded="false" />
+            <element signature="e#10756#10866#0" expanded="false" />
+            <element signature="e#10870#12353#0" expanded="false" />
+            <element signature="e#11306#12349#0" expanded="false" />
+            <element signature="e#11356#12313#0" expanded="false" />
+            <element signature="e#11962#12069#0" expanded="false" />
+            <element signature="e#12099#12202#0" expanded="false" />
+            <element signature="e#12206#12291#0" expanded="false" />
+            <element signature="e#12319#12342#0" expanded="false" />
+            <element signature="e#12381#13762#0" expanded="false" />
+            <element signature="e#12530#13757#0" expanded="false" />
+            <element signature="e#12580#13715#0" expanded="false" />
+            <element signature="e#13379#13487#0" expanded="false" />
+            <element signature="e#13516#13610#0" expanded="false" />
+            <element signature="e#13614#13694#0" expanded="false" />
+            <element signature="e#13727#13750#0" expanded="false" />
+            <element signature="e#13767#18136#0" expanded="false" />
+            <element signature="e#13902#18132#0" expanded="false" />
+            <element signature="e#14033#18125#0" expanded="false" />
+            <element signature="e#14328#18116#0" expanded="false" />
+            <element signature="e#14603#18105#0" expanded="false" />
+            <element signature="e#14651#18022#0" expanded="false" />
+            <element signature="e#14732#18008#0" expanded="false" />
+            <element signature="e#15245#15386#0" expanded="false" />
+            <element signature="e#15436#16634#0" expanded="false" />
+            <element signature="e#16201#16308#0" expanded="false" />
+            <element signature="e#16316#16615#0" expanded="false" />
+            <element signature="e#16508#16594#0" expanded="false" />
+            <element signature="e#16671#17901#0" expanded="false" />
+            <element signature="e#17452#17559#0" expanded="false" />
+            <element signature="e#17567#17883#0" expanded="false" />
+            <element signature="e#17768#17862#0" expanded="false" />
+            <element signature="e#17907#17991#0" expanded="false" />
+            <element signature="e#18028#18092#0" expanded="false" />
+            <element signature="e#18140#19193#0" expanded="false" />
+            <element signature="e#18362#19189#0" expanded="false" />
+            <element signature="e#18437#18643#0" expanded="false" />
+            <element signature="e#18649#19182#0" expanded="false" />
+            <element signature="e#19197#21464#0" expanded="false" />
+            <element signature="e#19339#21459#0" expanded="false" />
+            <element signature="e#19376#21408#0" expanded="false" />
+            <element signature="e#19458#21353#0" expanded="false" />
+            <element signature="e#19868#20648#0" expanded="false" />
+            <element signature="e#19970#20053#0" expanded="false" />
+            <element signature="e#20058#20635#0" expanded="false" />
+            <element signature="e#20148#20219#0" expanded="false" />
+            <element signature="e#20560#20621#0" expanded="false" />
+            <element signature="e#20652#21343#0" expanded="false" />
+            <element signature="e#20700#21234#0" expanded="false" />
+            <element signature="e#21013#21220#0" expanded="false" />
+            <element signature="e#21121#21204#0" expanded="false" />
+            <element signature="e#21238#21314#0" expanded="false" />
+            <element signature="e#21359#21400#0" expanded="false" />
+            <element signature="e#21414#21452#0" expanded="false" />
+            <element signature="e#21468#21570#0" expanded="false" />
+            <marker date="1499178421922" expanded="false" signature="24:37" ph="..." />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/app/controllers/CartController.scala">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="187">
+          <caret line="57" column="6" lean-forward="false" selection-start-line="57" selection-start-column="6" selection-end-line="57" selection-end-column="6" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/app/controllers/CheckoutController.scala">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="-2823">
+          <caret line="178" column="6" lean-forward="false" selection-start-line="178" selection-start-column="6" selection-end-line="178" selection-end-column="6" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/app/controllers/JWTController.scala">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="224">
+          <caret line="57" column="0" lean-forward="false" selection-start-line="57" selection-start-column="0" selection-end-line="57" selection-end-column="0" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/app/controllers/RedemptionController.scala">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="272">
+          <caret line="211" column="8" lean-forward="false" selection-start-line="211" selection-start-column="8" selection-end-line="211" selection-end-column="8" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/app/models/OrderModel.scala">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="264">
+          <caret line="12" column="11" lean-forward="false" selection-start-line="12" selection-start-column="11" selection-end-line="12" selection-end-column="11" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/app/service/JwtService.scala">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="1276">
+          <caret line="70" column="21" lean-forward="false" selection-start-line="70" selection-start-column="21" selection-end-line="70" selection-end-column="21" />
+          <folding>
+            <element signature="e#17#56#0" expanded="false" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/conf/applicationContext-integration.xml">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="388">
+          <caret line="41" column="54" lean-forward="false" selection-start-line="41" selection-start-column="54" selection-end-line="41" selection-end-column="54" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="jar://$USER_HOME$/.ivy2/cache/com.typesafe.akka/akka-actor_2.11/srcs/akka-actor_2.11-2.4.18-sources.jar!/akka/dispatch/BatchingExecutor.scala">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="249">
+          <caret line="57" column="0" lean-forward="true" selection-start-line="57" selection-start-column="0" selection-end-line="57" selection-end-column="0" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/app/constants/MongoConstants.scala">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="242">
+          <caret line="11" column="51" lean-forward="false" selection-start-line="11" selection-start-column="51" selection-end-line="11" selection-end-column="51" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/app/service/MongoDbService.scala">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="250">
+          <caret line="101" column="51" lean-forward="false" selection-start-line="101" selection-start-column="51" selection-end-line="101" selection-end-column="51" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/app/controllers/LoginController.scala">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="220">
+          <caret line="44" column="0" lean-forward="false" selection-start-line="44" selection-start-column="0" selection-end-line="44" selection-end-column="0" />
+          <folding>
+            <element signature="e#21#47#0" expanded="true" />
+            <element signature="e#3884#7640#0" expanded="false" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/app/constants/ZendeskConstants.scala">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="-220">
+          <caret line="5" column="6" lean-forward="false" selection-start-line="5" selection-start-column="6" selection-end-line="5" selection-end-column="6" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/app/service/integration/RelianceIntegrationServiceImpl.scala">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="396">
+          <caret line="144" column="82" lean-forward="false" selection-start-line="144" selection-start-column="82" selection-end-line="144" selection-end-column="82" />
+          <folding>
+            <element signature="e#29#55#0" expanded="true" />
+            <element signature="e#11188#15077#0" expanded="false" />
+            <element signature="e#15132#15937#0" expanded="false" />
+            <element signature="e#17663#19163#0" expanded="false" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/app/controllers/SavingsPlusController.scala">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="338">
+          <caret line="16" column="30" lean-forward="false" selection-start-line="16" selection-start-column="30" selection-end-line="16" selection-end-column="30" />
+          <folding>
+            <element signature="e#4264#4404#0" expanded="false" />
+            <element signature="e#5175#5340#0" expanded="false" />
+            <element signature="e#6812#9231#0" expanded="false" />
+            <element signature="e#8289#8521#0" expanded="false" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/conf/redeem.routes">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="176">
+          <caret line="8" column="90" lean-forward="false" selection-start-line="8" selection-start-column="90" selection-end-line="8" selection-end-column="90" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/conf/application.conf">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="212">
+          <caret line="59" column="51" lean-forward="false" selection-start-line="59" selection-start-column="51" selection-end-line="59" selection-end-column="51" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="jar://$USER_HOME$/.ivy2/cache/com.amazonaws/aws-java-sdk/srcs/aws-java-sdk-1.3.11-sources.jar!/com/amazonaws/services/identitymanagement/model/ChangePasswordRequest.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="283">
+          <caret line="26" column="13" lean-forward="false" selection-start-line="26" selection-start-column="13" selection-end-line="26" selection-end-column="13" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/app/service/integration/BirlaIntegrationServiceImpl.scala">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="316">
+          <caret line="566" column="76" lean-forward="false" selection-start-line="566" selection-start-column="76" selection-end-line="566" selection-end-column="76" />
+          <folding>
+            <element signature="e#29#55#0" expanded="true" />
+            <element signature="e#5650#14038#0" expanded="false" />
+            <element signature="e#14052#14519#0" expanded="false" />
+            <element signature="e#14543#14763#0" expanded="false" />
+            <element signature="e#23496#23852#0" expanded="false" />
+            <element signature="e#28567#29427#0" expanded="false" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/sqlStatements/July2017.sql">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="110">
+          <caret line="5" column="59" lean-forward="false" selection-start-line="5" selection-start-column="59" selection-end-line="5" selection-end-column="59" />
+          <folding>
+            <marker date="1499435728714" expanded="true" signature="64:161" ph="ALTER TABLE `FCDMT`... " />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$APPLICATION_CONFIG_DIR$/consoles/db/0d0edbc6-f6a3-4d94-92a4-dae9628be2dc/console.sql">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="154">
+          <caret line="7" column="20" lean-forward="false" selection-start-line="7" selection-start-column="20" selection-end-line="7" selection-end-column="20" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+  </component>
+  <component name="masterDetails">
+    <states>
+      <state key="ArtifactsStructureConfigurable.UI">
+        <settings>
+          <artifact-editor />
+          <splitter-proportions>
+            <option name="proportions">
+              <list>
+                <option value="0.2" />
+              </list>
+            </option>
+          </splitter-proportions>
+        </settings>
+      </state>
+      <state key="FacetStructureConfigurable.UI">
+        <settings>
+          <last-edited>No facets are configured</last-edited>
+          <splitter-proportions>
+            <option name="proportions">
+              <list>
+                <option value="0.2" />
+              </list>
+            </option>
+          </splitter-proportions>
+        </settings>
+      </state>
+      <state key="GlobalLibrariesConfigurable.UI">
+        <settings>
+          <last-edited>scala-sdk-2.11.8</last-edited>
+          <splitter-proportions>
+            <option name="proportions">
+              <list>
+                <option value="0.2" />
+              </list>
+            </option>
+          </splitter-proportions>
+        </settings>
+      </state>
+      <state key="JdkListConfigurable.UI">
+        <settings>
+          <last-edited>1.8</last-edited>
+          <splitter-proportions>
+            <option name="proportions">
+              <list>
+                <option value="0.2" />
+              </list>
+            </option>
+          </splitter-proportions>
+        </settings>
+      </state>
+      <state key="ModuleStructureConfigurable.UI">
+        <settings>
+          <last-edited>root</last-edited>
+          <splitter-proportions>
+            <option name="proportions">
+              <list>
+                <option value="0.2" />
+                <option value="0.6" />
+              </list>
+            </option>
+          </splitter-proportions>
+        </settings>
+      </state>
+      <state key="ProjectJDKs.UI">
+        <settings>
+          <last-edited>1.8</last-edited>
+          <splitter-proportions>
+            <option name="proportions">
+              <list>
+                <option value="0.2" />
+              </list>
+            </option>
+          </splitter-proportions>
+        </settings>
+      </state>
+      <state key="ProjectLibrariesConfigurable.UI">
+        <settings>
+          <last-edited>SBT: aopalliance:aopalliance:1.0:jar</last-edited>
+          <splitter-proportions>
+            <option name="proportions">
+              <list>
+                <option value="0.2" />
+              </list>
+            </option>
+          </splitter-proportions>
+        </settings>
+      </state>
+    </states>
+  </component>
+</project>

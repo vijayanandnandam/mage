@@ -1,0 +1,20 @@
+@import _root_.data.model.Tables._
+
+@(user: FcubdRow, utils: MailTemplateHelper)
+
+
+
+    Dear @if(user.ubdfirstname){@user.ubdfirstname} else{Investor},
+
+    Congratulations!
+    Your registration with Fincash is successful and your Fincash Account is active!
+    You can now start investing online with Fincash and to know more about our offerings check out our below mentioned products.
+
+    @contactTxt()
+
+    Please visit our RESOURCE CENTRE(@utils.getBaseUrl()/b/) to know about Mutual Fund Investments and other investment products.
+
+    With Warm Regards,
+    Team Fincash
+
+

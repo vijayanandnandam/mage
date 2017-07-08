@@ -1,0 +1,207 @@
+package repository.module
+
+import java.sql.Time
+import java.util.Calendar
+
+import com.google.inject.Inject
+import constants.{BaseConstants, IntegrationConstants}
+import data.model.Tables.{Fcact, FcactRow, Fcbse, FcbseRow, Fcdrqp, FcdrqpRow, Fcebse, FcebseRow, Fcimt, FcimtRow, Fcirql, FcirqlRow, FcirqlRowWrapper, Fcirsl, FcirslRow, FcirslRowWrapper, Fcrpa, FcrpaRow, Fcsdt, FcsiaRow}
+import play.api.db.slick.{DatabaseConfigProvider, HasDatabaseConfigProvider}
+import repository.tables._
+import slick.jdbc.JdbcProfile
+import utils.DateTimeUtils
+
+import scala.collection.mutable
+import scala.collection.mutable.ListBuffer
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, Future}
+
+/**
+  * Created by fincash on 21-01-2017.
+  */
+class IntegrationRepository @Inject()(protected val dbConfigProvider: DatabaseConfigProvider,
+                                      fcsiaRepo: FcsiaRepo, fcimtRepo: FcimtRepo, fcbseRepo: FcbseRepo, fcebseRepo: FcebseRepo,
+                                      fcdrqpRepo: FcdrqpRepo) extends IntegrationConstants with BaseConstants with HasDatabaseConfigProvider[JdbcProfile] {
+
+  import profile.api._
+
+  def getBSEIntegration(): Future[FcimtRow] = {
+    fcimtRepo.filter(x => x.imtintgratname === BSE_INTEGRATION_NAME).map {
+      x => x.head
+    }
+  }
+
+  def getByParaName(paraName: String): Future[Seq[FcdrqpRow]] = {
+    fcdrqpRepo.filter(x => x.drqpparaname === paraName)
+  }
+
+  def getSchemeOrderIntegration(soptrfnum: Long, transType: String): Future[Seq[FcsiaRow]] = {
+
+    fcsiaRepo.filter(x => x.siasoptrfnum === soptrfnum && x.siatxntype === transType)
+  }
+
+  def getIntegrationFallbackAllowed(integrationId: Long): Future[Boolean] = {
+
+    fcimtRepo.filter(x => x.id === integrationId).map(imtList => {
+      if (imtList.isEmpty) {
+        true
+      } else {
+        imtList.head.imtisfallbacktobse.getOrElse(Y_FLAG) == Y_FLAG
+      }
+    })
+  }
+
+  def getBSEDefaultParamValue(paramName: String) = {
+
+    fcdrqpRepo.filter(x => x.drqpparaname === paramName).map {
+      x => x(0).drqpparavalue
+    }
+  }
+
+  def updateBSEDefaultParamValue(paramName: String, paramValue: String): Future[Int] = {
+
+    val query = {
+      sql"""SELECT DRQPRFNUM FROM FCDRQP WHERE DRQPPARANAME = ${paramName} FOR UPDATE""".as[Long]
+    } andThen {
+      sqlu"""UPDATE FCDRQP SET DRQPPARAVALUE = ${paramValue}, MODIFYDATE = CURRENT_TIMESTAMP WHERE DRQPPARANAME = ${paramName}"""
+    }.transactionally.withPinnedSession
+
+    db.run(query)
+  }
+
+  def getDefaultParamValues(paramNameList: ListBuffer[String], integrationName: String): Future[mutable.LinkedHashMap[String, String]] = {
+
+    val query = for {
+      integrationNum <- Fcimt.filter(x => x.imtintgratname === integrationName).map(_.id).result.headOption
+      x <- Fcdrqp.filter(x => x.drqpimtrfnum === integrationNum && (x.drqpparaname inSetBind paramNameList)).map(x => (x.drqpparaname, x.drqpparavalue)).result
+    } yield (x)
+
+    val parameterMap = mutable.LinkedHashMap.empty[String, String]
+
+    db.run(query).map { paramList =>
+      paramList.foreach(param =>
+        parameterMap += (param._1 -> param._2)
+      )
+      parameterMap
+    }
+  }
+
+  def getDefaultParamValuesForAPIs(integrationName: String): Future[mutable.LinkedHashMap[String, String]] = {
+
+    val query = for {
+      integrationNum <- Fcimt.filter(x => x.imtintgratname === integrationName).map(_.id).result.headOption
+      x <- Fcdrqp.filter(x => x.drqpimtrfnum === integrationNum).map(x => (x.drqpparaname, x.drqpparavalue)).result
+    } yield (x)
+
+    val parameterMap = mutable.LinkedHashMap.empty[String, String]
+
+    db.run(query).map { paramList =>
+      paramList.foreach(param =>
+        parameterMap += (param._1 -> param._2)
+      )
+      parameterMap
+    }
+    //Await.result(a, Duration.Inf)
+  }
+
+  def saveRequestParameters(integName: String, integrationId: Option[String], paramNameList: ListBuffer[String], paramValueList: ListBuffer[String], userName: String) = {
+
+    getIntegrationNum(integName).map { integrationNum =>
+
+      val imtRfNum = integrationNum
+      val fcirqlTable = TableQuery[Fcirql]
+
+      val totalParams = paramNameList.length
+
+      val fcirqlRowList: ListBuffer[FcirqlRow] = ListBuffer[FcirqlRow]()
+      for (index <- 0 until totalParams) {
+        fcirqlRowList.+=(new FcirqlRowWrapper(None, imtRfNum, paramNameList(index), paramValueList(index), integrationId).get(userName))
+      }
+
+      db.run((fcirqlTable ++= fcirqlRowList).transactionally) map {
+        x => x
+      } recover {
+        case ex => ex.printStackTrace()
+          throw new Exception("Error Occured")
+      }
+    }
+  }
+
+  def saveResponseParameters(integName: String, integrationId: Option[String], paramNameList: ListBuffer[String], paramValueList: ListBuffer[String], userName: String) = {
+
+    getIntegrationNum(integName).map { integrationNum =>
+
+      val imtRfNum = integrationNum
+      val fcirslTable = TableQuery[Fcirsl]
+
+      val totalParams = paramNameList.length
+
+      val fcirslRowList: ListBuffer[FcirslRow] = ListBuffer[FcirslRow]()
+      for (index <- 0 until totalParams) {
+        fcirslRowList.+=(new FcirslRowWrapper(None, imtRfNum, integrationId, paramNameList(index), paramValueList(index)).get(userName))
+      }
+
+      db.run((fcirslTable ++= fcirslRowList).transactionally) map {
+        x => x
+      } recover {
+        case ex => ex.printStackTrace()
+          throw new Exception("Error Occured")
+      }
+    }
+  }
+
+  def getIntegrationNum(integrationKey: String): Future[Long] = {
+    val query = Fcimt.filter(x => x.imtintgratname === integrationKey).map(_.id).result
+
+    db.run(query).map { values =>
+      values.headOption.getOrElse(-1L)
+    }
+  }
+
+  def getBseAndEbseFromSoptrfnum(soptrfnum: Long): Future[(FcbseRow, FcebseRow)] = {
+    var query = for {
+      bserow <- Fcbse.filter(x => x.bsesoptrfnum === soptrfnum)
+      ebserow <- Fcebse.filter(x => x.id === bserow.id)
+    } yield (bserow, ebserow)
+
+    db.run(query.result).map(values => {
+      (values.head._1, values.head._2)
+    })
+  }
+
+  def getRPAValuesForSoptrfnum(soptrfnum: Long): Future[Option[FcrpaRow]] = {
+    var query = for {
+      rparow <- Fcrpa.filter(x => x.rpasoptrfnum === soptrfnum)
+    } yield (rparow)
+
+    db.run(query.result).map(values => {
+      if (values.nonEmpty) {
+        values.headOption
+      }
+      else {
+        None
+      }
+    })
+  }
+
+  def getBSEBankAccountDetails(): Future[FcactRow] = {
+
+    val query = Fcact.filter(x => x.actconstantname === BSE_BANK_DETAIL_KEY)
+
+    db.run(query.result).map(bankDetailRow => {
+      bankDetailRow.head
+    })
+  }
+
+  def isIntegrationRunning(imtrfnum: Long): Future[Boolean] = {
+    val currentDate = new java.sql.Date(DateTimeUtils.getCurrentDate().getTime)
+    val currentTime = new Time(Calendar.getInstance().getTime.getTime)
+    val query = Fcsdt.filter(x => x.sdtimtrfnum === imtrfnum && x.sdtdate === currentDate
+      && x.sdtfromtime >= currentTime && x.sdttotime < currentTime).result
+
+    db.run(query).map(downTimeSeq => {
+      downTimeSeq.nonEmpty
+    })
+  }
+}

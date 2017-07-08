@@ -1,0 +1,126 @@
+package service.integration
+
+import javax.inject.Inject
+
+import constants.{DBConstants, IntegrationConstants, OrderConstants}
+import data.model.Tables.{FcomtRow, FcsotRow}
+import models.{OrderModel, ProcessedSubOrderModel, SubOrder, UserLoginObject}
+import org.slf4j.LoggerFactory
+import play.api.libs.json.{JsArray, Json}
+import play.api.libs.ws.WSClient
+import repository.module.{BankRepository, OrderRepository}
+import service.{AMCService, BankService, PropertiesLoaderService, SchemeService}
+import utils.DateTimeUtils
+
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, ExecutionContext, Future}
+
+/**
+  * Created by Fincash on 26-04-2017.
+  */
+class RelianceIntegrationServiceImpl @Inject()(implicit ec: ExecutionContext, configuration: play.api.Configuration, ws: WSClient,
+                                               bseStarOrderEntryService: BSEStarOrderEntryServiceImpl,
+                                               bseUploadService: BSEStarUploadServiceImpl,
+                                               orderRepository: OrderRepository,
+                                               schemeService: SchemeService, aMCService: AMCService,
+                                               bankRepository: BankRepository, bankService: BankService) extends IntegrationService with DBConstants with IntegrationConstants with OrderConstants{
+
+  val logger, log = LoggerFactory.getLogger(classOf[RelianceIntegrationServiceImpl])
+
+  val ARNCODE = configuration.underlying.getString("fincash.arncode")
+  val URL = PropertiesLoaderService.getConfig().getString("reliance.redemption.url")
+  val API_KEY = PropertiesLoaderService.getConfig().getString("reliance.redemption.apikey")
+  val DEVICE_ID = PropertiesLoaderService.getConfig().getString("reliance.account.deviceid")
+  val APP_NAME = PropertiesLoaderService.getConfig().getString("reliance.account.appName")
+  val APP_VERSION = PropertiesLoaderService.getConfig().getString("reliance.account.appVersion")
+  val IP = PropertiesLoaderService.getConfig().getString("reliance.account.ip")
+  val OLDIHNO = PropertiesLoaderService.getConfig().getString("reliance.account.oldihno")
+  val BRANCH = PropertiesLoaderService.getConfig().getString("reliance.account.branch")
+
+  val USER_ID = PropertiesLoaderService.getConfig().getString("reliance.moneymanager.Userid")
+  val FUND = PropertiesLoaderService.getConfig().getString("reliance.moneymanager.Fund")
+  val SCHEME = PropertiesLoaderService.getConfig().getString("reliance.moneymanager.scheme")
+  val PLAN = PropertiesLoaderService.getConfig().getString("reliance.moneymanager.plan")
+  val OPTIONS = PropertiesLoaderService.getConfig().getString("reliance.moneymanager.options")
+  val T_PIN = PropertiesLoaderService.getConfig().getString("reliance.moneymanager.Tpin")
+  val M_STATUS = PropertiesLoaderService.getConfig().getString("reliance.moneymanager.Mstatus")
+
+  override def placeSubOrders(orderModel: OrderModel, order: FcomtRow, subOrder: FcsotRow, subOrderModel:SubOrder, userLoginObject: UserLoginObject): Future[ProcessedSubOrderModel] = {
+    val trDate = DateTimeUtils.convertDateToFormat(DateTimeUtils.getCurrentDate(), "MM/dd/yyyy")
+    val entDate = DateTimeUtils.convertDateToFormat(DateTimeUtils.getCurrentDate(), "MM/dd/yyyy")
+
+    val userName = userLoginObject.username.getOrElse("")
+    val subOrderId = 1
+    val soptrfNum = 1
+    val investmentMode = subOrderModel.investmentMode
+    val schemeDisplayName = None
+    val schemePlan = None
+    val schemeOption = None
+    val sipNoOfInstallments = subOrderModel.sipNoOfInstallments.getOrElse("")
+    val sipFrequency = subOrderModel.sipFrequency
+    val sipDayOfMonth = subOrderModel.sipDayOfMonth
+
+    var folioNo = subOrderModel.folioNo.getOrElse("")
+    var amount = subOrderModel.amount
+    var units = subOrderModel.quantity.getOrElse(0.0)
+
+    val redFlag = REDEMPTION_PARTIAL
+    var unitAmtFlag = AMOUNTUNIT_AMOUNT
+    var unitAmtValue = 100.00
+
+    if (amount > 0.0) {
+      unitAmtFlag = AMOUNTUNIT_AMOUNT
+      unitAmtValue = amount
+    }
+    if (amount == 0.0 && units > 0.0){
+      unitAmtFlag = AMOUNTUNIT_UNIT
+      unitAmtValue = units
+    }
+
+
+    val redemptionUrl = URL + "Redemptionsave?" + "fund=" + FUND + "&acno=" + folioNo + "&arncode=" + ARNCODE + "&scheme=" +
+      SCHEME + "&plan=" + PLAN + "&options=" + OPTIONS + "&RedFlag=" + redFlag + "&UnitamtFlag=" + unitAmtFlag +
+      "&UnitAmtValue=" + unitAmtValue + "&userid=" + USER_ID + "&Tpin=" + T_PIN + "&Mstatus=" + M_STATUS +
+      "&Fname=&Mname=&Lname=&Cuttime=&pangno=&bank=" + getRedInvbankDetails_V1(folioNo) +
+      "&ip=" + IP + "&oldihno=" + OLDIHNO + "&trdate=" + trDate + "&entdate=" + entDate + "&branch=" + BRANCH +
+      "&proxybranch=&deviceid=" + DEVICE_ID + "&appVersion=" + APP_VERSION + "&appName=" + APP_NAME + "&apikey=" + API_KEY
+
+
+    logger.debug("URL " + redemptionUrl)
+
+    ws.url(redemptionUrl)
+      .withRequestTimeout(Duration(30000, "millis")).get()
+      .map { res => {
+        val refno = (res.json \ "REFNO").as[String]
+        val msg = (res.json \ "Return_Msg").as[String]
+        val returnCode = (res.json \ "Return_code").as[String]
+        logger.debug("Result " + res.json)
+//        Ok(Json.obj("Result" -> res.json))]
+        if (returnCode == "-100"){
+          orderRepository.setFailedStateForSubOrder(subOrder.id, order.id, subOrder.sotostmstaterfnum, userName)
+          ProcessedSubOrderModel(subOrderId, ORDER_STATUS_FAILURE, soptrfNum, investmentMode, schemeDisplayName, schemePlan, schemeOption, Some(amount), Some(1), sipFrequency, sipDayOfMonth, None );
+        }
+        else {
+          orderRepository.updateTransactionIdForSubOrder(subOrder.id, order.id, subOrder.sotostmstaterfnum, refno, userName)
+          ProcessedSubOrderModel(subOrderId, ORDER_STATUS_SUCCESS, soptrfNum, investmentMode, schemeDisplayName, schemePlan, schemeOption, Some(amount), Some(1), sipFrequency, sipDayOfMonth, None );
+        }
+      }}
+  }
+
+  def getRedInvbankDetails_V1(folioNo: String): String = {
+    var bankName = ""
+    val getBankUrl = URL + "RedInvbankDetails_V1?" + "&arncode=" + ARNCODE + "&acno=" + folioNo + "&scheme=" + SCHEME + "&plan=" + PLAN +
+      "&deviceid=" + DEVICE_ID + "&appVersion=" + APP_VERSION + "&appName=" + APP_NAME + "&apikey=" + API_KEY
+
+    val a = ws.url(getBankUrl).withHeaders("Accept" -> "multipart/form-data")
+      .get()
+      .map { res => {
+        bankName = (res.json.asInstanceOf[JsArray].value(0) \ "BankName").as[String]
+      }}
+      .recover({
+        case e: Exception => "Error while retrieving Bank"
+      })
+    Await.result(a, Duration.Inf)
+    bankName
+  }
+}

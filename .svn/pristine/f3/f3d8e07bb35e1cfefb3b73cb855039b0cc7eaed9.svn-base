@@ -1,0 +1,57 @@
+package service
+
+import java.io.File
+import javax.inject.Inject
+
+import play.api.libs.mailer.{Attachment, AttachmentFile, Email, MailerClient}
+
+import scala.collection.mutable.{HashMap, ListBuffer}
+import scala.concurrent.Future
+import scala.concurrent.ExecutionContext.Implicits.global
+
+class MailService @Inject()(implicit mailerClient: MailerClient, configuration: play.api.Configuration) {
+
+  def sendMail(to: String, subject: String, bodyText: Option[String] = None,
+               bodyHTML: Option[String] = None, replyTo: Option[String] = None, from: Option[String] = None,
+               filePath: Option[String] = None, attachmentFiles: Option[HashMap[String, String]] = None,
+               cc: Option[ListBuffer[String]] = None, bcc: Option[ListBuffer[String]] = None): Future[String] = {
+
+    //preparing attachments
+    var attachments: Seq[Attachment] = Seq.empty
+    if (attachmentFiles.isDefined) {
+      for (value <- attachmentFiles.get.keySet) {
+        attachments = attachments :+ (AttachmentFile(value, new File(attachmentFiles.get.get(value).get)))
+      }
+    }
+    val bounceAddress: Option[String] = Some(configuration.underlying.getString("mail.default.bounce.address"))
+
+
+    //prepraing test
+    try {
+      val email = Email(
+        subject,
+        from.getOrElse(configuration.underlying.getString("mail.default.from")),
+        Seq.apply[String](to),
+        bodyText,
+        bodyHTML,
+        Some("UTF-8"),
+        cc.getOrElse(ListBuffer.empty[String]),
+        bcc.getOrElse(ListBuffer.empty[String]),
+        Some(replyTo.getOrElse(configuration.underlying.getString("mail.default.reply.to"))),
+        bounceAddress,
+        attachments
+      );
+      Future.apply(mailerClient.send(email));
+    } catch {
+      case exception: Exception => {
+        exception.printStackTrace();
+        throw exception
+      }
+    }
+  }
+
+  def manageMailAck() = {
+
+  }
+
+}

@@ -1,0 +1,188 @@
+package controllers
+
+import java.io.IOException
+import java.net.SocketTimeoutException
+import javax.inject.{Inject, Named}
+
+import constants.{IntegrationConstants, KycConstants}
+import helpers.{AuthenticatedAction, MailHelper, PoolingClientConnectionManager}
+import org.apache.http.{HttpHost, NameValuePair}
+import org.apache.http.client.methods.HttpGet
+import org.apache.http.client.protocol.HttpClientContext
+import org.apache.http.client.utils.URIBuilder
+import org.apache.http.impl.auth.BasicScheme
+import org.apache.http.impl.client.BasicAuthCache
+import org.apache.http.message.BasicNameValuePair
+import org.jsoup.Jsoup
+import org.slf4j.LoggerFactory
+import play.api.libs.json._
+import play.api.libs.ws.{WSAuthScheme, WSClient}
+import play.api.mvc.{Action, Controller}
+import repository.module.{CNDRepository, KycRepository, UserRepository}
+import repository.tables.FcubdRepo
+import service.integration.{BirlaIntegrationServiceImpl, RelianceIntegrationServiceImpl}
+import service.{Checksum, MailService, PropertiesLoaderService, UserService}
+import utils.{DateTimeUtils, NumberUtils, RequestUtils}
+
+import scala.collection.JavaConversions
+import scala.collection.mutable.ListBuffer
+import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.util.Random
+
+/**
+  * Created by Fincash on 07-04-2017.
+  */
+class SavingsPlusController @Inject()(implicit val ec: ExecutionContext, ws: WSClient, auth: AuthenticatedAction, userService: UserService, kycRepository: KycRepository, @Named("externalPoolingClientConnectionManager") relPoolingClient: PoolingClientConnectionManager,
+                                      userRepository: UserRepository, fcubdRepo: FcubdRepo, cndRepository: CNDRepository, mailService: MailService, mailHelper: MailHelper, configuration: play.api.Configuration,
+                                      relianceIntegrationServiceImpl: RelianceIntegrationServiceImpl, birlaIntegrationServiceImpl: BirlaIntegrationServiceImpl) extends Controller with IntegrationConstants{
+
+  val logger, log = LoggerFactory.getLogger(classOf[SavingsPlusController])
+
+  val ARNCODE = configuration.underlying.getString("fincash.arncode")
+  val REL_FOLIO_URL = configuration.underlying.getString("reliance.foliodetail.url")
+  val BSL_URL_HOST = configuration.underlying.getString("birla.url.host")
+  val IV_VALUE = configuration.underlying.getString("birla.account.ivValue")
+
+
+  def getRelianceFolioStatus = auth.Action.async(parse.json) {request => {
+    val requestData = request.body
+    val folioNo = (requestData \ "folioNo").as[String]
+    val folioUrl: String = REL_FOLIO_URL
+    var isSuccess = false
+    var connectionFail = false
+    var instaUnits = ""
+    var instaAmount = ""
+
+    val paramList: ListBuffer[NameValuePair] = ListBuffer[NameValuePair]()
+      relianceIntegrationServiceImpl.getRelDefaultParameters().map(parameterMap =>{
+        parameterMap.foreach(pair => {
+          paramList.+=(new BasicNameValuePair(pair._1, pair._2))
+        })
+        paramList.+=(new BasicNameValuePair(REL_ACNO_KEY, folioNo))
+
+        val httpClient = relPoolingClient.getHttpClient
+        val httpGet = new HttpGet(folioUrl)
+        val folioParameterUri = new URIBuilder(httpGet.getURI).addParameters(JavaConversions.seqAsJavaList[NameValuePair](paramList.toList)).build()
+        httpGet.setURI(folioParameterUri)
+
+        try {
+          val httpResponse = httpClient.execute(httpGet)
+          if (httpResponse.getStatusLine().getStatusCode() == 200) {
+            val inputStream = httpResponse.getEntity.getContent
+            val res: JsValue = Json.parse(inputStream)
+            logger.debug("REL FOLIO OUTPUT >> {}", Json.stringify(res))
+            var isError = false
+            val isErrorUndefined = (res \ "error").isInstanceOf[JsUndefined]
+            if(!isErrorUndefined){
+              val errorCode = (res \ "error").as[JsValue].asOpt[Long]
+              val errorMessage = (res \ "message").as[JsValue].asOpt[String]
+              logger.debug("API ERROR " + errorMessage.getOrElse(""))
+              if(errorCode.nonEmpty && errorCode.get<0){
+                isError = true
+              }
+            }
+            if(isError){
+              connectionFail = true
+              isSuccess = false
+              Ok(Json.obj("instaAmount" -> instaAmount))
+            }
+            else{
+              /*val instaUnitsOption = (res.asInstanceOf[JsValue] \ "Insta_units").as[JsValue].asOpt[String]
+              instaUnits = instaUnitsOption.getOrElse("")*/
+
+              val instaAmountOption = (res.asInstanceOf[JsValue] \ "Insta_Amount").as[JsValue].asOpt[String]
+              instaAmount = instaAmountOption.getOrElse("")
+
+              /*val currNavOption = (res.asInstanceOf[JsValue] \ "Nav").as[JsValue].asOpt[String]
+              if (currNavOption.nonEmpty && instaAmountOption.nonEmpty){
+                val currNav = currNavOption.get.toDouble
+                instaUnits = (instaAmountOption.get.toDouble/currNav).toString
+              }*/
+
+              Ok(Json.obj("instaAmount" -> instaAmount))
+            }
+          }else{
+            logger.debug(" HTTP  RESPONSE CODE ["+ httpResponse.getStatusLine.getStatusCode+"]")
+            Ok(Json.obj("instaAmount" -> instaAmount))
+          }
+        }
+        catch {
+          case s: SocketTimeoutException => {
+            logger.error("Socket Timeout Exception in Getting Folio details>> {}", s)
+          }
+          case c: java.net.ConnectException => { logger.error("Connection Time Out Occurred in getting Folio details>> {}", c); }
+          case io: IOException => { logger.error("IO exception in geting Folio details>> {}", io)}
+          case e: Exception => { logger.error("exception in getting Folio details>> {}", e)}
+        }
+        Ok(Json.obj("instaAmount" -> instaAmount))
+      })
+  }}
+
+  def getBirlaFolioStatus = auth.Action.async(parse.json) {request => {
+    val ipAddress = RequestUtils.getIpAddress(request)
+    val requestData = request.body
+    val folioNo = (requestData \ "folioNo").as[String]
+    val smtid = (requestData \ "smtid").as[Long]
+    var instaAmount = ""
+    val amountList: ListBuffer[Double] = ListBuffer[Double]()
+
+    val targetHost = new HttpHost(BSL_URL_HOST, 443, "https")
+    val authCache = new BasicAuthCache()
+    val basicAuth = new BasicScheme()
+    authCache.put(targetHost, basicAuth)
+    val context = HttpClientContext.create()
+    context.setAuthCache(authCache)
+    val checsumInstance = new Checksum(IV_VALUE)
+
+    userService.getUserObjectFromReq(request).flatMap(userOption => {
+      if (userOption.nonEmpty && userOption.get.userid.nonEmpty && userOption.get.username.nonEmpty){
+        birlaIntegrationServiceImpl.getIRDetailsForFolio(0, folioNo, Some(ipAddress), targetHost, context, checsumInstance, userOption.get.username.get, userOption.get.userid.get, smtid).map(irResponse => {
+          val irSuccess = (irResponse \ "success").as[Boolean]
+          if (irSuccess) {
+            val IRDetails = (irResponse \ "response").as[JsValue]
+            val IRPerDayAmount = (IRDetails \ "IRPerDayAmount").as[JsValue].asOpt[Double]
+            /*val schemeDetails = (IRDetails \ "SchemeDetails").as[Seq[JsValue]]//.asOpt[ListBuffer[BirlaSchemeDetails]]
+            var sum, instaInDouble = 0.0
+            if (schemeDetails.nonEmpty){
+              schemeDetails.foreach(_scheme => {
+                val max_amt = (_scheme \ "Max_Amount").as[JsValue].asOpt[String]
+                if (max_amt.nonEmpty){
+                  val amtDouble = NumberUtils.parseDouble(max_amt.get)
+                  if (amtDouble.nonEmpty){
+                    amountList.+=(amtDouble.get)
+                    sum += amtDouble.get
+                  }
+                }
+              })
+              if (sum > 50000){
+                instaInDouble = amountList.max
+              }
+              else {
+                instaInDouble = sum
+              }
+              instaAmount = instaInDouble.toString
+            }
+            else {
+              logger.debug("'SchemeDetails' is empty")
+            }*/
+
+            if (IRPerDayAmount.nonEmpty){
+              val IRamt: Double = IRPerDayAmount.get
+              val instaAmtDouble: Double = 50000 - IRamt
+              instaAmount = instaAmtDouble.toString
+            }
+
+          }
+          else {
+            logger.debug("Error in GETTING IRResponse")
+          }
+          Ok(Json.obj("instaAmount" -> instaAmount))
+        })
+      }
+      else {
+        logger.debug("Username is Empty")
+        Future{Ok(Json.obj("instaAmount" -> instaAmount))}
+      }
+    })
+  }}
+}

@@ -1,0 +1,935 @@
+package service
+
+import java.util.Date
+import javax.inject.{Inject, Singleton}
+
+import constants._
+import data.model.Tables.{FcmmtRow, FcomtRow, FcsmtRow, FcsotRow}
+import helpers.{MailHelper, OrderHelper, SchemeHelper}
+import models.OrderJsonFormats._
+import models.{PaymentStatus, _}
+import org.slf4j.LoggerFactory
+import play.api.libs.json.Json
+import repository.module._
+import repository.tables.FcostmRepo
+import service.integration.{BSEHelper, BSEStarUploadServiceImpl, IntegrationServiceImpl}
+import utils.DateTimeUtils
+
+import scala.collection.mutable.ListBuffer
+import scala.concurrent.{ExecutionContext, Future}
+
+/**
+  * Created by fincash on 15-02-2017.
+  */
+
+@Singleton
+class OrderService @Inject()(implicit ec: ExecutionContext, orderRepository: OrderRepository,
+                             passwordRepository: PasswordRepository, bseHelper: BSEHelper, mailService: MailService,
+                             orderCancelService: OrderCancelService, mailHelper: MailHelper,
+                             zendeskService: ZendeskService, configuration: play.api.Configuration,
+                             bseUploadService: BSEStarUploadServiceImpl, orderHelper: OrderHelper,
+                             bankRepository: BankRepository, folioRepository: FolioRepository,
+                             passwordService: PasswordService, paymentService: PaymentService,
+                             integrationServiceImpl: IntegrationServiceImpl, fcostmRepo: FcostmRepo,
+                             schemeRepository: SchemeRepository, schemeHelper: SchemeHelper, userRepository: UserRepository,
+                             appConstantRepository: ApplicationConstantRepository) extends DBConstants
+  with IntegrationConstants with OrderConstants with DateConstants {
+
+  val logger, log = LoggerFactory.getLogger(classOf[OrderService])
+
+  /**
+    *
+    * @param orderModel
+    * @param userLoginObject
+    * @return
+    */
+  def placeNewFinOrder(orderModel: OrderModel, userLoginObject: UserLoginObject): Future[(OrderModel, FcomtRow, List[FcsotRow])] = {
+
+    orderHelper.filterBSESchemes(orderModel).flatMap(modifiedSubOrderList => {
+      var modifiedOrderModel = orderModel.copy(subOrders = modifiedSubOrderList)
+
+      val soptIdList = modifiedSubOrderList.map(_.buySchemeOptionRfnum).to[ListBuffer]
+      orderHelper.getSchemeOptionsCategory(soptIdList).flatMap(soptCategoryMap => {
+
+        orderHelper.getOrderPaymentCutOff(orderModel, modifiedSubOrderList, soptCategoryMap).flatMap(paymentCutOffMap => {
+
+          orderHelper.getApproxAllotmentDate(modifiedSubOrderList, soptCategoryMap).flatMap(orderAllotmentDateMap => {
+
+            orderRepository.placeNewOrder(modifiedOrderModel, soptCategoryMap, orderAllotmentDateMap, paymentCutOffMap, userLoginObject).map(orderSuborderListTuple => {
+
+              val order = orderSuborderListTuple._1
+              val subOrderList = orderSuborderListTuple._2
+              val subOrderObjList = orderSuborderListTuple._3
+              modifiedOrderModel = orderModel.copy(subOrders = subOrderObjList)
+
+              (modifiedOrderModel, order, subOrderList)
+            })
+          })
+        })
+      })
+    })
+  }
+
+  /**
+    *
+    * @param orderModel
+    * @param orderId
+    * @param userLoginObject
+    * @return
+    */
+  def prepareAndPlaceNewExchangeOrder(orderModel: OrderModel, orderId: Long, userLoginObject: UserLoginObject): Future[ProcessedOrderModel] = {
+    orderHelper.filterBSESchemes(orderModel).flatMap(modifiedSubOrderList => {
+      var modifiedOrderModel = orderModel.copy(subOrders = modifiedSubOrderList)
+      (for {
+        order <- orderRepository.getOrder(orderId)
+        subOrderList <- orderRepository.getSubOrders(orderId)
+      } yield {
+        placeNewIntegrationOrders(modifiedOrderModel, order, subOrderList, userLoginObject)
+      }).flatMap(value => value)
+    })
+  }
+
+  /**
+    *
+    * @param modifiedOrderModel
+    * @param order
+    * @param subOrderList
+    * @param userLoginObject
+    * @return
+    */
+  def placeNewIntegrationOrders(modifiedOrderModel: OrderModel, order: FcomtRow, subOrderList: List[FcsotRow], userLoginObject: UserLoginObject): Future[ProcessedOrderModel] = {
+
+    passwordService.validateBSEEncryptedPassword(BSE_ORDER_API_PASS_CODE).flatMap(_ => {
+      orderHelper.getOrderStatesChangeMap().flatMap(orderStateMap => {
+        integrationServiceImpl.placeSubOrders(modifiedOrderModel, order, subOrderList, orderStateMap, userLoginObject).flatMap(processedSubOrdersList => {
+          updateOrderState(order.id, order.omtostmstaterfnum, subOrderList, userLoginObject).flatMap(orderState => {
+            orderRepository.getPlacedAtExchangeOrders(order.id).map(sotList => {
+
+              logger.debug("No of Placed at exchange orders = [" + sotList.size + "]")
+              logger.debug(sotList + "")
+              var paymentRedirect: Option[Boolean] = None
+              if (sotList.nonEmpty) {
+                paymentRedirect = Some(true)
+                logger.debug("Payment Redirect Allowed = [" + paymentRedirect.get + "]")
+              } else {
+                logger.debug("Payment Redirect Not allowed")
+              }
+              ProcessedOrderModel(order.id, processedSubOrdersList, paymentRedirect = paymentRedirect)
+            })
+          })
+        })
+      })
+    })
+  }
+
+  /**
+    *
+    * @param omtrfnum
+    * @param orderCurrentState
+    * @param subOrderList
+    * @param userLoginObject
+    * @return
+    */
+  def updateOrderState(omtrfnum: Long, orderCurrentState: Long, subOrderList: List[FcsotRow], userLoginObject: UserLoginObject): Future[String] = {
+
+    val userName = userLoginObject.username.getOrElse("")
+    orderRepository.getFailedSubOrders(omtrfnum).flatMap(failedSubOrders => {
+
+      logger.debug("Total suborders received[ " + subOrderList.size + " ]")
+      logger.debug("No of failed suborders[ " + failedSubOrders.size + " ]")
+      if (failedSubOrders.isEmpty) {
+        orderRepository.updateOrderState(omtrfnum, orderCurrentState, MAIN_ORDER_IN_PROCESS, userName)
+      } else {
+        if (failedSubOrders.size == subOrderList.size) {
+          orderRepository.updateOrderState(omtrfnum, orderCurrentState, ORDER_FAILED, userName)
+        } else {
+          orderRepository.updateOrderState(omtrfnum, orderCurrentState, MAIN_ORDER_IN_PROCESS, userName)
+        }
+      }
+    })
+  }
+
+  /**
+    *
+    * @param omtrfnum
+    * @param mobileNo
+    * @param userId
+    * @param gatewayId
+    * @param otp
+    * @param purpose
+    * @param ip
+    * @return
+    */
+  def saveOrderOTPDetails(omtrfnum: Long, mobileNo: String, userId: Long, gatewayId: String, otp: Int, purpose: String, ip: String): Future[(Long, Int)] = {
+
+    orderRepository.saveOrderOTPDetails(omtrfnum, mobileNo, userId, gatewayId, otp.toString, purpose, ip).map(otpId => {
+      (otpId, otp)
+    })
+  }
+
+  /**
+    *
+    * @param otp
+    * @param purpose
+    * @param userId
+    * @param orderId
+    * @return
+    */
+  def validateOrderOTP(otp: String, purpose: String, userId: Long, orderId: Long): Future[Int] = {
+    orderRepository.validateOTP(otp, purpose, userId, orderId).map(valuesList => {
+      if (valuesList.isEmpty) {
+        0
+      } else {
+        1
+      }
+    })
+  }
+
+  /**
+    *
+    * @param cancelSubOrder
+    * @param userLoginObject
+    * @return
+    */
+  def cancelOrder(cancelSubOrder: CancelSubOrder, userLoginObject: UserLoginObject): Future[Boolean] = {
+
+    orderCancelService.cancelOrder(cancelSubOrder, userLoginObject).map(cancelled => {
+      cancelled
+    })
+  }
+
+  /**
+    *
+    * @param orderId
+    * @param paymentReturnUrl
+    * @param userLoginObject
+    * @return
+    */
+  def generatePaymentGatewayLink(orderId: Long, paymentReturnUrl: String, userLoginObject: UserLoginObject): Future[String] = {
+
+    val userName = userLoginObject.username.get
+    val clientCode = userLoginObject.userid.get.toString
+    bseUploadService.getPaymentGatewayResponse(clientCode, paymentReturnUrl, orderId.toString, userName).map(bseMfApiResponse => {
+
+      val bsePaymentGatewayErrorList = bseMfApiResponse.errorList
+      if (!bsePaymentGatewayErrorList.get.isEmpty) {
+        logger.debug("Error Occured while generating payment link")
+        ""
+      } else {
+        logger.debug("Payment link generated")
+        bseMfApiResponse.bseUploadMfApiResponse.response
+      }
+    })
+  }
+
+  /**
+    *
+    * @return
+    */
+  def placeQueuedOrders(): Future[List[ProcessedOrderModel]] = {
+    orderRepository.getQueuedSubOrders().flatMap(subOrderSeq => {
+      val subOrderList: List[FcsotRow] = (subOrderSeq.groupBy(_.sotomtrfnum).map(_._2.head)) (scala.collection.breakOut)
+      passwordService.validateBSEEncryptedPassword(BSE_ORDER_API_PASS_CODE).flatMap(_ => {
+
+        Future.sequence(for (subOrder <- subOrderList) yield {
+          val userId = subOrder.sotubdrfnum
+          val userName = subOrder.createdby
+          val userLoginObject = UserLoginObject(Some(userName), Some(userId), None, None, None, None, None)
+          prepareOrderDetails(subOrder.sotomtrfnum, userLoginObject).flatMap(orderModel => {
+            logger.debug(orderModel + "")
+            (for {
+              order <- orderRepository.getOrder(subOrder.sotomtrfnum)
+              subOrderList <- orderRepository.getSubOrders(subOrder.sotomtrfnum, ORDER_TO_BE_PLACED_LATER)
+            } yield {
+              placeQueuedOrdersInIntegration(orderModel, order, subOrderList, userLoginObject).map(processedOrderModel => {
+                processedOrderModel.copy(userId = Some(userId), userName = Some(userName))
+              })
+            }).flatMap(processedOrderModel => {
+              processedOrderModel
+            })
+          })
+        }).flatMap(processedOrderModelList => {
+          initiateMailForQueuedOrders(processedOrderModelList).map(mailResposnseList => {
+            mailResposnseList.foreach(logger.debug);
+            processedOrderModelList
+          })
+        })
+
+      })
+    })
+  }
+
+  /**
+    *
+    * @param modifiedOrderModel
+    * @param order
+    * @param subOrderList
+    * @param userLoginObject
+    * @return
+    */
+  def placeQueuedOrdersInIntegration(modifiedOrderModel: OrderModel, order: FcomtRow, subOrderList: List[FcsotRow], userLoginObject: UserLoginObject): Future[ProcessedOrderModel] = {
+
+    orderHelper.getOrderStatesChangeMap().flatMap(orderStateMap => {
+      integrationServiceImpl.placeSubOrders(modifiedOrderModel, order, subOrderList, orderStateMap, userLoginObject).flatMap(processedSubOrdersList => {
+        updateOrderState(order.id, order.omtostmstaterfnum, subOrderList, userLoginObject).flatMap(orderState => {
+          orderRepository.getPlacedAtExchangeOrders(order.id).map(sotList => {
+
+            logger.debug("No of Placed at exchange orders = [" + sotList.size + "]")
+            logger.debug(sotList + "")
+            var paymentRedirect: Option[Boolean] = None
+            if (sotList.nonEmpty) {
+              paymentRedirect = Some(true)
+              logger.debug("Payment Redirect Allowed = [" + paymentRedirect.get + "]")
+            } else {
+              logger.debug("Payment Redirect Not allowed")
+            }
+            ProcessedOrderModel(order.id, processedSubOrdersList, paymentRedirect = paymentRedirect)
+          })
+        })
+      })
+    })
+  }
+
+  /**
+    *
+    * @param processedOrderModelList
+    * @return
+    */
+  def initiateMailForQueuedOrders(processedOrderModelList: List[ProcessedOrderModel]): Future[List[String]] = {
+
+    appConstantRepository.getConstantValue(PAYMENT_FALLBACK_BASE_URL_KEY).flatMap(actRowSeq => {
+      val returnBaseUrl = actRowSeq.head.actconstantvalue
+      val userIdVsProcessedOrderModelListMap: Map[Long, List[ProcessedOrderModel]] = processedOrderModelList.groupBy(_.userId.get)
+
+      val mailFutures = for ((userId, processedOrderModelList) <- userIdVsProcessedOrderModelListMap) yield {
+        val processedSubOrderList = orderHelper.getSuccessPurchaseOrdersList(processedOrderModelList)
+
+        val successOrderList = processedSubOrderList.filter(_.nonEmpty).map(_.get).zipWithIndex
+        var paymentFallbackLink = returnBaseUrl
+
+        for ((orderModel, index) <- successOrderList) {
+          paymentFallbackLink += orderModel.orderId
+          if (index < successOrderList.length - 1) {
+            paymentFallbackLink += "-"
+          }
+        }
+        if (successOrderList.nonEmpty) {
+          val orderId = successOrderList.head._1.orderId
+          val userId = successOrderList.head._1.userId
+          val userName = successOrderList.head._1.userName
+          val userLoginObject: UserLoginObject = UserLoginObject(userName, userId, None, None, None, None, None)
+
+          generatePaymentGatewayLink(orderId, paymentFallbackLink, userLoginObject).flatMap(bsePaymentLink => {
+            sendMailForQueuedOrders(processedOrderModelList, bsePaymentLink, userLoginObject)
+          })
+        } else {
+          Future.apply("No purchase orders found for user:" + userId);
+        }
+      }
+
+      Future.sequence(mailFutures).map(mailResponseList => {
+        mailResponseList.toList
+      })
+    })
+  }
+
+  /**
+    *
+    * @param processedOrderModelList
+    * @param bsePaymentLink
+    * @param userLoginObject
+    * @return
+    */
+  def sendMailForQueuedOrders(processedOrderModelList: List[ProcessedOrderModel], bsePaymentLink: String,
+                              userLoginObject: UserLoginObject): Future[String] = {
+
+    var totalAmount: Double = 0D;
+    processedOrderModelList.foreach(orderModel => {
+      orderModel.subOrderList.foreach(subOrderModel => {
+        totalAmount += subOrderModel.amount.get
+      })
+    })
+    getCutoffTimeforProcessedModels(processedOrderModelList).flatMap(cutoffTime => {
+      orderRepository.getOrderPaymentCutOff(processedOrderModelList.head.subOrderList.head.subOrderId).flatMap(linkValidTimeOption => {
+        var linkValidTime: Option[String] = None;
+        if (linkValidTimeOption.isDefined) {
+          linkValidTime = Some(linkValidTimeOption.get.soctvalue)
+        }
+        sendPaymentLinkOnMail(userLoginObject, bsePaymentLink, linkValidTime, totalAmount, cutoffTime)
+      })
+    })
+
+  }
+
+  /**
+    *
+    * @param processedOrderModelList
+    * @return
+    */
+  def getCutoffTimeforProcessedModels(processedOrderModelList: List[ProcessedOrderModel]): Future[Option[String]] = {
+    Future.sequence(for (orderModel <- processedOrderModelList) yield {
+      Future.sequence(for (subOrderModel <- orderModel.subOrderList) yield {
+        bseHelper.checkLZeroLOne(subOrderModel.soptrfnum, subOrderModel.amount.get, BUYSELL_BUY, subOrderModel.investmentMode).map(suffixTuple => {
+          val suffix = suffixTuple._1
+          val bsufRow = suffixTuple._2
+          var isLOne = false
+          var isLZero = false
+          isLOne = suffix.trim.indexOf(L_ONE_ORDER) > -1
+          isLZero = suffix.trim.indexOf(L_ZERO_ORDER) > -1
+          if ((isLOne || isLZero) && bsufRow.nonEmpty) {
+            bsufRow.get.bsufbsefundscutoff
+          } else {
+            None
+          }
+        })
+      })
+    }).map(cutoffTimeListOfList => {
+      var cutoffTimeOptionList = cutoffTimeListOfList.flatten;
+      cutoffTimeOptionList = cutoffTimeOptionList.filter(_.isDefined);
+      if (cutoffTimeOptionList.length > 0) {
+        val cutOffTimeList = for (timeOption <- cutoffTimeOptionList) yield {
+          timeOption.get
+        }
+        val minTime = DateTimeUtils.getMaxMinFromTimeList(cutOffTimeList, isMinRequired = Some(true))
+        Some(DateTimeUtils.get12HourStringFromTime(minTime))
+      } else {
+        None
+      }
+    })
+  }
+
+
+  def sendPaymentMailBySubOrderId(subOrderId: Long, userId: Long): Future[String] = {
+
+    val mailResponse = for {
+      subOrderObj <- orderRepository.getSubOrderById(subOrderId)
+      orderObj <- orderRepository.getOrder(subOrderObj.get.sotomtrfnum)
+      username <- userRepository.getUsernameByUserid(userId)
+      subOrderSiblings <- orderRepository.getSubOrderSiblings(subOrderId)
+      actRowSeq <- appConstantRepository.getConstantValue(PAYMENT_FALLBACK_BASE_URL_KEY)
+      linkValidTimeOption <- orderRepository.getOrderPaymentCutOff(subOrderId)
+    } yield {
+      if (orderObj.omtbuysell.equalsIgnoreCase(BUYSELL_BUY)) {
+        var linkValidTimeString: Option[String] = None;
+        if (linkValidTimeOption.isDefined) {
+          val linkValidTime = new Date(linkValidTimeOption.get.soctvaluedate.get.getTime)
+          if (DateTimeUtils.isGreaterThanCurrentDate(linkValidTime)) {
+            val paymentFallbackUrl = actRowSeq.head.actconstantvalue + subOrderSiblings.head.sotomtrfnum
+            val userLoginObject: UserLoginObject = new UserLoginObject(Some(username), Some(userId), None, None, None, None, None)
+            generatePaymentGatewayLink(subOrderId, paymentFallbackUrl, userLoginObject).flatMap(bsePaymentLink => {
+              val totalAmount = orderHelper.getPurchaseOrderTotalAmount(subOrderSiblings.toList);
+              if (totalAmount > 0) {
+                sendPaymentLinkOnMail(userLoginObject, bsePaymentLink, linkValidTimeString, totalAmount);
+              } else {
+                Future.apply("Order Amount is zero.")
+              }
+            })
+          } else {
+            logger.debug(linkValidTime.toString)
+            Future.apply("Link Valid time expired")
+          }
+        } else {
+          Future.apply("payment cutoff not defined in soct")
+        }
+      } else {
+        Future.apply("Order type redemption")
+      }
+    }
+
+    mailResponse.flatMap(res => res)
+
+  }
+
+  /**
+    *
+    * @param userLoginObject
+    * @param bsePaymentLink
+    * @param linkValidTime
+    * @param totalAmount
+    * @param cutoffTime
+    * @return
+    */
+  def sendPaymentLinkOnMail(userLoginObject: UserLoginObject, bsePaymentLink: String, linkValidTime: Option[String] = None, totalAmount: Double,
+                            cutoffTime: Option[String] = None): Future[String] = {
+
+    val heading = PropertiesLoaderService.getConfig().getString("mail.payment-link.heading")
+    val subj = PropertiesLoaderService.getConfig().getString("mail.payment-link.subject")
+    val fromOrderMail = configuration.underlying.getString("mail.order-placed.from")
+    val bccOrder = configuration.underlying.getString("mail.order-placed.bcc")
+    var bccList: Option[ListBuffer[String]] = None
+    var isNetBankingPreffered = false;
+    if (bccOrder != null && bccOrder.trim.length > 0) {
+      val bcc = ListBuffer[String]()
+      bcc.+=(bccOrder)
+      bccList = Some(bcc)
+    }
+    val mailHeaderTemplate = views.html.mailHeader(heading, mailHelper.getMth)
+    bankRepository.getBmtByUserPk(userLoginObject.userid.get).flatMap(bmtRow => {
+      appConstantRepository.getConstantValue(BSE_BANK_DETAIL_KEY).flatMap(actRowSeq => {
+
+        //if banktype is nodal or blank the show neft rtgs details. if bank type
+        // is direct and order amount > 50k the show neft rtgs details
+        if (bmtRow.bmtbanktype.isDefined && bmtRow.bmtbanktype.get.equals(BANK_TYPE_DIRECT)) {
+          isNetBankingPreffered = true;
+        }
+
+        if (actRowSeq.headOption.isDefined) {
+          val actRow = actRowSeq.head;
+          val bankJson = Json.parse(actRow.actconstantvalue)
+          val neftRtgsBankDetails = bankJson.as[List[NeftRtgsBankDetails]]
+          val mailBodyTemplate = views.html.paymentLink(userLoginObject.firstname, bsePaymentLink, linkValidTime, totalAmount, bmtRow, isNetBankingPreffered, neftRtgsBankDetails, cutoffTime, mailHelper.getMth)
+          val mailTemplate = views.html.mail(mailHeaderTemplate, mailBodyTemplate, mailHelper.getMth)
+          val bodyText = views.html.paymentLinkTxt(userLoginObject.firstname, bsePaymentLink, linkValidTime, totalAmount, bmtRow, isNetBankingPreffered, neftRtgsBankDetails, cutoffTime, mailHelper.getMth).toString()
+          val bodyHTML = mailTemplate.toString()
+          mailService.sendMail(to = userLoginObject.username.get,
+            subject = subj,
+            bodyText = Some(bodyText),
+            bodyHTML = Some(bodyHTML),
+            from = Some(fromOrderMail),
+            bcc = bccList)
+        } else {
+          logger.debug("Neft/RTGS Application constants missing")
+          Future.apply("Neft/RTGS Application constants missing")
+        }
+      })
+    })
+
+  }
+
+  /**
+    *
+    * @param omtrfnum
+    * @param userLoginObject
+    * @return
+    */
+  def prepareOrderDetails(omtrfnum: Long, userLoginObject: UserLoginObject): Future[OrderModel] = {
+
+    val userId = userLoginObject.userid.get
+    orderRepository.getOrderDetails(omtrfnum, ORDER_TO_BE_PLACED_LATER, userId).flatMap(orderTupleSeq => {
+
+      val subOrderFutureList = for (orderTuple <- orderTupleSeq) yield {
+
+        val subOrderObj = orderTuple._2
+
+        for {
+          subOrderStateObj <- schemeRepository.getOrderStateName(subOrderObj.sotostmstaterfnum)
+          subOrderChildDetails <- orderRepository.getSubOrderChildDetails(subOrderObj.id)
+        } yield {
+
+          var subOrderAmount = subOrderObj.sotorderamount
+
+          var subOrderState: Option[String] = None
+          if (!subOrderStateObj.isEmpty) {
+            subOrderState = Some(subOrderStateObj.get.ostmdisplayname)
+          }
+          var bseSchemeCode: Option[String] = None
+          var folioNo: Option[String] = None
+          for (soctRow <- subOrderChildDetails) {
+            if (soctRow.soctkey == BSE_SCHEME_CODE_KEY) {
+              bseSchemeCode = Some(soctRow.soctvalue)
+            }
+            if (soctRow.soctkey == FOLIO_NO_KEY) {
+              folioNo = Some(soctRow.soctvalue)
+            }
+          }
+
+          SubOrder(subOrderObj.sotsequence.toLong, Some(subOrderAmount), subOrderObj.sotinvestmentmode, subOrderObj.sotsoptrfnum,
+            None, subOrderObj.sotpaymentmode,
+            sipNoOfInstallments = subOrderObj.sotsipinstallments, sipFrequency = subOrderObj.sotsipfrequency, bseSchemeCode = bseSchemeCode,
+            sipDayOfMonth = subOrderObj.sotsipdayofmonth, quantity = subOrderObj.sotorderquantity, dematPhysicalMode = Some(subOrderObj.sottype),
+            transactionMode = Some(subOrderObj.sottranscnmode), orderType = Some(subOrderObj.sotbuyselltype), toState = subOrderState, folioNo = folioNo)
+        }
+      }
+      Future.sequence(subOrderFutureList).flatMap(subOrderSeq => {
+        val orderObj = orderTupleSeq(0)._1
+        schemeRepository.getOrderStateName(orderObj.omtostmstaterfnum).map(orderStateRow => {
+          var orderState: Option[String] = None
+          if (!orderStateRow.isEmpty) {
+            orderState = Some(orderStateRow.get.ostmdisplayname)
+          }
+          OrderModel(orderObj.omtbuysell, Some(orderObj.omttotalamount), orderObj.omtipadd, subOrderSeq.toList,
+            orderObj.omtorderdevice, None, orderObj.omtsnapshotpath, Some(orderObj.omtdptranscn), None, orderState)
+        })
+      })
+    })
+  }
+
+  /**
+    *
+    * @param omtrfnum
+    * @param userLoginObject
+    * @return
+    */
+  def getOrderAcknowledgeDetails(omtrfnum: Long, userLoginObject: UserLoginObject): Future[ProcessedOrderModel] = {
+
+    val userId = userLoginObject.userid.get
+    orderRepository.getOrderDetails(omtrfnum, userId).flatMap(orderTupleSeq => {
+
+      val subOrderFutureList = for (orderTuple <- orderTupleSeq) yield {
+
+        val orderObj = orderTupleSeq.head._1
+
+        val subOrderObj = orderTuple._2
+        schemeRepository.getSchemeOptionById(subOrderObj.sotsoptrfnum).flatMap(soptRow => {
+
+          val smtrfnum = soptRow.soptsmtrfnum
+          for {
+            smtRow <- schemeRepository.getSchemeById(smtrfnum)
+          } yield {
+
+            var subOrderAmount = subOrderObj.sotorderamount
+            val schemePlan = schemeHelper.getSchemeOption(soptRow.soptschemeplan, soptRow.soptdividendfrqn)
+            val schemeOption = schemeHelper.getDivOption(soptRow.soptdivioptiontype)
+            var orderProcessed = ORDER_STATUS_SUCCESS
+            if (subOrderObj.sotostmstaterfnum != PLACED_AT_EXCHANGE && subOrderObj.sotostmstaterfnum != ORDER_TO_BE_PLACED_LATER) {
+              orderProcessed = ORDER_STATUS_FAILURE
+            }
+            val buySellTypeName = orderHelper.getBuySellTypeName(orderObj.omtbuysell, subOrderObj.sotbuyselltype)
+            ProcessedSubOrderModel(subOrderObj.id, orderProcessed, subOrderObj.sotsoptrfnum, subOrderObj.sotinvestmentmode, orderObj.omtbuysell, buySellTypeName,
+              schemeDisplayName = Some(smtRow.smtdisplayname), schemePlan = Some(schemePlan), schemeOption = Some(schemeOption), amount = Some(subOrderAmount),
+              sipNoOfInstallments = subOrderObj.sotsipinstallments, sipFrequency = subOrderObj.sotsipfrequency, sipDayOfMonth = subOrderObj.sotsipdayofmonth,
+              quantity = subOrderObj.sotorderquantity, stateNo = Some(subOrderObj.sotostmstaterfnum))
+          }
+        })
+      }
+      Future.sequence(subOrderFutureList).map(subOrderSeq => {
+        var currentTime: Option[String] = None
+        if (orderTupleSeq.nonEmpty) {
+          val orderObj = orderTupleSeq.head._1
+          currentTime = Some(DateTimeUtils.convertSqlTimestampToString(orderObj.createdate.get))
+        }
+        var placedAtExchangeOrders: Option[Boolean] = None
+        for (subOrder <- subOrderSeq) {
+          if (subOrder.stateNo.getOrElse(0L) == PLACED_AT_EXCHANGE) {
+            placedAtExchangeOrders = Some(true)
+          }
+        }
+        ProcessedOrderModel(omtrfnum, subOrderSeq.toList, orderTime = currentTime, paymentRedirect = placedAtExchangeOrders)
+      })
+    })
+  }
+
+  /**
+    *
+    * @param omtrfnum
+    * @param userLoginObject
+    * @return
+    */
+  def populateOrderDetails(omtrfnum: Long, userLoginObject: UserLoginObject): Future[OrderDetails] = {
+
+    val userPk: Long = userLoginObject.userid.getOrElse(0)
+    val userName: String = userLoginObject.username.getOrElse("")
+
+    orderRepository.getOrderDetails(omtrfnum, userPk).flatMap(orderTupleSeq => {
+      val orderObj = orderTupleSeq.head._1
+      orderRepository.getStateDetails(orderObj.omtostmstaterfnum).flatMap(ostmRow => {
+
+        val subOrderFutureList = for (orderTuple <- orderTupleSeq) yield {
+
+          val sotRow = orderTuple._2
+          schemeRepository.getSchemeOptionById(sotRow.sotsoptrfnum).flatMap(soptRow => {
+
+            val smtrfnum = soptRow.soptsmtrfnum
+            for {
+              smtRow <- schemeRepository.getSchemeById(smtrfnum)
+              mmtRow <- bankRepository.getSubOrderMandateDetails(sotRow.id)
+              oshtRowSeq <- orderRepository.getSubOrderHistoryDetails(sotRow.id)
+              subOrderObj <- orderRepository.getSubOrderState(sotRow.id, userName)
+              subOrderChildDetailsList <- orderRepository.getSubOrderChildDetails(sotRow.id)
+            } yield {
+
+              var subOrderAmount = sotRow.sotorderamount
+              val schemePlan = schemeHelper.getSchemeOption(soptRow.soptschemeplan, soptRow.soptdividendfrqn)
+              val schemeOption = schemeHelper.getDivOption(soptRow.soptdivioptiontype)
+              val subOrderState = subOrderObj.ostmdisplayname
+              val stateCode = subOrderObj.ostmname
+              val childDetailList = orderHelper.buildSubOrderChildList(subOrderChildDetailsList)
+
+              var orderProcessed = ORDER_STATUS_SUCCESS
+              if (sotRow.sotostmstaterfnum != PLACED_AT_EXCHANGE) {
+                orderProcessed = ORDER_STATUS_FAILURE
+              }
+              var sipFrequency: Option[String] = None
+              if (!sotRow.sotsipfrequency.isEmpty) {
+                sipFrequency = Some(OrderConstants.FREQUENCY_MAP.getOrElse(sotRow.sotsipfrequency.get, ""))
+              }
+              val investmentMode = InvestmentConstants.INVESTMENT_MODE_MAP.getOrElse(sotRow.sotinvestmentmode, "")
+              val createDate = DateTimeUtils.convertSqlTimestampToString(sotRow.createdate.get)
+              val buySellTypeName = orderHelper.getBuySellTypeName(orderObj.omtbuysell, sotRow.sotbuyselltype)
+              val stateDetails = OrderStateDetails(stateCode, subOrderObj.id)
+              val ackAdditionalDetails = SubOrderAckAdditionalDetails(sotRow.sottranscnmode)
+
+              var subOrderDetail = SubOrderDetails(sotRow.id, orderProcessed, investmentMode, createDate, buySellTypeName,
+                schemeName = Some(smtRow.smtdisplayname), schemePlan = Some(schemePlan), schemeOption = Some(schemeOption), amount = Some(subOrderAmount),
+                sipNoOfInstallments = sotRow.sotsipinstallments, sipFrequency = sipFrequency, sipDayOfMonth = sotRow.sotsipdayofmonth,
+                quantity = sotRow.sotorderquantity, subOrderHistoryList = Some(oshtRowSeq.toList), stateName = Some(subOrderState),
+                transactionId1 = sotRow.sottrnsctionid1, transactionId2 = sotRow.sottrnsctionid2, schemeCode = Some(sotRow.sotsoptrfnum),
+                extDetails = Some(childDetailList), stateDetails = Some(stateDetails), ackAdditionalDetails = Some(ackAdditionalDetails))
+
+              if (!mmtRow.isEmpty) {
+                val mmtRowDetails = mmtRow.head
+                val mandateDetails = SubOrderMandateDetails(mmtRowDetails.id, mmtRowDetails.mmtexternalid.get, mmtRowDetails.mmtmandatetype.get)
+                subOrderDetail = subOrderDetail.copy(mandateDetails = Some(mandateDetails))
+              }
+              subOrderDetail
+            }
+          })
+        }
+        Future.sequence(subOrderFutureList).flatMap(subOrderSeq => {
+          orderRepository.getOrderHistoryDetails(omtrfnum).map(orderHistoryList => {
+            val createDate = DateTimeUtils.convertSqlTimestampToString(orderObj.createdate.get)
+            val orderState = ostmRow.get.ostmdisplayname
+            OrderDetails(omtrfnum, orderObj.omtbuysell, subOrderSeq.toList, createDate, orderObj.omttotalamount, snapshotPath = orderObj.omtsnapshotpath,
+              orderHistoryList = Some(orderHistoryList.toList), stateName = Some(orderState))
+          })
+        })
+      })
+    })
+
+  }
+
+  /**
+    *
+    * @param sotrfnum
+    * @param userLoginObject
+    * @return
+    */
+  def updateOrderIntermediateGatewayState(sotrfnum: Long, userLoginObject: UserLoginObject): Future[Boolean] = {
+
+    val userPk: Long = userLoginObject.userid.getOrElse(0)
+    val userName = userLoginObject.username.getOrElse("")
+    orderRepository.getUserSubOrderDetails(sotrfnum, userPk).flatMap(subOrderDetailsSeq => {
+      val subOrder = subOrderDetailsSeq.head
+      if (subOrder.sotostmstaterfnum != ORDER_FAILED && subOrder.sotostmstaterfnum != ORDER_TO_BE_PLACED_LATER) {
+        orderRepository.getOrder(subOrder.sotomtrfnum).map(order => {
+          orderHelper.getOrderStatesChangeMap().map(stateChangeMap => {
+            orderHelper.updateSubOrderState(subOrder, order, PLACED_AT_EXCHANGE_PG, stateChangeMap, ORDER_STATUS_SUCCESS, userLoginObject)
+          })
+          true
+        })
+      } else {
+        Future {
+          false
+        }
+      }
+    })
+  }
+
+  /**
+    *
+    * @param sotrfnum
+    * @param userLoginObject
+    * @return
+    */
+  def checkOrderPaymentStatus(sotrfnum: Long, userLoginObject: UserLoginObject): Future[PaymentStatus] = {
+
+    val userPk: Long = userLoginObject.userid.getOrElse(0)
+    val userName = userLoginObject.username.getOrElse("")
+    val clientCode = userLoginObject.userid.get.toString
+
+    orderRepository.getUserSubOrderDetails(sotrfnum, userPk).flatMap(subOrderDetailsSeq => {
+
+      val subOrder = subOrderDetailsSeq.head
+
+      if (subOrder.sotostmstaterfnum == ORDER_CANCELLED || subOrder.sotostmstaterfnum == ORDER_TO_BE_PLACED_LATER || subOrder.sotostmstaterfnum == ORDER_FAILED) {
+        orderRepository.getStateDetails(subOrder.sotostmstaterfnum).map(stateDetail => {
+          PaymentStatus(subOrder.sotostmstaterfnum, stateDetail.get.ostmdisplayname)
+        })
+      } else {
+        if (subOrder.sotinvestmentmode == SIP_INVESTMENT_MODE) {
+          orderRepository.getStateDetails(PLACED_AT_EXCHANGE).map(stateDetail => {
+            PaymentStatus(PLACED_AT_EXCHANGE, stateDetail.get.ostmdisplayname)
+          })
+        } else {
+          if (subOrder.sottranscnmode != BSE_TRANSACTION_MODE || subOrder.sottrnsctionid1.isEmpty) {
+            orderRepository.getSubOrderState(sotrfnum, userName).map(orderState => {
+              PaymentStatus(subOrder.sotostmstaterfnum, orderState.ostmdisplayname)
+            })
+          } else{
+
+            val transactionId = subOrder.sottrnsctionid1.get
+            val clientOrderPaymentStatus = ClientOrderPaymentStatus(clientCode, transactionId, BSE_PAYMENT_MF_SEGMENT)
+
+            bseUploadService.getClientOrderPaymentStatus(clientOrderPaymentStatus, sotrfnum.toString, userName).flatMap(bseMfApiResponse => {
+
+              if (!bseMfApiResponse.errorList.get.isEmpty) {
+                orderRepository.getSubOrderState(sotrfnum, userName).map(orderState => {
+                  PaymentStatus(subOrder.sotostmstaterfnum, orderState.ostmdisplayname)
+                })
+              } else {
+                val paymentStatus = bseMfApiResponse.bseUploadMfApiResponse.response
+                var subOrderState = -1L
+                if (paymentStatus.indexOf(BSE_AWAITING_FUNDS_CONFIRMATION) != -1) {
+                  subOrderState = OrderConstants.ORDER_STATE_MAP.getOrElse(BSE_AWAITING_FUNDS_CONFIRMATION, -1)
+                } else if (paymentStatus.indexOf(BSE_PAYMENT_NOT_INITIATED) != -1) {
+                  subOrderState = OrderConstants.ORDER_STATE_MAP.getOrElse(BSE_PAYMENT_NOT_INITIATED, -1)
+                } else if (paymentStatus.indexOf(BSE_PAYMENT_APPROVED) != -1) {
+                  subOrderState = OrderConstants.ORDER_STATE_MAP.getOrElse(BSE_PAYMENT_APPROVED, -1)
+                } else {
+                  subOrderState = OrderConstants.ORDER_STATE_MAP.getOrElse(BSE_PAYMENT_REJECTED, -1)
+                }
+                orderRepository.getOrder(subOrder.sotomtrfnum).flatMap(order => {
+                  orderHelper.getOrderStatesChangeMap().flatMap(stateChangeMap => {
+                    orderHelper.updateSubOrderState(subOrder, order, subOrderState, stateChangeMap, ORDER_STATUS_SUCCESS, userLoginObject).flatMap(updateState => {
+                      orderRepository.getSubOrderState(subOrder.id, userName).map(orderStateObj => {
+                        val orderState = orderStateObj.ostmdisplayname
+                        PaymentStatus(subOrderState, orderState)
+                      })
+                    })
+                  })
+                })
+              }
+            })
+          }
+        }
+      }
+    })
+  }
+
+  /**
+    *
+    * @param userLoginObject
+    * @return
+    */
+  def updatePaymentAllowedSubOrderState(userLoginObject: UserLoginObject): Future[List[String]] = {
+
+    val userPk: Long = userLoginObject.userid.get
+    val userName: String = userLoginObject.username.get
+    orderHelper.getOrderStatesChangeMap().flatMap(stateChangeMap => {
+      paymentService.getPaymentAllowedSubOrders(userPk).flatMap(subOrderList => {
+        logger.debug("Updating Payment status for - " + subOrderList)
+        val updateStateFtrList = for (subOrder <- subOrderList) yield {
+
+          getSubOrderState(subOrder, userPk, userName).flatMap(subOrderState => {
+            if (subOrderState != -1) {
+              orderRepository.getOrder(subOrder.sotomtrfnum).flatMap(order => {
+                orderHelper.updateSubOrderState(subOrder, order, subOrderState, stateChangeMap, ORDER_STATUS_SUCCESS, userLoginObject).flatMap(stateUpdated => {
+                  orderRepository.getSubOrderState(subOrder.id, userName).map(orderStateObj => {
+                    orderStateObj.ostmdisplayname
+                  })
+                })
+              })
+            } else {
+              Future {
+                ""
+              }
+            }
+          })
+        }
+        Future.sequence(updateStateFtrList)
+      })
+    })
+  }
+
+  /**
+    *
+    * @param subOrder
+    * @param userPk
+    * @param userName
+    * @return
+    */
+  def getSubOrderState(subOrder: FcsotRow, userPk: Long, userName: String): Future[Long] = {
+    if (subOrder.sotinvestmentmode == SIP_INVESTMENT_MODE) {
+      Future {
+        PLACED_AT_EXCHANGE_PG
+      }
+    } else {
+      val transactionId = subOrder.sottrnsctionid1.get
+      val clientOrderPaymentStatus = ClientOrderPaymentStatus(userPk.toString, transactionId, BSE_PAYMENT_MF_SEGMENT)
+      bseUploadService.getClientOrderPaymentStatus(clientOrderPaymentStatus, subOrder.id.toString, userName).map(bseMfApiResponse => {
+
+        if (!bseMfApiResponse.errorList.get.isEmpty) {
+          logger.info("Unable to get Prev Suborder Payment Status for subOrderId: " + subOrder.id + " and txn id: " + transactionId)
+          -1L
+        } else {
+          val paymentStatus = bseMfApiResponse.bseUploadMfApiResponse.response
+          var subOrderState = -1L
+          if (paymentStatus.indexOf(BSE_AWAITING_FUNDS_CONFIRMATION) != -1) {
+            subOrderState = OrderConstants.ORDER_STATE_MAP.getOrElse(BSE_AWAITING_FUNDS_CONFIRMATION, -1)
+          } else if (paymentStatus.indexOf(BSE_PAYMENT_NOT_INITIATED) != -1) {
+            subOrderState = OrderConstants.ORDER_STATE_MAP.getOrElse(BSE_PAYMENT_NOT_INITIATED, -1)
+          } else if (paymentStatus.indexOf(BSE_PAYMENT_APPROVED) != -1) {
+            subOrderState = OrderConstants.ORDER_STATE_MAP.getOrElse(BSE_PAYMENT_APPROVED, -1)
+          } else {
+            subOrderState = OrderConstants.ORDER_STATE_MAP.getOrElse(BSE_PAYMENT_REJECTED, -1)
+          }
+          subOrderState
+        }
+      })
+    }
+  }
+
+  /**
+    *
+    * @param smtrfnumList
+    * @param userPk
+    * @return
+    */
+  def isAlreadyWithoutPayment(smtrfnumList: List[Long], userPk: Long): Future[List[TransactionSummary]] = {
+    val transSummaryList = ListBuffer[TransactionSummary]()
+    paymentService.getPaymentAllowedSubOrders(userPk).flatMap(subOrderList => {
+      val sotrfnumList = subOrderList.map(_.id)
+      orderRepository.filterSchemeSubOrders(smtrfnumList, sotrfnumList).flatMap(duplicateOrdersList => {
+        val withoutPaymentOrdersList = subOrderList.filter(subOrder => duplicateOrdersList.exists(_.id == subOrder.id))
+        val withoutPaymentOrdersIdList = withoutPaymentOrdersList.map(_.id)
+        val paymentAllowedMap = paymentService.getSubOrdersMap(withoutPaymentOrdersList)
+        if (withoutPaymentOrdersIdList.size == 0) {
+          Future.apply(List.empty[TransactionSummary])
+        } else {
+          folioRepository.getUserSchemeTransactions(userPk, withoutPaymentOrdersIdList).flatMap(schemeTransactions => {
+            orderCancelService.isCancellationAllowed(withoutPaymentOrdersIdList.to[ListBuffer], userPk).map(sotCancelMap => {
+
+              schemeTransactions.foreach(trnSummary => {
+                transSummaryList.+=(trnSummary.copy(schemePlan = schemeHelper.getSchemePlan(trnSummary.schemePlan),
+                  dividendFreq = schemeHelper.getDivFrequency(trnSummary.dividendFreq),
+                  dividendOption = schemeHelper.getDivOption(trnSummary.dividendOption),
+                  cancelAllowed = sotCancelMap.getOrElse(trnSummary.subOrderId, false),
+                  paymentAllowed = paymentAllowedMap.getOrElse(trnSummary.subOrderId, false)))
+              })
+              transSummaryList.toList
+            })
+          })
+        }
+      })
+    })
+  }
+
+  /**
+    *
+    * @param sotrfnum
+    * @param userPk
+    * @return
+    */
+  def getSchemeDetails(sotrfnum: Long, userPk: Long): Future[FcsmtRow] = {
+    orderRepository.getUserSubOrderDetails(sotrfnum, userPk).flatMap(fcsot => {
+      val sotsoptrfnum = fcsot.headOption.get.sotsoptrfnum
+      schemeRepository.getSchemeOptionById(sotsoptrfnum).flatMap(soptRow => {
+        val smtrfnum = soptRow.soptsmtrfnum
+        schemeRepository.getSchemeWithAmcDetails(smtrfnum).map(smtAmctTuple => {
+          val smtRow = smtAmctTuple.head._1
+          smtRow
+        })
+      })
+    })
+  }
+
+  /**
+    *
+    * @param sotrfnum
+    * @return
+    */
+  def getMandateDetails(sotrfnum: Long): Future[FcmmtRow] = {
+    bankRepository.getSubOrderMandateDetails(sotrfnum: Long).map(mmtRow => {
+      mmtRow.head
+    })
+  }
+
+  /**
+    *
+    * @param ostmRfnum
+    * @return
+    */
+  def getOrderStateDisplayName(ostmRfnum: Long): Future[String] = {
+    fcostmRepo.getById(ostmRfnum).map(_.get.ostmdisplayname)
+  }
+}

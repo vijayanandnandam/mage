@@ -1,0 +1,111 @@
+package service
+
+import java.util
+import javax.inject.Inject
+
+import data.model.Tables.FctktRow
+import helpers.ZendeskHelper
+import org.zendesk.client.v2.model._
+import repository.module.UserRepository
+import repository.tables.{FctktRepo, FctkthRepo}
+import slick.jdbc.MySQLProfile.api._
+import constants.CNDConstants
+import models.OrderModel
+
+import scala.concurrent.{ExecutionContext, Future}
+
+
+/**
+  * Created by Fincash on 22-05-2017.
+  */
+class ZendeskService @Inject()(implicit ec: ExecutionContext, fctktRepo: FctktRepo, fctkthRepo: FctkthRepo, zendeskHelper: ZendeskHelper, ticket: Ticket, user: TicketForm, comment: Comment, customFieldValue: CustomFieldValue, userRepository: UserRepository) extends CNDConstants {
+
+  val zd = zendeskHelper.getZendeskObj()
+  def createTicket(requester: Ticket.Requester, subject: String, comment: Comment, groupId:Option[Long]=None, recipient:String, username:String, userid:Long): Future[Long] = {
+    ticket.setRequester(requester)
+    ticket.setSubject(subject)
+    ticket.setComment(comment)
+    ticket.setGroupId(groupId.get)
+    ticket.setRecipient(recipient)
+    val tktId = zd.createTicket(ticket).getId
+    val status = Status.NEW.toString.toLowerCase()
+    val tktSource = zendeskHelper.tktSource.API.toLowerCase()
+    userRepository.saveTicket(tktId.toString, None, userid, username, status, tktSource).map( tktRow => {
+    })
+    Future.apply(tktId)
+  }
+ def updateTktPurpose(tktId:Long, purpose:Long):Future[Boolean] = {
+   fctktRepo.filter(x => x.tktticketid === tktId.toString).flatMap( x => {
+     var fctkt = x.head
+     fctkt = fctkt.copy(tktcndpurpose = Some(purpose))
+     fctktRepo.updateById(fctkt.id, fctkt).map(_retval => {
+       true
+     })
+   })
+
+ }
+
+  def updateStatus(tktId:Long, status: Status):Future[Boolean] = {
+    val zdTicket  = zd.getTicket(tktId)
+    zdTicket.setStatus(status)
+    zd.updateTicket(zdTicket)
+    fctktRepo.filter(x => x.tktticketid === tktId.toString).flatMap( x => {
+        var fctkt = x.head
+        var fromState = fctkt.tktstate.toString
+        var toState = status.toString
+        fctkt = fctkt.copy(tktstate = Some(status.toString))
+        fctktRepo.updateById(fctkt.id, fctkt).flatMap(_retval => {
+          fctkthRepo.filter(x => x.tkthtktrfnum === fctkt.id).flatMap( y => {
+          var fctkth = y.head
+            fctkth = fctkth.copy(tkthfromstate = Some(fromState), tkthtostate = Some(toState))
+            fctkthRepo.updateById(fctkth.id, fctkth).map(res =>{
+              true
+            })
+          })
+    })
+  })
+  }
+  def setCustomField(tktId:Long, customFieldList: util.List[CustomFieldValue]):Future[Boolean] = {
+    val zdTicket  = zd.getTicket(tktId)
+    zdTicket.setCustomFields(customFieldList)
+    zd.updateTicket(zdTicket)
+    Future.apply(true)
+  }
+  def getTicketsByUserIdANDpurpose(userId:Long, purpose:Option[Long]):Future[Seq[FctktRow]] ={
+    if(purpose.nonEmpty){
+      fctktRepo.filter(x => (x.tktubdrfnum === userId && x.tktcndpurpose === purpose.get)).map {
+        x => x
+      }
+    } else{
+      fctktRepo.filter(x => x.tktubdrfnum === userId).map {
+        x => x
+      }
+   }
+  }
+
+  def updateUserPhone(zdUserId:Long, mob:String):Future[Boolean] = {
+      val user = zd.getUser(zdUserId)
+      user.setPhone(mob)
+      zd.updateUser(user)
+    Future.apply(true)
+  }
+
+  def setUserField(zdUserId:Long, userField:java.util.Map[String,Object]): Future[Boolean] = {
+    val user = zd.getUser(zdUserId)
+    user.setUserFields(userField)
+    zd.updateUser(user)
+    Future.apply(true)
+  }
+
+  def setTktComment(tktId:Long, comment: Comment): Future[Boolean] = {
+    val zdTicket  = zd.getTicket(tktId)
+    zdTicket.setComment(comment)
+    zd.updateTicket(zdTicket)
+    Future.apply(true)
+  }
+
+  def postOrderUpdate(orderModel: OrderModel) = {
+
+  }
+
+}

@@ -1,0 +1,8 @@
+<form action="/solr/upload" method="post" enctype="multipart/form-data">
+    <input type="file" name="excel">
+    <p>
+        <input type="submit">
+    </p>
+</form>
+
+

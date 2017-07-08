@@ -1,0 +1,11 @@
+<component name="libraryTable">
+  <library name="SBT: com.twilio.sdk:twilio:7.4.0:jar">
+    <CLASSES>
+      <root url="jar://$USER_HOME$/.ivy2/cache/com.twilio.sdk/twilio/jars/twilio-7.4.0.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES>
+      <root url="jar://$USER_HOME$/.ivy2/cache/com.twilio.sdk/twilio/srcs/twilio-7.4.0-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>

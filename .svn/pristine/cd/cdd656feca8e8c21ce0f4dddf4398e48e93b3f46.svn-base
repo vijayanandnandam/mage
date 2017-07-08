@@ -1,0 +1,5 @@
+
+
+POST    /getRedeemSuggestion                            controllers.OrderController.getRedeemSuggestion
+
+POST    /getFundObjOfHoldingFund                        controllers.OrderController.getFundObjOfHoldingFund

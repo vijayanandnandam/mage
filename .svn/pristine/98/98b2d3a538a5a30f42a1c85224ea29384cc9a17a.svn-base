@@ -1,0 +1,15 @@
+birla.irdetails.url = "https://mfsecuat.birlasunlife.com/LRedeemService.svc/GetIRDetailsForFolio"
+birla.redemption.url = "https://mfsecuat.birlasunlife.com/LRedeemService.svc/IRWithdrawalAmount"
+//birla.irdetails.url = "https://mflive.birlasunlife.com/LiquidApp/LRedeemService.svc/GetIRDetailsForFolio"
+//birla.redemption.url = "https:/mflive.birlasunlife.com/LiquidApp/LRedeemService.svc/IRWithdrawalAmount"
+
+birla.account.userid = "ARN-112358"
+birla.account.password = "MTEyMzU4"
+birla.client.ip = "122.169.113.199"
+//Live
+//birla.account.apikey = "89656c94-98d6-398e-811f-29896b98f2a3" //365 days
+//UAT
+birla.account.apikey = "5332d80c-337f-3437-99c3-2fe7bf7c843d" //365 days
+
+birla.cashplus.schemecode = "153GZ"
+birla.cashplus.IsInstantRedemption = "Y"

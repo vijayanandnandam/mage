@@ -1,0 +1,134 @@
+package service
+
+import javax.inject.Inject
+
+import constants.{DBConstants, IntegrationConstants, OrderConstants}
+import data.model.Tables.FcsotRow
+import models.{CancelSubOrder, FCOrderEntryModel, FCXsipOrderEntryModel, UserLoginObject}
+import models.integration.enumerations.{DPTxnEnum, FirstOrderEnum, TransactionCodeEnum, TransactionModeEnum}
+import org.slf4j.LoggerFactory
+import repository.module.{OrderRepository, PasswordRepository}
+import service.integration.BSEStarOrderEntryServiceImpl
+import utils.DateTimeUtils
+
+import scala.concurrent.{ExecutionContext, Future}
+
+/**
+  * Created by fincash on 31-03-2017.
+  */
+class OrderCancelService @Inject()(implicit ec: ExecutionContext, orderRepository: OrderRepository,
+                                   bseStarOrderEntryService: BSEStarOrderEntryServiceImpl,
+                                   passwordRepository: PasswordRepository) extends DBConstants with IntegrationConstants with OrderConstants {
+
+  val logger, log = LoggerFactory.getLogger(classOf[OrderCancelService])
+
+
+  def isCancellationAllowed(subOrderId: Long, userLoginObject: UserLoginObject): Future[Boolean] = {
+
+    val userPk = userLoginObject.userid.get
+    orderRepository.getSubOrderDetails(subOrderId, userPk).map(subOrderList => {
+      val subOrder = subOrderList.head
+      DateTimeUtils.isOrderCancelAllowed(subOrder.createdate.get)
+    })
+  }
+
+  def cancelOrder(cancelSubOrder: CancelSubOrder, userLoginObject: UserLoginObject): Future[Boolean] = {
+
+    passwordRepository.getBSEPassword(BSE_ORDER_API_PASS_CODE).flatMap(passRow => {
+
+      val expiryTime = passRow._2
+      val isValid = DateTimeUtils.checkBsePassTimeValidity(expiryTime)
+
+      if (isValid) {
+        getInvModeAndCancelOrder(cancelSubOrder, userLoginObject)
+      } else {
+        passwordRepository.updateBSEPassword().flatMap(_ => {
+          getInvModeAndCancelOrder(cancelSubOrder, userLoginObject)
+        })
+      }
+    })
+  }
+
+  def getInvModeAndCancelOrder(cancelSubOrder: CancelSubOrder, userLoginObject: UserLoginObject): Future[Boolean] = {
+
+    val subOrderId = cancelSubOrder.subOrderId
+    val userName = userLoginObject.username.get
+    val userPk = userLoginObject.userid.get
+    orderRepository.getSubOrderDetails(subOrderId, userPk).flatMap(subOrderList => {
+      val subOrder = subOrderList.head
+      if (subOrder.sotinvestmentmode == LUMPSUM_INVESTMENT_MODE) {
+        cancelLumpSumOrder(subOrder, cancelSubOrder, userLoginObject).map(cancelled => {
+          cancelled
+        })
+      } else {
+        cancelSipOrder(subOrder, cancelSubOrder, userLoginObject).map(cancelled => {
+          cancelled
+        })
+      }
+    })
+  }
+
+  def cancelLumpSumOrder(subOrder: FcsotRow, cancelSubOrder: CancelSubOrder, userLoginObject: UserLoginObject): Future[Boolean] = {
+
+    val userName = userLoginObject.username.get
+    orderRepository.getBSESchemeCode(subOrder.sotsoptrfnum).flatMap(bseSchemeCode => {
+      orderRepository.getOrderMasterDetails(subOrder.sotomtrfnum).flatMap(omtRow => {
+
+        val order = omtRow.get
+        val clientCode = userLoginObject.userid.get.toString
+        val dpTransaction = DPTxnEnum.withName(order.omtdptranscn)
+
+        val fcOrderEntry = FCOrderEntryModel("0" + subOrder.id.toString, TransactionCodeEnum.CXL, Some(subOrder.sottrnsctionid1.get.toLong), bseSchemeCode, clientCode,
+          order.omtbuysell, OrderConstants.BUY_SELL_TYPEMAP.getOrElse(subOrder.sotbuyselltype, ""), dpTransaction,
+          Some(subOrder.sotomtrfnum.toString), Some(subOrder.sotorderamount), None, cancelSubOrder.ipaddress, None)
+
+        bseStarOrderEntryService.getOrderEntryParamResponse(fcOrderEntry, userName).map(bseOrderValidateWrapper => {
+
+          val errorList = bseOrderValidateWrapper.errorList
+          if (!errorList.get.isEmpty) {
+            logger.debug("LumpSum Order Not Cancelled in BSE")
+            false
+          } else {
+            logger.debug("LumpSum Order Cancelled successfully in BSE")
+            orderRepository.updateSubOrderState(subOrder.id, subOrder.sotomtrfnum, subOrder.sotostmstaterfnum, ORDER_CANCELLED, userName)
+            true
+          }
+        })
+      })
+    })
+  }
+
+  def cancelSipOrder(subOrder: FcsotRow, cancelSubOrder: CancelSubOrder, userLoginObject: UserLoginObject): Future[Boolean] = {
+
+    val userName = userLoginObject.username.get
+
+    orderRepository.getBSESchemeCode(subOrder.sotsoptrfnum).flatMap(bseSchemeCode => {
+      orderRepository.getOrderMasterDetails(subOrder.sotomtrfnum).flatMap(omtRow => {
+
+        val order = omtRow.get
+        val clientCode = userLoginObject.userid.get.toString
+        val dpTransaction = DPTxnEnum.withName(order.omtdptranscn)
+        val transactionMode = TransactionModeEnum.withName(subOrder.sottype)
+
+        var fcXsipOrderEntry = FCXsipOrderEntryModel("0" + subOrder.id.toString, TransactionCodeEnum.CXL, bseSchemeCode, clientCode,
+          DateTimeUtils.getEstimatedSIPDate(subOrder.sotsipdayofmonth.get),
+          OrderConstants.FREQUENCY_MAP.getOrElse(subOrder.sotsipfrequency.get, ""), transactionMode, dpTransaction, Some(order.id.toString),
+          OrderConstants.ROLLING_FREQUENCY, subOrder.sotorderamount, subOrder.sotsipinstallments.get, None, None,
+          FirstOrderEnum.Y, Some(subOrder.sottrnsctionid2.get.toLong), cancelSubOrder.ipaddress, None)
+
+        bseStarOrderEntryService.getXsipOrderEntryParamResponse(fcXsipOrderEntry, userName).map(bseXsipOrderValidateWrapper => {
+
+          val errorList = bseXsipOrderValidateWrapper.errorList
+          if (!errorList.get.isEmpty) {
+            logger.debug("Sip Order Not Cancelled in BSE")
+            false
+          } else {
+            logger.debug("Sip Order Cancelled successfully in BSE")
+            orderRepository.updateSubOrderState(subOrder.id, subOrder.sotomtrfnum, subOrder.sotostmstaterfnum, ORDER_CANCELLED, userName)
+            true
+          }
+        })
+      })
+    })
+  }
+}

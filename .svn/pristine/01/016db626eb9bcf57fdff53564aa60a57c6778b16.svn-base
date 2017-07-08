@@ -1,0 +1,114 @@
+@import _root_.data.model.Tables._
+
+@(user: FcubdRow, address:UserAddress, userBank:UserBank, userFatca:UserFatca, utils: MailTemplateHelper)
+
+
+<div style="padding:4% 5%;background-color:white; position:relative; background-color:white; border-left:solid 1px #c1bdbd;border-right:solid 1px #c1bdbd;">
+
+    <h3>UserId/BSE-Client-Code: @user.id</h3>
+
+    <h3><b>User Details:</b></h3>
+    <table style="border-collapse: collapse;width:95%; font-size:0.9em; letter-spacing:0; text-align:center;">
+        <thead>
+        <th style="border: 1px solid black;">Email</th>
+        <th style="border: 1px solid black;">Mobile</th>
+        <th style="border: 1px solid black;">PAN</th>
+        <th style="border: 1px solid black;">First Name</th>
+        <th style="border: 1px solid black;">Middle Name</th>
+        <th style="border: 1px solid black;">Last Name</th>
+        <th style="border: 1px solid black;">Gender</th>
+        </thead>
+        <tbody>
+            <tr>
+                <td style="border: 1px solid black;">@user.ubdemailid</td>
+                <td style="border: 1px solid black;">@user.ubdmobileno</td>
+                <td style="border: 1px solid black;">@user.ubdpan</td>
+                <td style="border: 1px solid black;">@user.ubdfirstname</td>
+                <td style="border: 1px solid black;">@user.ubdmiddlename</td>
+                <td style="border: 1px solid black;">@user.ubdlastname</td>
+                <td style="border: 1px solid black;" >@user.ubdgender</td>
+            </tr>
+        </tbody>
+    </table>
+    <h3 style="text-decoration:underline;text-align:center;">Permanent Address</h3>
+       <p>@address.permanentAddress.get.address1, @address.permanentAddress.get.address2</p>
+        <p>
+            <b>Landmark : </b>@address.permanentAddress.get.landmark
+            <b>Pin : </b>@address.permanentAddress.get.pin
+            <b>City : </b>@address.permanentAddress.get.city
+            <b>District :</b>@address.permanentAddress.get.district
+        </p>
+        <p>
+            <b>State</b>:@utils.getcndVal(address.permanentAddress.get.state.get)
+            <b>Country</b>:@utils.getcndVal(address.permanentAddress.get.country.get)
+        </p>
+
+    <h3 style="text-decoration:underline;text-align:center;">Current Address</h3>
+    <p>@address.currentAddress.get.address1, @address.currentAddress.get.address2</p>
+     <p>
+         <b>Landmark : </b>@address.currentAddress.get.landmark
+         <b>Pin : </b>@address.currentAddress.get.pin
+         <b>City : </b>@address.currentAddress.get.city
+         <b>District : </b>@address.currentAddress.get.district
+     </p>
+    <p>
+        <b>State : </b>:@utils.getcndVal(address.currentAddress.get.state.get)
+        <b>Country : </b>@utils.getcndVal(address.currentAddress.get.country.get)
+    </p>
+
+    <h3 style="text-decoration:underline;text-align:center;">Bank Details</h3>
+       <p><b>Holder Name : </b>@userBank.holderName </p>
+       <p>
+           <b>Account Number : </b>@userBank.accountNumber
+           <b>Account Type : </b>@utils.getcndVal(userBank.accountType.get)
+       </p>
+       <p>
+           <b>Bank Name : </b>@userBank.bank.get.bankName
+           <b>IFSC : </b>@userBank.bank.get.IFSC
+       </p>
+        <p><b>Branch : </b>@userBank.bank.get.branch</p>
+        <p><b>District : </b>@userBank.bank.get.district</p>
+        <p><b>State : </b>@userBank.bank.get.state</p>
+
+
+
+    <h3 style="text-decoration:underline;text-align:center;">FATCA Details</h3>
+        <p><b>Income : </b>@utils.getcndVal(userFatca.income.get)</p>
+        <p>
+            <b>Occupation : </b>@utils.getcndVal(userFatca.occupation.get)
+            <b>Source Of Wealth : </b>@utils.getcndVal(userFatca.sourceOfWealth.get)
+        </p>
+        <p>
+            <b>Nationality : </b>@utils.getcndVal(userFatca.nationality.get)
+            <b>Birth Country : </b>@utils.getcndVal(userFatca.birthCountry.get)
+            <b>Birth City : </b>@userFatca.birthCity
+        </p>
+        <p>
+            <b>Politically Exposed : </b>@userFatca.politicallyExposed
+            <b>Politically Related : </b>@userFatca.politicallyRelated
+        </p>
+
+
+    <p>Please find the screen shot of user's uploaded details attached along with this email.</p>
+
+
+    <pre>Note:</pre> To activate the user post verification, please click on the following link.
+
+    <div style="text-align:center">
+        <a href="@utils.userActivationLink(user.id)" style="text-decoration:none">
+            <div  style="padding:0.5% 0.5%; color:white; background-color:#53ADD0; min-width:25%; margin:auto;text-align:center; color:white; font-size:1.1em; font-weight:bold; display:inline-block">
+                Activate User
+            </div>
+        </a>
+    </div>
+
+    @utils.userActivationLink(user.id)<br/>
+
+    @contact()
+
+    <p style="position:absolute; bottom:2%;">
+        With Warm Regards,<br>
+        Team Fincash</p>
+</div>
+
+@products(utils.getBaseUrl(), utils.getImagePath())

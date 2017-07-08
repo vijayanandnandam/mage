@@ -1,0 +1,30 @@
+@import _root_.data.model.Tables._
+
+@(user: FcubdRow, orders :OrderDetails, utils: MailTemplateHelper ,baseURL:String = "https://uat.fincash.com:81")
+
+
+    Dear @if(user.ubdfirstname){ @user.ubdfirstname} else{Investor},
+
+    Thank you for choosing Fincash!
+
+    This is a confirmation mail that your request for purchase with Order ID - @orders.orderId
+    in the below mentioned scheme/s as placed on @utils.parseDate(orders.createDate,"yyyy/MM/dd HH:mm:ss","dd MMM yy hh:mm a")is initiated.
+    @for(order <- orders.subOrderDetails) {
+        id -> @orders.orderId/@order.subOrderId
+        Transaction Type -> @order.investmentMode ( status : @order.stateName )
+        Scheme Name-Plan-Option -> @order.schemeName - @order.schemePlan - @order.schemeOption
+        @if(order.investmentMode=="SIP" ||  order.investmentMode=="sip"){Amount(in Rs.) ->  @utils.parse(order.amount.get)  freq - @order.sipFrequency | Instalments - @order.sipNoOfInstallments} else{Amount(in Rs.) -> @utils.parse(order.amount.get)}
+        Status -> @order.stateName
+            --------
+        }
+    You can check the unit allotment details after the settlement period
+    (usually 1-3 days) by login(@utils.getBaseUrl()/auth/login) into your Fincash account.
+
+    Please find the screen shot of your order summary attached along with this email.
+
+    @contactTxt()
+
+    Please visit our RESOURCE CENTRE ("@utils.getBaseUrl()/b/") to know about Mutual Fund Investments and other investment products.
+
+    With Warm Regards,
+    Team Fincash

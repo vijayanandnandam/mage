@@ -1,0 +1,127 @@
+package controllers
+
+import javax.inject.Inject
+
+import constants.BaseConstants
+import helpers.MailHelper
+import org.slf4j.LoggerFactory
+import play.Configuration
+import play.api.libs.json.Json
+import play.api.libs.ws.WSClient
+import play.api.mvc.{Action, Controller}
+import play.mvc.Security.AuthenticatedAction
+import repository.module.UserRepository
+import repository.tables.FcubdRepo
+import service._
+
+import scala.concurrent.{ExecutionContext, Future}
+
+
+class PasswordController @Inject()(implicit ec: ExecutionContext, auth: AuthenticatedAction, implicit val ws: WSClient, attachService: AttachmentService, mailService: MailService, config: Configuration, userService: UserService,
+                                    userRepository: UserRepository, mailHelper: MailHelper, fcubdRepo: FcubdRepo, configuration: play.api.Configuration)
+  extends Controller with BaseConstants {
+
+  val logger, log = LoggerFactory.getLogger(classOf[PasswordController])
+
+
+  val staticImagePath = configuration.underlying.getString("mail.url.staticImagePath")
+  val baseUrl = configuration.underlying.getString("mail.url.baseurl")
+  val resetPassUrl = baseUrl+PropertiesLoaderService.getConfig().getString("url.resetPasswordRelPath")
+  val subj = PropertiesLoaderService.getConfig().getString("mail.password-reset.default.subject")
+
+  def sendPasswordMail = Action.async(parse.json) { request =>
+    val requestData = request.body
+    val email = (requestData \ "email").as[String]
+
+    val pass = mailHelper.generatePassword()
+    val subj = "Account password"
+    val mailHeaderTemplate = views.html.mailHeader("Account Password", mailHelper.getMth)
+    val mailBodyTemplate = views.html.password("Investor", pass, mailHelper.getMth)
+    val mailTemplate = views.html.mail(mailHeaderTemplate, mailBodyTemplate, mailHelper.getMth)
+
+    val bodyHTML = mailTemplate.toString()
+    val bodyText = "Dummy to be added later"
+    mailService.sendMail(email, subj, bodyText, bodyHTML).map(_messageid => {
+      logger.debug("Message id >>> " + _messageid);
+    })
+    Future.apply(Ok(Json.obj("mailSent" -> "true")))
+  }
+  def sendPassResetMail = Action.async(parse.json) { request =>
+    val requestData = request.body
+    val email = (requestData \ "email").as[String]
+
+    //check if user exists
+    userRepository.checkUser(email).flatMap(userStatus => {
+      val token = mailHelper.generateLink(email)
+      if (userStatus) {
+        userRepository.getUserIdByUsername(email).flatMap { userid => {
+          fcubdRepo.getById(userid).flatMap(ubdRowOption => {
+            if (ubdRowOption.nonEmpty) {
+              val ubdRow = ubdRowOption.get
+              /*mail template building*/
+              val mailHeaderTemplate = views.html.mailHeader("Password Assistance", mailHelper.getMth)
+              val link = resetPassUrl + token
+              val mailBodyTemplate = views.html.resetPassword(ubdRow, link, mailHelper.getMth)
+              val mailTemplate = views.html.mail(mailHeaderTemplate, mailBodyTemplate, mailHelper.getMth)
+              val bodyHTML = mailTemplate.toString()
+              val bodyText = views.html.resetPasswordTxt(ubdRow, link).toString()
+              userRepository.saveMailLink(userid, token, PASS_RESET_MAIL_VALID_TIME, "N", email).map(retval => {
+                mailService.sendMail(email, subj, bodyText, bodyHTML).map(_messageid => {
+                  logger.debug("Message id >>> " + _messageid);
+                })
+                Ok(Json.obj("exists" -> userStatus, "token" -> token))
+              })
+            } else {
+              Future.apply(Ok(Json.obj("exists" -> false, "token" -> token)))
+            }
+          })
+        }
+        }
+      } else {
+        Future.apply(Ok(Json.obj("exists" -> userStatus, "token" -> "None")))
+      }
+    })
+  }
+
+
+  def getMailKeyValidity = Action.async(parse.json) { request =>
+
+    val requestData = request.body
+    val actCode = (requestData \ "key").as[String]
+
+    userRepository.verifyActivationCode(actCode).flatMap { retValTuple => {
+      if (retValTuple.nonEmpty) {
+        val realTuple = retValTuple.get
+        val userid = realTuple._1
+        val uactRfnum = realTuple._2
+        userRepository.getUsernameByUserid(userid).map { username => {
+          Ok(Json.obj("success" -> true, "username" -> username))
+        }
+        }
+      } else {
+        Future {
+          Ok(Json.obj("success" -> false))
+        }
+      }
+    }
+    }
+  }
+
+
+  def resetPassword = Action.async(parse.json) { request => {
+
+    val requestData = request.body
+    val password = (requestData \ "password").as[String]
+    val key = (requestData \ "key").as[String]
+
+    if (key.nonEmpty && key.length > 0) {
+      userRepository.updatePassword(key, password).map(retval => {
+        Ok(Json.obj("success" -> retval, "message" -> "Password changed successfully"))
+      })
+    } else {
+      Future.apply(Ok(Json.obj("success" -> false, "message" -> "Something is missing")))
+    }
+
+  }
+  }
+}

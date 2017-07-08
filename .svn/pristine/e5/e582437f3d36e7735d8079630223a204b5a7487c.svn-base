@@ -1,0 +1,202 @@
+package controllers
+
+import javax.inject.Inject
+
+import constants.{MongoConstants, UserConstants}
+import org.slf4j.LoggerFactory
+import pdi.jwt.{JwtAlgorithm, JwtClaim, JwtJson}
+import play.api.libs.json.Json
+import play.api.mvc.Controller
+import reactivemongo.api.commands.{UpdateWriteResult, WriteResult}
+import reactivemongo.bson.{BSONDocument, BSONObjectID}
+import reactivemongo.core.errors.DatabaseException
+import repository.module.UserRepository
+import service.MongoDbService
+
+import scala.concurrent.{ExecutionContext, Future}
+import scala.util.{Failure, Success};
+
+
+class JWTController @Inject()(implicit ec: ExecutionContext,mongoDbService: MongoDbService, userRepository: UserRepository) extends Controller with UserConstants with MongoConstants{
+
+  val logger , log = LoggerFactory.getLogger(classOf[JWTController])
+  def collection(name: String) =  mongoDbService.collection(name)
+
+  def createUserToken(name: String): Future[String] = {
+
+    var userid = 0
+    var username = name
+    if (name.isEmpty()) {
+      username = "Anonymous" + BSONObjectID.generate.stringify
+    }
+
+    val key = BSONObjectID.generate.stringify
+    val algo = JwtAlgorithm.HS256;
+    val data = Json.obj(("username", username))
+    val claim = JwtClaim(data.toString()).issuedNow.expiresIn(TOKEN_TIMEOUT)
+    val id_token = JwtJson.encode(claim, key, algo)
+    val tokenExpireTime = System.currentTimeMillis + TOKEN_TIMEOUT
+//    userRepository.getUserIdByUsername(username)
+    val tokenDoc = BSONDocument(
+      "token" -> id_token,
+      "username" -> username,
+      "key" -> key,
+      "foliocount" -> 0,
+      "algo" -> algo.toString,
+      "expiry" -> tokenExpireTime)
+    collection(TOKEN_COLLECTION_NAME).flatMap { coll =>
+      val writeRes : Future[WriteResult] = mongoDbService.insertDoc(coll, tokenDoc)
+      writeRes.onComplete{
+        case Failure(e) => {
+          logger.error("Mongo Error :: " + e.getMessage)
+        }
+        case Success(writeResult) =>{
+          logger.debug("successfully inserted document with result: $writeResult")
+        }
+      }
+      writeRes.map(_ => {
+        id_token
+      })
+    }
+  }
+
+  def createRefreshToken(token: String): Future[Future[String]] = {
+    var selector = BSONDocument("token" -> token)
+    collection(TOKEN_COLLECTION_NAME).flatMap { coll =>
+      coll.find(selector)
+        .one[BSONDocument].map { doc =>
+        if (doc.nonEmpty){
+          val username = doc.get.getAs[String]("username").getOrElse("Anonymous" + BSONObjectID.generate.stringify)
+          var userid = doc.get.getAs[Long]("userid").getOrElse(0L)
+          val key = doc.get.getAs[String]("key").getOrElse(BSONObjectID.generate.stringify)
+          var folioCount = doc.get.getAs[Long]("foliocount").getOrElse(0L)
+          val algo = JwtAlgorithm.HS256;
+          val data = Json.obj(("username", username))
+          val claim = JwtClaim(data.toString()).issuedNow.expiresIn(TOKEN_TIMEOUT)
+          val id_token = JwtJson.encode(claim, key, algo)
+          val tokenExpireTime = System.currentTimeMillis + TOKEN_TIMEOUT
+
+          val tokenDoc = BSONDocument(
+            "token" -> id_token,
+            "username" -> username,
+            "userid" -> userid,
+            "key" -> key,
+            "foliocount" -> folioCount,
+            "algo" -> algo.toString,
+            "expiry" -> tokenExpireTime)
+
+          val writeRes : Future[UpdateWriteResult] = mongoDbService.updateDoc(coll, selector, tokenDoc)
+          writeRes.onComplete{
+            case Failure(e) => {
+              logger.error("Mongo Error :: " + e.getMessage)
+            }
+            case Success(writeResult) =>{
+              logger.debug("successfully inserted document with result: $writeResult")
+            }
+          }
+          val a = writeRes.map(_ =>{
+            id_token
+          })
+          a
+        }
+        else {
+          Future.apply("")
+        }
+      }
+    }.recover {
+      case dex: DatabaseException => throw dex
+      case e: Throwable => throw e
+    }
+  }
+
+  def isTokenValid(token: String): Future[Boolean] = {
+
+    val findquery = BSONDocument("token" -> token);
+    collection(TOKEN_COLLECTION_NAME).flatMap { coll =>
+      coll.find(findquery)
+        .one[BSONDocument].map { doc =>
+
+        if(doc.isEmpty){
+          true
+        } else{
+          val key = doc.get.getAs[String]("key").get;
+          val algo = doc.get.getAs[String]("algo").get
+          val username = doc.get.getAs[String]("username").get
+          JwtJson.isValid(token, key, JwtAlgorithm.allHmac())
+        }
+
+      }
+    }.recover {
+      case dex: DatabaseException => throw dex
+      case e: Throwable => throw e
+    }
+  }
+
+  def isTokenExpired(token: String): Future[Boolean] = {
+    val findquery = BSONDocument("token" -> token);
+    collection(TOKEN_COLLECTION_NAME).flatMap { coll =>
+      coll.find(findquery)
+        .one[BSONDocument].map { doc =>
+        logger.debug("DOC is " + doc)
+        if(doc.isEmpty){
+          false
+        }
+        else {
+          val expiryOption = doc.get.getAs[Long]("expiry");
+          if(!expiryOption.isEmpty){
+            val expiry = expiryOption.get
+            expiry < System.currentTimeMillis  // Returns True or false
+          }else{
+           false
+          }
+        }
+
+      }
+    }.recover {
+      case dex: DatabaseException => throw dex
+      case e: Throwable => throw e
+    }
+  }
+
+  def isLoggedInUser(username: String): Boolean = {
+    if (username.contains("Anonymous"))
+      false
+    else
+      true
+  }
+
+  def getUsernameFromToken(token: String): Future[String] = {
+    val findquery = BSONDocument("token" -> token);
+    collection(TOKEN_COLLECTION_NAME).flatMap { coll =>
+      coll.find(findquery)
+        .one[BSONDocument].map { doc =>
+        val username = doc.get.getAs[String]("username").get
+        username
+      }
+    }.recover {
+      case dex: DatabaseException => throw dex
+      case e: Throwable => throw e
+    }
+  }
+
+
+  def createAnonymousToken(): String = {
+    var tokenid = BSONObjectID.generate;
+    val tokenDoc = BSONDocument(
+      "token_id" -> tokenid);
+    collection(TOKEN_COLLECTION_NAME).flatMap { coll => mongoDbService.insertDoc(coll, tokenDoc) };
+
+    createToken(tokenid.toString());
+  }
+
+  def createToken(tokenid: String): String = {
+    val data = Json.obj(("tokenid", tokenid))
+    val claim = JwtClaim(data.toString()).issuedNow.expiresIn(TOKEN_TIMEOUT)
+    val key = "Hiroshima"
+    val algo = JwtAlgorithm.HS256
+    val id_token = JwtJson.encode(claim, key, algo)
+
+    id_token
+  }
+
+}

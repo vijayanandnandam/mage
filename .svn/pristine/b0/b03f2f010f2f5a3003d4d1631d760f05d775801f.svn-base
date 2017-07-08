@@ -1,0 +1,9 @@
+
+POST        /postUserEkycData        controllers.UserController.postUserEkycData
+POST        /socialLogin             controllers.LoginController.socialLogin
+POST        /activateUser            controllers.UserController.activateUser
+POST        /bseRegistration         controllers.UserController.registerInBSE
+
+GET         /getJVMUsage             controllers.Application.getJVMUsage
+
+#POST        /getRedInvbankDetails_V1            controllers.SavingsPlusController.getRedInvbankDetails_V1

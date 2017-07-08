@@ -1,0 +1,332 @@
+package controllers
+
+import org.slf4j.LoggerFactory
+import com.fincash.integration.ws.client.bsestar.ObjectFactory
+import javax.inject.Inject
+
+import helpers.AuthenticatedAction
+import models.integration.BSEJsonFormats._
+import play.api.libs.json.Json
+import play.api.mvc.Action
+import play.api.mvc.Controller
+import service.integration.{BSEClientService, BSEStarOrderEntryServiceImpl, BSEStarUploadServiceImpl, FCService}
+import models._
+import models.integration.enumerations._
+import models.integration._
+import models.integration.enumerations.AllUnitEnum.AllUnitEnum
+import models.integration.enumerations.BuySellEnum.BuySellEnum
+import models.integration.enumerations.FrequencyTypeEnum.FrequencyTypeEnum
+import models.integration.enumerations.FirstOrderEnum
+import models.integration.enumerations.MandateTypeEnum.MandateTypeEnum
+import play.api.Logger
+import repository.module.UserRepository
+import service.UserService
+import utils.RequestUtils
+
+import scala.concurrent.{ExecutionContext, Future}
+
+/**
+  *
+  */
+class BSEStarController @Inject()(implicit ec: ExecutionContext, bseStarOrderEntryService: BSEStarOrderEntryServiceImpl,
+                                  bseUploadService: BSEStarUploadServiceImpl, userService: UserService, userRepository: UserRepository,
+                                  bSEClientService: BSEClientService, auth: AuthenticatedAction) extends Controller {
+
+  val logger , log = LoggerFactory.getLogger(classOf[BSEStarController])
+
+  /**
+    * Gets the Password Response from BSE Web Service
+    */
+  def getPasswordResponse = Action {
+
+    val getBSEPassword = BSEGetPassword("1144102", "123456", "abcde1234")
+
+    val bsePasswordValidateWrapper: BSEPasswordValidateWrapper = bseStarOrderEntryService.getPasswordResponse(getBSEPassword, "123")
+
+    Ok(Json.toJson(bsePasswordValidateWrapper))
+  }
+
+  /**
+    * Gets the Order Entry Response from BSE Web Service
+    */
+  def getOrderEntryParamResponse = Action.async {
+
+    val fcOrderEntry = FCOrderEntryModel("10000", TransactionCodeEnum.NEW, None, "RELLPDR-DP", "FINCASH01", "P", "F",
+      DPTxnEnum.P, None, Some(150000), None, None,None)
+
+    bseStarOrderEntryService.getOrderEntryParamResponse(fcOrderEntry, "test@test.com").map { bseOrderValidateWrapper =>
+      Ok(Json.toJson(bseOrderValidateWrapper))
+    }
+
+
+  }
+
+  def getCAMSOrderEntryParamResponse = Action.async {
+
+    val fcOrderEntry = FCOrderEntryModel("", TransactionCodeEnum.CXL, Some(682872), "02-DP", "FINCASH01", "P", "F",
+      DPTxnEnum.P, None, Some(10000), None, None,None)
+
+    bseStarOrderEntryService.getOrderEntryParamResponse(fcOrderEntry, "test@test.com").map { bseOrderValidateWrapper =>
+      Ok(Json.toJson(bseOrderValidateWrapper))
+    }
+  }
+
+  /**
+    * Gets the SIP Order Entry Response from BSE WEb Service
+    */
+  def getSIPOrderEntryParamResponse = Action.async {
+
+    val fcSipOrderEntry = FCSipOrderEntryModel("", TransactionCodeEnum.NEW, "RMFNFDP-DP-A", "FINCASH01", "20/10/2016", FrequencyTypeEnum.WEEKLY,
+      TransactionModeEnum.P, DPTxnEnum.P, None, 1, 1000, 12, FirstOrderEnum.Y, Some(110349), None)
+
+    bseStarOrderEntryService.getSipOrderEntryParamResponse(fcSipOrderEntry, "test@test.com").map { bseSipOrderValidateWrapper =>
+      Ok(Json.toJson(bseSipOrderValidateWrapper))
+    }
+
+
+  }
+
+  /**
+    * Gets the XSIP Order Entry Response from BSE Web Service
+    */
+  def getXsipOrderEntryParamResponse = Action.async {
+
+    val fcXsipOrderEntry = FCXsipOrderEntryModel("", TransactionCodeEnum.NEW, "RMFNFDP-DP-A", "FINCASH01", "24/11/2016", "MONTHLY",
+      TransactionModeEnum.P, DPTxnEnum.P, None, 1, 100000, 12, Some(112444), None, FirstOrderEnum.Y, None, None,None)
+
+    bseStarOrderEntryService.getXsipOrderEntryParamResponse(fcXsipOrderEntry, "test@test.com").map { bseXsipOrderValidateWrapper =>
+      Ok(Json.toJson(bseXsipOrderValidateWrapper))
+    }
+
+  }
+
+  /**
+    * Gets the Spread Order Entry Response from BSE Web Service
+    */
+  def getSpreadOrderEntryParamResponse = Action.async {
+
+    val fcSpreadOrderEntry = FCSpreadOrderEntryModel("", TransactionCodeEnum.NEW, None, "RELLFTPI-GR-L0", "FINCASH01", BuySellEnum.P, BuySellTypeEnum.FRESH,
+      DPTxnEnum.P, None, 305000, 10, AllUnitEnum.N, "21/11/2016", Some("10.1.0.2"))
+
+    bseStarOrderEntryService.getSpreadOrderEntryParamResponse(fcSpreadOrderEntry, "test@test.com").map { bseSpreadOrderValidateWrapper =>
+      Ok(Json.toJson(bseSpreadOrderValidateWrapper))
+    }
+
+  }
+
+  /**
+    * Gets the Switch Order Entry Response from BSE Web Service
+    */
+  def getSwitchOrderEntryParamResponse = Action.async {
+
+    val fcSwitchOrderEntryParam = FCSwitchOrderEntryModel("", TransactionCodeEnum.CXL, Some(692882), "FINCASH01", "RELLPDR-DP", "CPMP-DP", BuySellEnum.SO,
+      DPTxnEnum.P, BuySellTypeEnum.FRESH,
+      Some(10000), Some(100), AllUnitEnum.N, Some("10.1.0.2"))
+
+    bseStarOrderEntryService.getSwitchOrderEntryParamResponse(fcSwitchOrderEntryParam, "test@test.com").map { bseSwitchOrderValidateWrapper =>
+      Ok(Json.toJson(bseSwitchOrderValidateWrapper))
+    }
+
+  }
+
+  def getPaymentGatewayLink = Action.async {
+
+    bseUploadService.getPaymentGatewayResponse("FINCASH01", "https://www.google.co.in/", "", "test@test.com").map { bseMfApiResponse =>
+
+      Ok(Json.toJson(bseMfApiResponse))
+    }
+
+  }
+
+  def getOrderPaymentStatus = Action.async {
+
+    val clientOrderPaymentStatus = ClientOrderPaymentStatus("FINCASH01", "689812", "BSEMF")
+
+    bseUploadService.getClientOrderPaymentStatus(clientOrderPaymentStatus, "", "test@test.com").map { bseMfApiResponse =>
+
+      Ok(Json.toJson(bseMfApiResponse))
+    }
+
+  }
+
+  def registerSTP = Action.async {
+
+    val fcSTPEntryModel = FCSTPEntryModel("FINCASH01", "AXCNDP-DP", "CPMP-DP", BuySellTypeEnum.FRESH, "19/11/2016",
+      FrequencyTypeEnum.WEEKLY, 12, 10000, TransactionModeEnum.P, None, FirstOrderEnum.N)
+
+    bseUploadService.registerSTP(fcSTPEntryModel, "", "test@test.com").map { bseUploadMfApiResponseValidateWrapper =>
+
+      Ok(Json.toJson(bseUploadMfApiResponseValidateWrapper))
+    }
+
+  }
+
+  def registerSWP = Action.async {
+
+    val fcSWPEntryModel = FCSWPEntryModel("FINCASH01", "CPMP-DP", "27/10/2016",
+      FrequencyTypeEnum.WEEKLY, 12, 10000, None, TransactionModeEnum.P, None, FirstOrderEnum.N)
+
+    bseUploadService.registerSWP(fcSWPEntryModel, "", "test@test.com").map { bseUploadMfApiResponseValidateWrapper =>
+
+      Ok(Json.toJson(bseUploadMfApiResponseValidateWrapper))
+    }
+
+  }
+
+  def generateMandate = Action.async {
+
+    val mandateRegisterModel = XsipMandateRegisterModel("FINCASH01", 1000000, "UTIB0000025", "1234567891011121", MandateTypeEnum.I)
+
+    bseUploadService.registerMandate(mandateRegisterModel, "", "test@test.com").map { bseUploadMfApiResponseValidateWrapper =>
+
+      Ok(Json.toJson(bseUploadMfApiResponseValidateWrapper))
+    }
+
+  }
+
+  def registerClient = auth.Action.async {
+
+    val clientForeignAddDetails = ClientForeignAddDetails()
+
+    val clientAddressDetails = ClientAddressDetails("Plot No - 71,Sector-2", None, None, "DELHI", "DL", "400710", "India",
+      "9874414852", None, None, None, None, "sagar.sharma@fincash.com", "P", "01", clientForeignAddDetails)
+
+    val clientAccountDetails = ClientAccountDetails("SB", "1234567891234567", "", "UTIB0000025", "Y")
+
+    val bSEClientDetailsModel = BSEClientDetailsModel("5", "SI", "01", "02", "Sagar Sharma", None, None, "25/02/1994", "M", "P",
+      clientAccountDetails, clientAddressDetails, None, Some("FQLPS7268N"))
+
+    bseUploadService.updateApiPassword().flatMap(updated => {
+      bseUploadService.getUCCResponse(bSEClientDetailsModel, "", "test@test.com").map { bseUploadMfApiResponseValidateWrapper =>
+
+        Ok(Json.toJson(bseUploadMfApiResponseValidateWrapper))
+      }
+    })
+  }
+
+
+  def BSERegistration = auth.Action.async { request => {
+    userService.getUsernameFromRequest(request).flatMap { username => {
+      logger.debug("Username " + username)
+      /*val username = "naga@naga.com"
+      val userid = 16*/
+      val ipAddress = RequestUtils.getIpAddress(request)
+      userRepository.getUserIdByUsername(username.get).flatMap { userid => {
+        userRepository.getUserBasic(userid).flatMap(userBasic => {
+          userRepository.getUserAddress(userid).flatMap(userAddress => {
+            userRepository.getUserFatca(userid).flatMap(userFatca => {
+              userRepository.getUserBank(userid).flatMap(userBank => {
+                bSEClientService.registerClient(userid, username.get, userBasic, userAddress, userBank, userFatca).flatMap(response => {
+                  if (response) {
+                    val ipAddress = RequestUtils.getIpAddress(request)
+                    bSEClientService.getBSERegistrationStatus(userid).flatMap(isUpdate => {
+                      bSEClientService.uploadFatca(ipAddress, isUpdate, userid, username.get, userBasic, userAddress, userFatca).map(resFatca => {
+                        Ok(Json.obj("success" -> response, "fatcasuccess" -> resFatca))
+                      })
+                    })
+                  }
+                  else {
+                    Future.apply(Ok(Json.obj("success" -> response, "fatcasuccess" -> false)))
+                  }
+                })
+                /* bSEClientService.uploadFatca(ipAddress,false,userid, username, userBasic, userAddress, userBank, userFatca).map(response=>{
+                   Ok(Json.obj("success" -> response))
+                 })*/
+              })
+            })
+          })
+        })
+      }
+      }
+    }
+    }
+  }
+  }
+
+  def BSERegisterFatca = auth.Action.async { request => {
+    val ipAddress = RequestUtils.getIpAddress(request)
+    //    val isUpdate = false; //bSEClientService.getBSERegistrationStatus(userid)// Call from FCEUBD
+    userService.getUsernameFromRequest(request).flatMap(username => {
+      userRepository.getUserIdByUsername(username.get).flatMap(userid => {
+        bSEClientService.getBSERegistrationStatus(userid).flatMap(isUpdate => {
+          userRepository.getUserFatca(userid).flatMap(userFatca => {
+            userRepository.getUserAddress(userid).flatMap(userAddress => {
+              userRepository.getUserBasic(userid).flatMap(userBasic => {
+                bSEClientService.uploadFatca(ipAddress, isUpdate, userid, username.get, userBasic, userAddress, userFatca).map(response => {
+                  Ok(Json.obj("success" -> response))
+                })
+              })
+            })
+          })
+        })
+      })
+    })
+  }
+  }
+
+  def checkBseAndFatcaStatus = auth.Action.async { request => {
+    val ipAddress = RequestUtils.getIpAddress(request)
+    var bseAndFatcaRegistered = false
+    userService.getUsernameFromRequest(request).flatMap(username => {
+      userRepository.getUserIdByUsername(username.get).flatMap(userid => {
+        bSEClientService.getBSERegistrationStatus(userid).flatMap(isBseDone => {
+          if (isBseDone){
+            bSEClientService.getBSEFatcaStatus(userid).flatMap(isBseFatcaDone => {
+              if (isBseFatcaDone){
+                Future.apply(Ok(Json.obj("bseclient" -> true, "bsefatca" -> true, "msg" -> "all is well")))
+              }
+              else {
+                userRepository.getUserFatca(userid).flatMap(userFatca => {
+                  userRepository.getUserAddress(userid).flatMap(userAddress => {
+                    userRepository.getUserBasic(userid).flatMap(userBasic => {
+                      bSEClientService.uploadFatca(ipAddress, isBseDone, userid, username.get, userBasic, userAddress, userFatca).map(response => {
+                        Ok(Json.obj("bseclient" -> true, "bsefatca" -> response, "msg" -> "hope all is well"))
+                      })
+                    })
+                  })
+                })
+              }
+            })
+          }
+          else {
+            userRepository.getUserBasic(userid).flatMap(userBasic => {
+              userRepository.getUserAddress(userid).flatMap(userAddress => {
+                userRepository.getUserFatca(userid).flatMap(userFatca => {
+                  userRepository.getUserBank(userid).flatMap(userBank => {
+                    bSEClientService.registerClient(userid, username.get, userBasic, userAddress, userBank, userFatca).flatMap(response => {
+                      if (response) {
+                        val ipAddress = RequestUtils.getIpAddress(request)
+                        bSEClientService.getBSERegistrationStatus(userid).flatMap(isUpdate => {
+                          bSEClientService.uploadFatca(ipAddress, isUpdate, userid, username.get, userBasic, userAddress, userFatca).map(resFatca => {
+                            Ok(Json.obj("bseclient" -> true, "bsefatca" -> resFatca, "msg" -> "hope all is well"))
+                          })
+                        })
+                      }
+                      else {
+                        Future.apply(Ok(Json.obj("bseclient" -> false, "bsefatca" -> false, "msg" -> "this sucks")))
+                      }
+                    })
+                    /* bSEClientService.uploadFatca(ipAddress,false,userid, username, userBasic, userAddress, userBank, userFatca).map(response=>{
+                       Ok(Json.obj("success" -> response))
+                     })*/
+                  })
+                })
+              })
+            })
+          }
+        })
+      })
+    })
+  }}
+
+  def checkBseStatus = auth.Action.async{ request => {
+    var bseAndFatcaRegistered = false
+    userService.getUsernameFromRequest(request).flatMap(username => {
+      userRepository.getUserIdByUsername(username.get).flatMap(userid => {
+        bSEClientService.getBSERegistrationStatus(userid).map(isBseDone => {
+          Ok(Json.obj("bseclient" -> isBseDone))
+        })
+      })
+    })
+  }}
+}

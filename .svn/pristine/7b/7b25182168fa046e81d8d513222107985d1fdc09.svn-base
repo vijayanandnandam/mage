@@ -1,0 +1,596 @@
+package helpers
+
+import java.util.{Calendar, Date}
+import javax.inject.Inject
+
+import constants.{DBConstants, DateConstants, InvestmentConstants, OrderConstants}
+import data.model.Tables.{FcbsufRow, FcomtRow, FcsmtRow, FcsoctRow, FcsoptRow, FcsotRow}
+import models._
+import org.slf4j.LoggerFactory
+import repository.module.{BankRepository, OrderRepository, SchemeRepository}
+import service.ZendeskService
+import service.integration.BSEHelper
+import utils.DateTimeUtils
+
+import scala.collection.mutable
+import scala.collection.mutable.ListBuffer
+import scala.concurrent.{ExecutionContext, Future}
+
+/**
+  * Created by fincash on 17-02-2017.
+  */
+class OrderHelper @Inject()(implicit ec: ExecutionContext, orderRepository: OrderRepository,
+                            schemeRepository: SchemeRepository, marketHelper: MarketHelper, bankRepository: BankRepository,
+                            bSEHelper: BSEHelper, schemeHelper: SchemeHelper, zendeskService: ZendeskService) extends DBConstants with DateConstants with OrderConstants {
+  val logger, log = LoggerFactory.getLogger(classOf[OrderHelper])
+
+
+  /**
+    *
+    * @param orderModel
+    * @return
+    */
+  def filterBSESchemes(orderModel: OrderModel): Future[List[SubOrder]] = {
+
+    logger.info("Filtering for BSE Schemes")
+    Future.sequence(for (subOrder <- orderModel.subOrders) yield {
+      orderRepository.getBSESchemeCode(subOrder.buySchemeOptionRfnum).flatMap(bseSchemeCode => {
+        bSEHelper.getSchemeSuffix(subOrder, orderModel.orderType).map(suffixTuple => {
+          val schemeSuffix = suffixTuple._1
+          val bsufRow = suffixTuple._2
+        val validBseSchemeCode = bseSchemeCode.trim + schemeSuffix.trim
+        if (validBseSchemeCode.length > 0) {
+          val subOrderSchemeCodeModel = subOrder.copy(bseSchemeCode = Some(validBseSchemeCode))
+          if(schemeSuffix.trim.length > 0){
+            setSchemeSuffixDetails(subOrderSchemeCodeModel,bsufRow.get)
+          } else{
+            subOrderSchemeCodeModel
+          }
+        } else {
+          logger.error("BSE Scheme code for soptrfnum " + subOrder.buySchemeOptionRfnum + " doesn't exist")
+          subOrder
+        }
+        })
+      })
+    })
+  }
+
+  /**
+    *
+    * @param subOrder
+    * @param bsufRow
+    * @return
+    */
+  def setSchemeSuffixDetails(subOrder:SubOrder, bsufRow: FcbsufRow): SubOrder = {
+
+    var additionalDetails = subOrder.additionalDetails
+    var isLOne:Option[Boolean] = None
+    var isLZero:Option[Boolean] = None
+    val lOneLZeroDetails = Some(getLOneLZeroDetailsObj(bsufRow))
+
+    if(isLOneOrder(bsufRow)){
+      isLOne = Some(true)
+    } else if(isLZeroOrder(bsufRow)){
+      isLZero = Some(true)
+    }
+
+    if(additionalDetails.nonEmpty){
+      additionalDetails = Some(additionalDetails.get.copy(lOneLZeroDetails = lOneLZeroDetails, isLOne = isLOne, isLZero = isLZero))
+    } else{
+      additionalDetails = Some(SubOrderAdditionalDetails(lOneLZeroDetails = lOneLZeroDetails, isLOne = isLOne, isLZero = isLZero))
+    }
+
+    subOrder.copy(additionalDetails = additionalDetails)
+  }
+
+  /**
+    *
+    * @param bsufRow
+    * @return
+    */
+  def isLZeroOrder(bsufRow: FcbsufRow): Boolean = {
+    val suffixCode = bsufRow.bsufsuffixcode
+    suffixCode.trim.indexOf(L_ZERO_ORDER) > -1
+  }
+
+  /**
+    *
+    * @param bsufRow
+    * @return
+    */
+  def isLOneOrder(bsufRow: FcbsufRow): Boolean = {
+    val suffixCode = bsufRow.bsufsuffixcode
+    suffixCode.trim.indexOf(L_ONE_ORDER) > -1
+  }
+
+  /**
+    *
+    * @param bsufRow
+    * @return
+    */
+  def getLOneLZeroDetailsObj(bsufRow: FcbsufRow):LOneLZeroDetails ={
+    val cutOffTime = bsufRow.bsufbsecutofftime.get.toString
+    val fundsCutOffTime = bsufRow.bsufbsefundscutoff.get.toString
+
+    LOneLZeroDetails(cutOffTime,fundsCutOffTime)
+  }
+
+  /**
+    *
+    * @param sotrfnum
+    * @return
+    */
+  def isOrderCancelAllowed(sotrfnum: Long): Future[Boolean] = {
+
+    orderRepository.getSubOrderCancelCutOff(sotrfnum).map(cancelCutOffTime => {
+
+      if (!cancelCutOffTime.isEmpty) {
+        val orderCancelCutOffTime = DateTimeUtils.convertDateToFormat(cancelCutOffTime, ORDER_CUT_OFF_DATE_FORMAT)
+        !new Date().after(orderCancelCutOffTime.get)
+      } else {
+        false
+      }
+    })
+  }
+
+  /**
+    *
+    * @param orderTime
+    * @param category
+    * @param bseCutOff
+    * @return
+    */
+  def getOrderCancelCutOffTime(orderTime: java.sql.Timestamp, category: String, bseCutOff: String): Future[Date] = {
+
+    val orderPlacedTime = Calendar.getInstance()
+    orderPlacedTime.setTime(new Date(orderTime.getTime))
+
+    val orderProcessCutOffTime = Calendar.getInstance()
+    orderProcessCutOffTime.setTimeInMillis(orderTime.getTime)
+    val cutOffTimeArray = bseCutOff.split(':')
+    orderProcessCutOffTime.set(Calendar.HOUR_OF_DAY, cutOffTimeArray(0).toInt)
+    orderProcessCutOffTime.set(Calendar.MINUTE, cutOffTimeArray(1).toInt)
+    orderProcessCutOffTime.set(Calendar.SECOND, cutOffTimeArray(2).toInt)
+
+    getBSEOrderProcessLimit(orderProcessCutOffTime, category).flatMap(bseOrderProcessLimit => {
+      if (orderPlacedTime.getTime.after(bseOrderProcessLimit.getTime)) {
+        bseOrderProcessLimit.add(Calendar.DAY_OF_MONTH, 1)
+        getBSEOrderProcessLimit(bseOrderProcessLimit, category).map(orderCancelCutOff => {
+          orderCancelCutOff.getTime
+        })
+      } else {
+        Future {
+          bseOrderProcessLimit.getTime
+        }
+      }
+    })
+  }
+
+  /**
+    *
+    * @param orderProcessCutOffTime
+    * @param category
+    * @return
+    */
+  def getBSEOrderProcessLimit(orderProcessCutOffTime: Calendar, category: String): Future[Calendar] = {
+    val day = orderProcessCutOffTime.get(Calendar.DAY_OF_WEEK)
+    if (day == SUNDAY || day == SATURDAY) {
+      orderProcessCutOffTime.add(Calendar.DAY_OF_MONTH, 1)
+      getBSEOrderProcessLimit(orderProcessCutOffTime, category)
+    }
+    val orderDate = DateTimeUtils.convertCalendarToSqlDate(orderProcessCutOffTime)
+    orderRepository.isMarketSegmentHoliday(orderDate, category).flatMap(isHoliday => {
+      if (isHoliday) {
+        orderProcessCutOffTime.add(Calendar.DAY_OF_MONTH, 1)
+        getBSEOrderProcessLimit(orderProcessCutOffTime, category)
+      } else {
+        Future {
+          orderProcessCutOffTime
+        }
+      }
+    })
+
+  }
+
+  /**
+    *
+    * @param subOrderList
+    * @return
+    */
+  def getSubOrdersCategory(subOrderList: List[FcsotRow]): Future[mutable.HashMap[Long, String]] = {
+
+    val soptIdList = ListBuffer[Long]()
+    val subOrderCategoryMap: mutable.HashMap[Long, String] = mutable.HashMap[Long, String]()
+    subOrderList.foreach(subOrder => {
+      soptIdList.+=(subOrder.sotsoptrfnum)
+    })
+
+    getSchemeOptionsCategory(soptIdList).map(soptCategoryMap => {
+      for (subOrder <- subOrderList) {
+        subOrderCategoryMap.+=((subOrder.id, soptCategoryMap.get(subOrder.sotsoptrfnum).get))
+      }
+      subOrderCategoryMap
+    })
+
+  }
+
+  /**
+    *
+    * @param soptIdList
+    * @return
+    */
+  def getSchemeOptionsCategory(soptIdList: ListBuffer[Long]): Future[mutable.HashMap[Long, String]] = {
+
+    val soptCategoryMap: mutable.HashMap[Long, String] = mutable.HashMap[Long, String]()
+
+    schemeRepository.getParentCategoryMap().flatMap(categoryMap => {
+      schemeRepository.getSchemeOptionsByIdList(soptIdList.toList).flatMap(soptRowSeq => {
+        val smtIdList = ListBuffer[Long]()
+        val soptMap = mutable.HashMap[Long, FcsoptRow]()
+        soptRowSeq.foreach(soptRow => {
+          smtIdList.+=(soptRow.soptsmtrfnum)
+          soptMap.+=(soptRow.id -> soptRow)
+        })
+        schemeRepository.getSchemesByIdList(smtIdList.toList).map(smtRowSeq => {
+          val smtMap = mutable.HashMap[Long, FcsmtRow]()
+          smtRowSeq.foreach(smtRow => {
+            smtMap.+=(smtRow.id -> smtRow)
+          })
+          for (soptId <- soptIdList) {
+            val smtRow = smtMap.get(soptMap.get(soptId).get.soptsmtrfnum).get
+            soptCategoryMap.+=((soptId, categoryMap.get(smtRow.smtctmtrfnum).get))
+          }
+          soptCategoryMap
+        })
+      })
+    })
+  }
+
+  /**
+    *
+    * @param subOrderList
+    * @param soptCategoryMap
+    * @return
+    */
+  def getApproxAllotmentDate(subOrderList: List[SubOrder], soptCategoryMap: mutable.HashMap[Long, String]): Future[mutable.HashMap[Int, String]] = {
+
+    val zippedSubOrderList = subOrderList.zipWithIndex
+    val subOrderAllotmentMap = mutable.HashMap[Int, String]()
+
+    //orderRepository.getBSECutOff(BSE_STD_CUTOFF_KEY).flatMap(bseCutOff => {
+
+      Future.sequence(for (subOrderTuple <- zippedSubOrderList) yield {
+
+        val subOrder = subOrderTuple._1
+        val todayTime = DateTimeUtils.getCurrentTimeStamp
+        orderRepository.getSchemeBSECutOff(subOrder.buySchemeOptionRfnum).flatMap(bseCutOff =>{
+
+          schemeRepository.getSchemeByOptionId(subOrder.buySchemeOptionRfnum).flatMap(smtRow => {
+            val category = soptCategoryMap.get(subOrder.buySchemeOptionRfnum).get
+            getOrderCancelCutOffTime(todayTime, category, bseCutOff).flatMap(tradeDate => {
+
+              val tradeDateCal = Calendar.getInstance()
+              tradeDateCal.setTime(tradeDate)
+              marketHelper.getNextNthWorkingDay(tradeDateCal, category, smtRow.smtunitallotmentperiod.getOrElse(1)).map(tradeDate => {
+                val index = subOrderTuple._2
+                val allotmentDate = DateTimeUtils.convertDateToFormat(tradeDate.getTime, YYYYMMDD)
+                (index, allotmentDate)
+              })
+            })
+          })
+        })
+      }).map(allotmentTupleList => {
+        allotmentTupleList.foreach(allotmentTuple => {
+          subOrderAllotmentMap.+=(allotmentTuple._1 -> allotmentTuple._2)
+        })
+        subOrderAllotmentMap
+      })
+    //})
+  }
+
+  /**
+    *
+    * @param orderModel
+    * @param subOrderList
+    * @param soptCategoryMap
+    * @return
+    */
+  def getOrderPaymentCutOff(orderModel: OrderModel, subOrderList: List[SubOrder], soptCategoryMap: mutable.HashMap[Long, String]): Future[mutable.HashMap[Int, String]] = {
+    val zippedSubOrderList = subOrderList.zipWithIndex
+    val subOrderPaymentMap = mutable.HashMap[Int, String]()
+
+    if (orderModel.orderType == BUYSELL_SELL) {
+      return Future.apply(subOrderPaymentMap)
+    }
+
+    (for {
+      paymentLastOrderCutOff <- orderRepository.getBSECutOff(BSE_PAY_START_CUTOFF_KEY)
+      paymentCutOff <- orderRepository.getBSECutOff(BSE_PAY_CUTOFF_KEY)
+    } yield {
+
+      Future.sequence(for (subOrderTuple <- zippedSubOrderList) yield {
+        val subOrder = subOrderTuple._1
+        val todayTime = Calendar.getInstance()
+        calculateLastPaymentDate(todayTime, soptCategoryMap.get(subOrder.buySchemeOptionRfnum).get, paymentLastOrderCutOff).map(lastPayDate => {
+          val orderPayCutOff = setPaymentCutOff(lastPayDate, paymentCutOff)
+          val orderPayCutOffString = DateTimeUtils.convertDateToFormat(orderPayCutOff.getTime, ORDER_CUT_OFF_DATE_FORMAT)
+          (subOrderTuple._2, orderPayCutOffString)
+        })
+      }).map(paymentCutOffTupleList => {
+        paymentCutOffTupleList.foreach(paymentCutOffTuple => {
+
+          subOrderPaymentMap.+=(paymentCutOffTuple._1 -> paymentCutOffTuple._2)
+        })
+        subOrderPaymentMap
+      })
+    }).flatMap(value => value)
+
+  }
+
+  /**
+    *
+    * @param orderTime
+    * @param category
+    * @param paymentLastOrderCutOff
+    * @return
+    */
+  def calculateLastPaymentDate(orderTime: Calendar, category: String, paymentLastOrderCutOff: String): Future[Calendar] = {
+
+    marketHelper.isWorkingHoliday(orderTime, category).flatMap(isHoliday => {
+      if (isHoliday) {
+        marketHelper.getNextNthWorkingDay(orderTime, category, 2)
+      } else {
+        val paymentCutOffCal = Calendar.getInstance()
+        val cutOffTimeArray = paymentLastOrderCutOff.split(':')
+        paymentCutOffCal.set(Calendar.HOUR_OF_DAY, cutOffTimeArray(0).toInt)
+        paymentCutOffCal.set(Calendar.MINUTE, cutOffTimeArray(1).toInt)
+        paymentCutOffCal.set(Calendar.SECOND, cutOffTimeArray(2).toInt)
+        paymentCutOffCal.set(Calendar.DAY_OF_MONTH, orderTime.get(Calendar.DAY_OF_MONTH))
+        paymentCutOffCal.set(Calendar.MONTH, orderTime.get(Calendar.MONTH))
+        paymentCutOffCal.set(Calendar.YEAR, orderTime.get(Calendar.YEAR))
+        if (orderTime.after(paymentCutOffCal)) {
+          marketHelper.getNextNthWorkingDay(orderTime, category, 2)
+        } else {
+          marketHelper.getNextWorkingDay(orderTime, category)
+        }
+      }
+    })
+  }
+
+  /**
+    *
+    * @param orderTime
+    * @param paymentCutOff
+    * @return
+    */
+  def setPaymentCutOff(orderTime: Calendar, paymentCutOff: String): Calendar = {
+
+    val cutOffTimeArray = paymentCutOff.split(':')
+    orderTime.set(Calendar.HOUR_OF_DAY, cutOffTimeArray(0).toInt)
+    orderTime.set(Calendar.MINUTE, cutOffTimeArray(1).toInt)
+    orderTime.set(Calendar.SECOND, cutOffTimeArray(2).toInt)
+
+    orderTime
+  }
+
+  /**
+    *
+    * @return
+    */
+  def getOrderStatesChangeMap(): Future[mutable.HashMap[Long, List[Long]]] = {
+
+    val orderStatesChangeMap: mutable.HashMap[Long, List[Long]] = new mutable.HashMap[Long, List[Long]]()
+    orderRepository.getOrderStates().map(ostmList => {
+      for (ostmRow <- ostmList) {
+        val ostmRfnum = ostmRow.id
+        val ostmToStates = ostmRow.ostmtostates.getOrElse("").split(',')
+        val orderToStatesList: ListBuffer[Long] = ListBuffer[Long]()
+        for (switchStates <- ostmToStates) {
+          if (switchStates.nonEmpty) {
+            orderToStatesList.+=(switchStates.toLong)
+          }
+        }
+        orderStatesChangeMap.+=(ostmRfnum -> orderToStatesList.toList)
+      }
+      orderStatesChangeMap
+    })
+  }
+
+  /**
+    *
+    * @param subOrder
+    * @param order
+    * @param newState
+    * @param orderStateChangeMap
+    * @param orderProcessed
+    * @param userLoginObject
+    * @return
+    */
+  def updateSubOrderState(subOrder: FcsotRow, order: FcomtRow, newState: Long, orderStateChangeMap: mutable.HashMap[Long, List[Long]],
+                          orderProcessed: Long, userLoginObject: UserLoginObject): Future[(Boolean,String)] = {
+
+    val userName = userLoginObject.username.get
+    val userId = userLoginObject.userid.get
+    val stateChangeAllowed = isStateChangeAllowed(subOrder.sotostmstaterfnum, newState, orderStateChangeMap)
+    if (stateChangeAllowed) {
+      orderRepository.updateStateForSubOrder(subOrder.id, order.id, subOrder.sotostmstaterfnum, newState, userName).map(updated => {
+        notifyZendesk(subOrder, order, orderProcessed, userName, userId)
+        (true,STATE_CHANGED_SUCCESSFULLY)
+      })
+    } else {
+      logger.debug("Suborder State Update failed from "+ subOrder.sotostmstaterfnum + " to " + newState)
+      Future.apply((false,STATE_CHANGE_NOT_ALLOWED))
+    }
+
+  }
+
+  /**
+    *
+    * @param subOrder
+    * @param order
+    * @param orderProcessed
+    * @param userName
+    * @param userId
+    * @return
+    */
+  def notifyZendesk(subOrder: FcsotRow, order: FcomtRow, orderProcessed: Long, userName: String, userId: Long) = {
+    getSubOrderDetailsObj(subOrder, orderProcessed, order, userName).map(orderDetails => {
+      orderRepository.getOrderStateObj(subOrder.sotostmstaterfnum).map(prevOrderStateObj => {
+        if (prevOrderStateObj.nonEmpty) {
+          zendeskService.postOrderUpdate(orderDetails, orderDetails.subOrderDetails.head, prevOrderStateObj.get.ostmdisplayname, prevOrderStateObj.get.ostmname, userId)
+        }
+      })
+    })
+  }
+
+  /**
+    *
+    * @param sotRow
+    * @param orderProcessed
+    * @param orderObj
+    * @param userName
+    * @return
+    */
+  def getSubOrderDetailsObj(sotRow: FcsotRow, orderProcessed: Long, orderObj: FcomtRow, userName: String): Future[OrderDetails] = {
+
+    val investmentMode = InvestmentConstants.INVESTMENT_MODE_MAP.getOrElse(sotRow.sotinvestmentmode, "")
+    var sipFrequency: Option[String] = None
+    if (!sotRow.sotsipfrequency.isEmpty) {
+      sipFrequency = Some(OrderConstants.FREQUENCY_MAP.getOrElse(sotRow.sotsipfrequency.get, ""))
+    }
+    val createDate = DateTimeUtils.convertSqlTimestampToString(sotRow.createdate.get)
+    val buySellTypeName = getBuySellTypeName(orderObj.omtbuysell, sotRow.sotbuyselltype)
+    var subOrderAmount = sotRow.sotorderamount
+    schemeRepository.getSchemeOptionById(sotRow.sotsoptrfnum).flatMap(soptRow => {
+      for {
+        soptRow <- schemeRepository.getSchemeOptionById(sotRow.sotsoptrfnum)
+        smtRow <- schemeRepository.getSchemeById(soptRow.soptsmtrfnum)
+        mmtRow <- bankRepository.getSubOrderMandateDetails(sotRow.id)
+        subOrderObj <- orderRepository.getSubOrderState(sotRow.id, userName)
+        orderState <- orderRepository.getOrderStateObj(orderObj.omtostmstaterfnum)
+        subOrderChildDetailsList <- orderRepository.getSubOrderChildDetails(sotRow.id)
+      } yield {
+        val schemePlan = schemeHelper.getSchemeOption(soptRow.soptschemeplan, soptRow.soptdividendfrqn)
+        val schemeOption = schemeHelper.getDivOption(soptRow.soptdivioptiontype)
+        val subOrderState = subOrderObj.ostmdisplayname
+        val subOrderStateCode = subOrderObj.ostmname
+        val childDetailList = buildSubOrderChildList(subOrderChildDetailsList)
+        val stateDetails = OrderStateDetails(subOrderStateCode, subOrderObj.id)
+        val ackAdditionalDetails = SubOrderAckAdditionalDetails(sotRow.sottranscnmode)
+
+        var subOrderDetail = SubOrderDetails(sotRow.id, orderProcessed, investmentMode, createDate, buySellTypeName,
+          schemeName = Some(smtRow.smtdisplayname), schemePlan = Some(schemePlan), schemeOption = Some(schemeOption), amount = Some(subOrderAmount),
+          sipNoOfInstallments = sotRow.sotsipinstallments, sipFrequency = sipFrequency, sipDayOfMonth = sotRow.sotsipdayofmonth,
+          quantity = sotRow.sotorderquantity, stateName = Some(subOrderState), transactionId1 = sotRow.sottrnsctionid1,
+          transactionId2 = sotRow.sottrnsctionid2, stateDetails = Some(stateDetails),
+          extDetails = Some(childDetailList), schemeCode = Some(sotRow.sotsoptrfnum), ackAdditionalDetails = Some(ackAdditionalDetails))
+
+        if (!mmtRow.isEmpty) {
+          val mmtRowDetails = mmtRow.head
+          val mandateDetails = SubOrderMandateDetails(mmtRowDetails.id, mmtRowDetails.mmtexternalid.get, mmtRowDetails.mmtmandatetype.get)
+          subOrderDetail = subOrderDetail.copy(mandateDetails = Some(mandateDetails))
+        }
+        OrderDetails(orderObj.id, orderObj.omtbuysell, List[SubOrderDetails](subOrderDetail), createDate, orderObj.omttotalamount, snapshotPath = orderObj.omtsnapshotpath,
+          stateName = Some(orderState.head.ostmdisplayname))
+        //subOrderDetail
+      }
+
+    })
+  }
+
+  /**
+    *
+    * @param orderType
+    * @param buySellType
+    * @return
+    */
+  def getBuySellTypeName(orderType: String, buySellType: String): String = {
+
+    if (orderType == BUYSELL_BUY) {
+      OrderConstants.PURCHASE_BUY_SELL_TYPE_MAP.getOrElse(buySellType, "")
+    } else {
+      OrderConstants.REDEMPTION_BUY_SELL_TYPE_MAP.getOrElse(buySellType, "")
+    }
+  }
+
+  /**
+    *
+    * @param soctRowList
+    * @return
+    */
+  def buildSubOrderChildList(soctRowList: List[FcsoctRow]): List[SubOrderExtDetails] = {
+
+    for (soctRow <- soctRowList) yield {
+      SubOrderExtDetails(soctRow.soctkey, soctRow.soctvalue, soctRow.soctvaluedate, soctRow.soctvaluedouble)
+    }
+  }
+
+  /**
+    *
+    * @param fromState
+    * @param toState
+    * @param stateChangeMap
+    * @return
+    */
+  def isStateChangeAllowed(fromState: Long, toState: Long, stateChangeMap: mutable.HashMap[Long, List[Long]]): Boolean = {
+
+    val toStateList = stateChangeMap.get(fromState).getOrElse(List[Long]())
+
+    toStateList.contains(toState)
+  }
+
+  /**
+    *
+    * @param lOneLZeroDetails
+    * @param soptrfnum
+    * @return
+    */
+  def isLOneLZeroOrderTimeValid(lOneLZeroDetails: LOneLZeroDetails, soptrfnum:Long):Future[Boolean] = {
+
+    val lOneLZeroCutOffTime:Array[String] = lOneLZeroDetails.orderCutOffTime.split(':')
+    val lOneOrderCutOffCal = Calendar.getInstance()
+    lOneOrderCutOffCal.set(Calendar.HOUR_OF_DAY,lOneLZeroCutOffTime(0).toInt)
+    //lOneOrderCutOffCal.set(Calendar.HOUR_OF_DAY,9)
+    lOneOrderCutOffCal.set(Calendar.MINUTE,lOneLZeroCutOffTime(1).toInt)
+    lOneOrderCutOffCal.set(Calendar.SECOND,lOneLZeroCutOffTime(2).toInt)
+    lOneOrderCutOffCal.set(Calendar.MILLISECOND,0)
+
+    orderRepository.getSchemeBSECutOff(soptrfnum).map(bseCutOff =>{
+
+      val bseCutOffTime:Array[String] = bseCutOff.split(':')
+      val schemeCutOffCal = Calendar.getInstance()
+      schemeCutOffCal.set(Calendar.HOUR_OF_DAY,bseCutOffTime(0).toInt)
+      //schemeCutOffCal.set(Calendar.HOUR_OF_DAY,23)
+      schemeCutOffCal.set(Calendar.MINUTE,bseCutOffTime(1).toInt)
+      schemeCutOffCal.set(Calendar.SECOND,bseCutOffTime(2).toInt)
+      schemeCutOffCal.set(Calendar.MILLISECOND,0)
+
+      val orderTimeCal = Calendar.getInstance()
+
+      orderTimeCal.before(lOneOrderCutOffCal) || orderTimeCal.after(schemeCutOffCal)
+    })
+  }
+
+  /**
+    *
+    * @param processedOrderModelList
+    * @return
+    */
+  def getSuccessPurchaseOrdersList(processedOrderModelList: List[ProcessedOrderModel]):List[Option[ProcessedOrderModel]] = {
+
+    for(orderModel <- processedOrderModelList)  yield{
+      var successPurchaseOrder = false
+
+      for(processedSubOrderModel <- orderModel.subOrderList){
+        if(processedSubOrderModel.orderProcessed == ORDER_STATUS_SUCCESS && processedSubOrderModel.orderType == BUYSELL_BUY){
+          successPurchaseOrder = true
+        }
+      }
+      if(successPurchaseOrder){
+        Some(orderModel)
+      } else{
+        None
+      }
+    }
+  }
+}
